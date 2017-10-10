@@ -1,0 +1,13 @@
+id: alien4cloud-kubernetes-plugin
+name: kubernetes topology processing plugin
+version: ${project.version}
+description: >
+  This plugin contains topology modifiers to transform a generic 
+configuration_class: org.alien4cloud.plugin.kubernetes.PluginConfiguration
+component_descriptors:
+  - bean_name: kubernetes-modifier
+    name: Kubernetes modifier.
+    description: Topology modifier that transform a generic topology into a Kubernetes topology.
+  - bean_name: kubernetes-anti-affinity-modifier
+    name: Kubernetes modifier for anti-affinity policy.
+    description: Anti-affinity policy implementation modifier.
