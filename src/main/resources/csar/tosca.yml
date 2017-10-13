@@ -1,0 +1,18 @@
+tosca_definitions_version: alien_dsl_2_0_0
+
+metadata:
+  template_name: org.alien4cloud.kubernetes.clients
+  template_author: alien4cloud
+  template_version: 1.0.0-SNAPSHOT
+
+imports:
+  - tosca-normative-types:1.0.0-SNAPSHOT
+
+description: >
+  This archive contains concrete types to manage the deployment of kubernetes application through a TOSCA modeling.
+
+  Please look for the org.alien4cloud.kubernetes.cluster for the implementation types of a kubernetes deployment.
+
+node_types:
+  org.alien4cloud.kubernetes.Deployment:
+    derived_from: tosca.nodes.Root
