@@ -1,19 +1,23 @@
-package alien4cloud.it;
+package org.alien4cloud;
 
 import alien4cloud.application.ApplicationService;
+import alien4cloud.csar.services.CsarGitRepositoryService;
+import alien4cloud.csar.services.CsarGitService;
 import alien4cloud.dao.IGenericSearchDAO;
 import alien4cloud.dao.model.FacetedSearchResult;
 import alien4cloud.dao.model.GetMultipleDataResult;
 import alien4cloud.exception.NotFoundException;
-import alien4cloud.it.common.CommonStepDefinitions;
 import alien4cloud.model.application.Application;
 import alien4cloud.model.application.ApplicationEnvironment;
 import alien4cloud.model.application.ApplicationVersion;
 import alien4cloud.model.components.CSARSource;
+import alien4cloud.model.git.CsarGitCheckoutLocation;
+import alien4cloud.model.git.CsarGitRepository;
 import alien4cloud.rest.utils.JsonUtil;
 import alien4cloud.security.model.User;
 import alien4cloud.topology.TopologyDTO;
 import alien4cloud.tosca.parser.ParserTestUtil;
+import alien4cloud.tosca.parser.ParsingError;
 import alien4cloud.tosca.parser.ParsingErrorLevel;
 import alien4cloud.tosca.parser.ParsingResult;
 import alien4cloud.utils.AlienConstants;
@@ -21,6 +25,7 @@ import alien4cloud.utils.FileUtil;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import cucumber.api.DataTable;
+import cucumber.api.PendingException;
 import cucumber.api.java.Before;
 import cucumber.api.java.en.And;
 import cucumber.api.java.en.Given;
@@ -70,7 +75,7 @@ import static org.alien4cloud.test.util.SPELUtils.evaluateAndAssertExpression;
 @Slf4j
 public class ModifierTestStepDefs {
 
-    CommonStepDefinitions commonStepDefinitions = new CommonStepDefinitions();
+//    CommonStepDefinitions commonStepDefinitions = new CommonStepDefinitions();
 
     @Resource(name = "alien-es-dao")
     private IGenericSearchDAO alienDAO;
@@ -82,6 +87,11 @@ public class ModifierTestStepDefs {
     private EditionContextManager editionContextManager;
     @Inject
     private CsarService csarService;
+    @Inject
+    private CsarGitRepositoryService csarGitRepositoryService;
+    @Inject
+    private CsarGitService csarGitService;
+
     @Inject
     private ITopologyCatalogService catalogService;
     @Inject
@@ -116,6 +126,7 @@ public class ModifierTestStepDefs {
         typesToClean.add(Application.class);
         typesToClean.add(ApplicationEnvironment.class);
         typesToClean.add(ApplicationVersion.class);
+        typesToClean.add(CsarGitRepository.class);
     }
 
     @Before
@@ -140,18 +151,83 @@ public class ModifierTestStepDefs {
 
         topologyIds.clear();
         editionContextManager.clearCache();
+
+        for (Class<?> type : typesToClean) {
+            alienDAO.delete(type, QueryBuilders.matchAllQuery());
+        }
+    }
+
+    @Given("^I am authenticated with \"(.*?)\" role$")
+    public void i_am_authenticated_with_role(String role) throws Throwable {
+        User user = new User();
+        user.setUsername("Username");
+        user.setFirstName("firstName");
+        user.setLastName("lastname");
+        user.setEmail("user@fastco");
+        Authentication auth = new TestAuth(user, role);
+        SecurityContextHolder.getContext().setAuthentication(auth);
+    }
+
+    private static class TestAuth extends UsernamePasswordAuthenticationToken {
+        Collection<GrantedAuthority> authorities = new ArrayList<GrantedAuthority>();
+
+        public TestAuth(User user, String role) {
+            super(user, null);
+            authorities.add(new SimpleGrantedAuthority(role));
+        }
+
+        @Override
+        public Collection<GrantedAuthority> getAuthorities() {
+            return authorities;
+        }
+    }
+
+    @Given("^I add and import a GIT repository with url \"(.*?)\" usr \"(.*?)\" pwd \"(.*?)\" stored \"(.*?)\" and locations$")
+    public void i_add_a_GIT_repository_with_url_usr_pwd_stored_and_locations(String url, String usr, String pwd, boolean stored,
+                                                                             List<CsarGitCheckoutLocation> locations) throws Throwable {
+
+        String id = csarGitRepositoryService.create(url, usr, pwd, locations, stored);
+        List<ParsingResult<Csar>> results = csarGitService.importFromGitRepository(id);
+        for (ParsingResult<Csar> result : results) {
+            if (result.hasError(ParsingErrorLevel.ERROR)) {
+                for (ParsingError error : result.getContext().getParsingErrors()) {
+                    log.error("Parsing error context: {}, {}", error.getContext(), error.getNote());
+                }
+//                throw new Exception("Parsing error while importing CSARs from GIT");
+            }
+        }
+
+    }
+
+    @When("^I upload unzipped CSAR from path \"(.*?)\"$")
+    public void i_upload_unzipped_CSAR_From_path(String path) throws Throwable {
+        Path source = Paths.get(path);
+        Path csarTargetPath = CSAR_TARGET_PATH.resolve(source.getFileName() + ".csar");
+        FileUtil.zip(source, csarTargetPath);
+        uploadCsar(csarTargetPath);
+    }
+
+    private void uploadCsar(Path path) throws Throwable {
+        ParsingResult<Csar> result = csarUploadService.upload(path, CSARSource.UPLOAD, AlienConstants.GLOBAL_WORKSPACE_ID);
+        if (result.getContext().getParsingErrors().size() > 0) {
+            ParserTestUtil.displayErrors(result);
+        }
+        Assert.assertFalse(result.hasError(ParsingErrorLevel.ERROR));
+    }
+
+    @And("^I get the topology related to the CSAR with name \"([^\"]*)\" and version \"([^\"]*)\"$")
+    public void iGetTheTopologyRelatedToTheCSARWithName(String archiveName, String archiveVersion) throws Throwable {
+        Topology topology = catalogService.get(archiveName + ":" + archiveVersion);
+        if (topology != null) {
+            topologyIds.addLast(topology.getId());
+        }
     }
 
     @When("^I execute the modifier \"(.*?)\" on the current topology$")
     public void i_execute_the_modifier_on_the_current_topology(String modifierClass) throws Throwable {
-        String topologyId = Context.getInstance().getTopologyId();
+        String topologyId = topologyIds.getLast();
 
-        // Write code here that turns the phrase above into concrete actions
-        Context.getInstance().registerRestResponse(Context.getRestClientInstance().get("/rest/v1/catalog/topologies/" + topologyId));
-        commonStepDefinitions.I_should_receive_a_RestResponse_with_no_error();
-
-        // register the retrieved topology as SPEL context
-        Topology topology = JsonUtil.read(Context.getInstance().getRestResponse(), Topology.class, Context.getJsonMapper()).getData();
+        Topology topology = catalogService.getOrFail(topologyId);
 
         Class clazz = Class.forName(modifierClass);
         ITopologyModifier modifier = (ITopologyModifier)BeanUtils.instantiate(clazz);

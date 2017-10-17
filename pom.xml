@@ -139,13 +139,13 @@
       <scope>test</scope>
       <classifier>tests</classifier>
     </dependency>
-    <dependency>
-      <groupId>alien4cloud</groupId>
-      <artifactId>alien4cloud-rest-it</artifactId>
-      <version>${project.version}</version>
-      <scope>test</scope>
-      <classifier>tests</classifier>
-    </dependency>
+    <!--<dependency>-->
+      <!--<groupId>alien4cloud</groupId>-->
+      <!--<artifactId>alien4cloud-rest-it</artifactId>-->
+      <!--<version>${project.version}</version>-->
+      <!--<scope>test</scope>-->
+      <!--<classifier>tests</classifier>-->
+    <!--</dependency>-->
     <dependency>
       <groupId>alien4cloud</groupId>
       <artifactId>alien4cloud-tosca</artifactId>

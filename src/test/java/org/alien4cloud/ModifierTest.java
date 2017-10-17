@@ -1,4 +1,4 @@
-package alien4cloud.it;
+package org.alien4cloud;
 
 import cucumber.api.CucumberOptions;
 import cucumber.api.junit.Cucumber;
@@ -10,4 +10,5 @@ import org.junit.runner.RunWith;
         "src/test/resources/org/alien4cloud/kubernetes/modifiers/"
 })
 public class ModifierTest {
+
 }
