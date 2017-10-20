@@ -13,13 +13,11 @@ import alien4cloud.model.application.ApplicationVersion;
 import alien4cloud.model.components.CSARSource;
 import alien4cloud.model.git.CsarGitCheckoutLocation;
 import alien4cloud.model.git.CsarGitRepository;
+import alien4cloud.repository.services.RepositoryService;
 import alien4cloud.rest.utils.JsonUtil;
 import alien4cloud.security.model.User;
 import alien4cloud.topology.TopologyDTO;
-import alien4cloud.tosca.parser.ParserTestUtil;
-import alien4cloud.tosca.parser.ParsingError;
-import alien4cloud.tosca.parser.ParsingErrorLevel;
-import alien4cloud.tosca.parser.ParsingResult;
+import alien4cloud.tosca.parser.*;
 import alien4cloud.utils.AlienConstants;
 import alien4cloud.utils.FileUtil;
 import com.google.common.collect.Lists;
@@ -36,6 +34,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.alien4cloud.alm.deployment.configuration.flow.EnvironmentContext;
 import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
 import org.alien4cloud.alm.deployment.configuration.flow.ITopologyModifier;
+import org.alien4cloud.alm.deployment.configuration.services.DeploymentConfigurationDao;
 import org.alien4cloud.tosca.catalog.ArchiveUploadService;
 import org.alien4cloud.tosca.catalog.index.CsarService;
 import org.alien4cloud.tosca.catalog.index.ITopologyCatalogService;
@@ -43,13 +42,17 @@ import org.alien4cloud.tosca.editor.EditionContextManager;
 import org.alien4cloud.tosca.editor.EditorService;
 import org.alien4cloud.tosca.editor.operations.AbstractEditorOperation;
 import org.alien4cloud.tosca.editor.operations.UpdateFileOperation;
+import org.alien4cloud.tosca.exporter.ArchiveExportService;
 import org.alien4cloud.tosca.model.Csar;
 import org.alien4cloud.tosca.model.templates.Topology;
 import org.alien4cloud.tosca.model.types.*;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.junit.Assert;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.BeanFactoryUtils;
+import org.springframework.context.ApplicationContext;
 import org.springframework.expression.EvaluationContext;
 import org.springframework.expression.spel.SpelParserConfiguration;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
@@ -70,6 +73,7 @@ import java.nio.file.Paths;
 import java.util.*;
 
 import static org.alien4cloud.test.util.SPELUtils.evaluateAndAssertExpression;
+import static org.mockito.Mockito.*;
 
 @ContextConfiguration("classpath:org/alien4cloud/kubernetes/modifiers/application-context-test.xml")
 @Slf4j
@@ -77,8 +81,13 @@ public class ModifierTestStepDefs {
 
 //    CommonStepDefinitions commonStepDefinitions = new CommonStepDefinitions();
 
+//    @Mock
+//    private RepositoryService repositoryService;
+
     @Resource(name = "alien-es-dao")
     private IGenericSearchDAO alienDAO;
+    @Inject
+    private DeploymentConfigurationDao deploymentConfigurationDao;
     @Inject
     private ArchiveUploadService csarUploadService;
     @Inject
@@ -91,11 +100,15 @@ public class ModifierTestStepDefs {
     private CsarGitRepositoryService csarGitRepositoryService;
     @Inject
     private CsarGitService csarGitService;
+    @Inject
+    private ArchiveExportService archiveExportService;
 
     @Inject
     private ITopologyCatalogService catalogService;
     @Inject
     private ApplicationService applicationService;
+    @Inject
+    private ApplicationContext applicationContext;
 
     private LinkedList<String> topologyIds = new LinkedList();
 
@@ -131,6 +144,10 @@ public class ModifierTestStepDefs {
 
     @Before
     public void init() throws IOException {
+//        MockitoAnnotations.initMocks(this);
+//        when(repositoryService.canResolveArtifact(anyString(), anyString(), anyString(), anyMapOf(String.class, Object.class))).thenReturn(true);
+//        when(repositoryService.resolveArtifact(anyString(), anyString(), anyString(), anyMapOf(String.class, Object.class))).thenReturn("");
+
         thrownException = null;
 
         GetMultipleDataResult<Application> apps = alienDAO.search(Application.class, "", null, 100);
@@ -224,15 +241,18 @@ public class ModifierTestStepDefs {
     }
 
     @When("^I execute the modifier \"(.*?)\" on the current topology$")
-    public void i_execute_the_modifier_on_the_current_topology(String modifierClass) throws Throwable {
+    public void i_execute_the_modifier_on_the_current_topology(String beanName) throws Throwable {
         String topologyId = topologyIds.getLast();
 
         Topology topology = catalogService.getOrFail(topologyId);
 
-        Class clazz = Class.forName(modifierClass);
-        ITopologyModifier modifier = (ITopologyModifier)BeanUtils.instantiate(clazz);
-        FlowExecutionContext executionContext = new FlowExecutionContext(alienDAO, topology, new EnvironmentContext(null, null));
+        ITopologyModifier modifier = (ITopologyModifier)applicationContext.getBean(beanName);
+        FlowExecutionContext executionContext = new FlowExecutionContext(deploymentConfigurationDao, topology, new EnvironmentContext(null, null));
         modifier.process(topology, executionContext);
+        log.debug("Topology processed");
+        String yaml = archiveExportService.getYaml(new Csar(topology.getArchiveName(), topology.getArchiveVersion()), topology, false, ToscaParser.LATEST_DSL);
+        log.info(yaml);
+        System.out.println("yaml = " + yaml);
     }
 
 }

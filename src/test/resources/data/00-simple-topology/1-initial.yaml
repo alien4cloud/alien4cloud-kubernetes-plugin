@@ -1,0 +1,99 @@
+tosca_definitions_version: alien_dsl_2_0_0
+
+metadata:
+  template_name: docker-topo-sample-nodecellar
+  template_version: 2.0.0-SNAPSHOT
+  template_author: alien4cloud
+
+
+description: |
+  A nodecellar topology template composing of:
+    - 1 ContainerUnit
+    - 1 Nodecellar nodes hosted_on the ContainerUnit
+    - 1 MongoDBs having a relationship with the Nodecellar node.
+
+imports:
+  - docker-types:2.0.0-SNAPSHOT
+  - tosca-normative-types:1.0.0-SNAPSHOT
+  - docker-draft.sandbox.samples:2.0.0-SNAPSHOT
+
+topology_template:
+  node_templates:
+    ContainerRuntime:
+      type: org.alien4cloud.extended.container.types.ContainerRuntime
+      requirements:
+        - hostedOnContainerDeploymentUnitHost:
+            type_requirement: host
+            node: ContainerDeploymentUnit
+            capability: tosca.capabilities.Container.Docker
+            relationship: tosca.relationships.HostedOn
+    Nodecellar:
+      type: org.alien4cloud.nodes.Application.Docker.Nodecellar
+      properties:
+        docker_run_cmd: "cd /nodecellar && nodejs server.js"
+        docker_env_vars:
+          LOG_LEVEL: ""
+        cpu_share: 1.0
+        mem_share: "128 MB"
+      requirements:
+        - connectsToMongoMongo_db:
+            type_requirement: mongo_db
+            node: Mongo
+            capability: org.alien4cloud.capabilities.endpoint.docker.Mongo
+            relationship: tosca.relationships.ConnectsTo
+        - hostedOnContainerRuntimeContainerRuntimeHost:
+            type_requirement: host
+            node: ContainerRuntime
+            capability: org.alien4cloud.extended.container.capabilities.ApplicationHost
+            relationship: org.alien4cloud.extended.container.relationships.HostedOnContainerRuntime
+      capabilities:
+        nodecellar_app:
+          properties:
+            docker_bridge_port_mapping: 0
+            port: 3000
+            protocol: tcp
+            secure: false
+            network_name: PRIVATE
+            initiator: source
+        scalable:
+          properties:
+            min_instances: 1
+            max_instances: 1
+            default_instances: 1
+    ContainerDeploymentUnit:
+      type: org.alien4cloud.extended.container.types.ContainerDeploymentUnit
+      capabilities:
+        scalable:
+          properties:
+            min_instances: 1
+            max_instances: 1
+            default_instances: 1
+    ContainerRuntime_2:
+      type: org.alien4cloud.extended.container.types.ContainerRuntime
+    Mongo:
+      type: org.alien4cloud.nodes.Application.Docker.Mongo
+      properties:
+        cpu_share: 1.0
+        mem_share: "128 MB"
+      requirements:
+        - hostedOnContainerRuntimeContainerRuntime2Host:
+            type_requirement: host
+            node: ContainerRuntime_2
+            capability: org.alien4cloud.extended.container.capabilities.ApplicationHost
+            relationship: org.alien4cloud.extended.container.relationships.HostedOnContainerRuntime
+      capabilities:
+        mongo_db:
+          properties:
+            docker_bridge_port_mapping: 0
+            port: 27017
+            api_version: v1
+            protocol: tcp
+            secure: false
+            network_name: PRIVATE
+            initiator: source
+        scalable:
+          properties:
+            min_instances: 1
+            max_instances: 1
+            default_instances: 1
+
