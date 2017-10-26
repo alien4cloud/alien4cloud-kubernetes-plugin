@@ -1,0 +1,204 @@
+tosca_definitions_version: alien_dsl_2_0_0
+
+metadata:
+  template_name: 01-two-mongo-post-location-modifier
+  template_version: 2.0.0-SNAPSHOT
+  template_author: Username
+
+description: ""
+
+imports:
+  - alien-base-types:2.0.0-SNAPSHOT
+  - docker-types:2.0.0-SNAPSHOT
+  - tosca-normative-types:1.0.0-SNAPSHOT
+  - org.alien4cloud.kubernetes.api:2.0.0-SNAPSHOT
+  - docker-draft.sandbox.samples:2.0.0-SNAPSHOT
+
+topology_template:
+  node_templates:
+    Mongo1_CR:
+      metadata:
+        a4c_kubernetes-modifier : Replacement of a org.alien4cloud.extended.container.types.ContainerRuntime
+      type: org.alien4cloud.kubernetes.api.types.AbstractContainer
+      properties:
+        container:
+          image: "mongo:latest"
+          name: mongo1
+          resources:
+            requests:
+              memory: "128 MB"
+              cpu: 1.0
+            limits:
+              memory: "128 MB"
+              cpu: 1.0
+          ports:
+            mongo-db: 27017
+      requirements:
+        - hostedOnContainerDeploymentUnitHost:
+            type_requirement: host
+            node: Mongo1_DU
+            capability: tosca.capabilities.Container.Docker
+            relationship: tosca.relationships.HostedOn
+    Mongo1_DU:
+      metadata:
+        a4c_kubernetes-modifier : Replacement of a org.alien4cloud.extended.container.types.ContainerDeploymentUnit
+      type: org.alien4cloud.kubernetes.api.types.AbstractDeployment
+      properties:
+        apiVersion: "apps/v1beta1"
+        kind: Deployment
+        spec:
+          replicas: 1
+        metadata:
+          name: "mongo1-du-9cfc1c7e-f143-4efc-a55e-055847da1a16"
+      capabilities:
+        scalable:
+          properties:
+            min_instances: 1
+            max_instances: 1
+            default_instances: 1
+    Mongo1:
+      type: org.alien4cloud.nodes.Application.Docker.Mongo
+      properties:
+        cpu_share: 1.0
+        mem_share: "128 MB"
+      requirements:
+        - hostedOnContainerRuntimeMongo1CrHost:
+            type_requirement: host
+            node: Mongo1_CR
+            capability: org.alien4cloud.extended.container.capabilities.ApplicationHost
+            relationship: org.alien4cloud.extended.container.relationships.HostedOnContainerRuntime
+      capabilities:
+        mongo_db:
+          properties:
+            docker_bridge_port_mapping: 0
+            port: 27017
+            api_version: v1
+            protocol: tcp
+            secure: false
+            network_name: PRIVATE
+            initiator: source
+        scalable:
+          properties:
+            min_instances: 1
+            max_instances: 1
+            default_instances: 1
+    Mongo2_CR:
+      metadata:
+        a4c_kubernetes-modifier : Replacement of a org.alien4cloud.extended.container.types.ContainerRuntime
+      type: org.alien4cloud.kubernetes.api.types.AbstractContainer
+      properties:
+        container:
+          image: "mongo:latest"
+          name: mongo2
+          resources:
+            requests:
+              memory: "128 MB"
+              cpu: 1.0
+            limits:
+              memory: "128 MB"
+              cpu: 1.0
+          ports:
+            mongo-db: 27017
+      requirements:
+        - Mongo2_CR_Mongo2_CR_DU:
+            type_requirement: host
+            node: Mongo2_CR_DU
+            capability: tosca.capabilities.Container.Docker
+            relationship: tosca.relationships.HostedOn
+    Mongo2:
+      type: org.alien4cloud.nodes.Application.Docker.Mongo
+      properties:
+        cpu_share: 1.0
+        mem_share: "128 MB"
+      requirements:
+        - hostedOnContainerRuntimeMongo2CrHost:
+            type_requirement: host
+            node: Mongo2_CR
+            capability: org.alien4cloud.extended.container.capabilities.ApplicationHost
+            relationship: org.alien4cloud.extended.container.relationships.HostedOnContainerRuntime
+      capabilities:
+        mongo_db:
+          properties:
+            docker_bridge_port_mapping: 0
+            port: 27017
+            api_version: v1
+            protocol: tcp
+            secure: false
+            network_name: PRIVATE
+            initiator: source
+        scalable:
+          properties:
+            min_instances: 1
+            max_instances: 1
+            default_instances: 1
+    Mongo2_CR_DU:
+      metadata:
+        a4c_kubernetes-modifier : Created to host Mongo2_CR
+      type: org.alien4cloud.kubernetes.api.types.AbstractDeployment
+      properties:
+        apiVersion: "apps/v1beta1"
+        kind: Deployment
+        spec:
+          replicas: 1
+        metadata:
+          name: "mongo2-cr-du-db43d7ab-6d3d-49a2-ac7d-09eefd73c633"
+      capabilities:
+        scalable:
+          properties:
+            min_instances: 1
+            max_instances: 1
+            default_instances: 1
+    Mongo1_mongo_db_Service:
+      metadata:
+        a4c_kubernetes-modifier : Proxy of node <Mongo1> capability <mongo_db>
+      type: org.alien4cloud.kubernetes.api.types.AbstractService
+      properties:
+        apiVersion: v1
+        kind: Service
+        spec:
+          service_type: NodePort
+          selector:
+            name: "mongo1-du-9cfc1c7e-f143-4efc-a55e-055847da1a16"
+          ports:
+            -
+              port: 27017
+              name: "mongo-db"
+        metadata:
+          name: "mongo1-mongo-db-service-4dd661b8-5147-4444-9554-9c6513a563d9"
+      requirements:
+        - Mongo1_mongo_db_Service_Mongo1_DU:
+            type_requirement: dependency
+            node: Mongo1_DU
+            capability: tosca.capabilities.Node
+            relationship: tosca.relationships.DependsOn
+    Mongo2_mongo_db_Service:
+      metadata:
+        a4c_kubernetes-modifier : Proxy of node <Mongo2> capability <mongo_db>
+      type: org.alien4cloud.kubernetes.api.types.AbstractService
+      properties:
+        apiVersion: v1
+        kind: Service
+        spec:
+          service_type: NodePort
+          selector:
+            name: "mongo2-cr-du-db43d7ab-6d3d-49a2-ac7d-09eefd73c633"
+          ports:
+            -
+              port: 27017
+              name: "mongo-db"
+        metadata:
+          name: "mongo2-mongo-db-service-e350082f-7eaa-47c9-aad7-000b7333a4a4"
+      requirements:
+        - Mongo2_mongo_db_Service_Mongo2_CR_DU:
+            type_requirement: dependency
+            node: Mongo2_CR_DU
+            capability: tosca.capabilities.Node
+            relationship: tosca.relationships.DependsOn
+
+  policies:
+    - mongo_anti_affinity:
+        type: org.alien4cloud.policies.AntiAffinity
+        description: The anti affinity policy between node 1 and 2
+        targets: [Mongo1_DU, Mongo2_CR_DU]
+        properties:
+          level: host

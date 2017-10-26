@@ -15,10 +15,7 @@ import org.alien4cloud.tosca.model.definitions.AbstractPropertyValue;
 import org.alien4cloud.tosca.model.definitions.ComplexPropertyValue;
 import org.alien4cloud.tosca.model.definitions.ListPropertyValue;
 import org.alien4cloud.tosca.model.definitions.ScalarPropertyValue;
-import org.alien4cloud.tosca.model.templates.Capability;
-import org.alien4cloud.tosca.model.templates.NodeTemplate;
-import org.alien4cloud.tosca.model.templates.RelationshipTemplate;
-import org.alien4cloud.tosca.model.templates.Topology;
+import org.alien4cloud.tosca.model.templates.*;
 import org.alien4cloud.tosca.model.types.CapabilityType;
 import org.alien4cloud.tosca.normative.constants.NormativeCapabilityTypes;
 import org.alien4cloud.tosca.normative.constants.NormativeRelationshipConstants;
@@ -69,6 +66,8 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesTopolo
                     // feed the replica property
                     setNodePropertyPathValue(csar, topology, hostNode, "spec.replicas", defaultInstances);
                 }
+                // find the policies that target this CR node and target them to the new CU
+                changePolicyTarget(topology, nodeTemplate, hostNode);
 
                 // add the hosted on relationship between the container runtime and the deployment
                 addRelationshipTemplate(csar, topology, nodeTemplate, hostNode.getName(), NormativeRelationshipConstants.HOSTED_ON, "host", "host");
