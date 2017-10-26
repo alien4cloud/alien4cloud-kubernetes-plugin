@@ -1,4 +1,4 @@
-package org.alien4cloud.plugin.kubernetes;
+package org.alien4cloud.plugin.kubernetes.csar;
 
 import org.slf4j.Logger;
 import org.springframework.stereotype.Component;

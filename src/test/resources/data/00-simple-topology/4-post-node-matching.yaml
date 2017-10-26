@@ -1,7 +1,7 @@
 tosca_definitions_version: alien_dsl_2_0_0
 
 metadata:
-  template_name: simple-post-location-modifier
+  template_name: 4-post-node-matching
   template_version: 2.0.0-SNAPSHOT
   template_author: Username
 
@@ -19,7 +19,7 @@ topology_template:
     ContainerRuntime:
       metadata:
         a4c_kubernetes-modifier : Replacement of a org.alien4cloud.extended.container.types.ContainerRuntime
-      type: org.alien4cloud.kubernetes.api.types.AbstractContainer
+      type: org.alien4cloud.kubernetes.api.types.Container
       properties:
         container:
           image: "afraisse/nodecellar:exp"
@@ -79,7 +79,7 @@ topology_template:
     ContainerDeploymentUnit:
       metadata:
         a4c_kubernetes-modifier : Replacement of a org.alien4cloud.extended.container.types.ContainerDeploymentUnit
-      type: org.alien4cloud.kubernetes.api.types.AbstractDeployment
+      type: org.alien4cloud.kubernetes.api.types.Deployment
       properties:
         apiVersion: "apps/v1beta1"
         kind: Deployment
@@ -102,7 +102,7 @@ topology_template:
     ContainerRuntime_2:
       metadata:
         a4c_kubernetes-modifier : Replacement of a org.alien4cloud.extended.container.types.ContainerRuntime
-      type: org.alien4cloud.kubernetes.api.types.AbstractContainer
+      type: org.alien4cloud.kubernetes.api.types.Container
       properties:
         container:
           image: "mongo:latest"
@@ -151,7 +151,7 @@ topology_template:
     ContainerRuntime_2_DU:
       metadata:
         a4c_kubernetes-modifier : Created to host ContainerRuntime_2
-      type: org.alien4cloud.kubernetes.api.types.AbstractDeployment
+      type: org.alien4cloud.kubernetes.api.types.Deployment
       properties:
         apiVersion: "apps/v1beta1"
         kind: Deployment
@@ -168,7 +168,7 @@ topology_template:
     Mongo_mongo_db_Service:
       metadata:
         a4c_kubernetes-modifier : Proxy of node <Mongo> capability <mongo_db>
-      type: org.alien4cloud.kubernetes.api.types.AbstractService
+      type: org.alien4cloud.kubernetes.api.types.Service
       properties:
         apiVersion: v1
         kind: Service
@@ -191,7 +191,7 @@ topology_template:
     Nodecellar_nodecellar_app_Service:
       metadata:
         a4c_kubernetes-modifier : Proxy of node <Nodecellar> capability <nodecellar_app>
-      type: org.alien4cloud.kubernetes.api.types.AbstractService
+      type: org.alien4cloud.kubernetes.api.types.Service
       properties:
         apiVersion: v1
         kind: Service

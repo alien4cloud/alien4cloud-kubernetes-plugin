@@ -45,7 +45,7 @@
       org.alien4cloud.tosca.editor,
       org.alien4cloud.tosca.topology,
       org.alien4cloud.tosca.variable,
-      org.alien4cloud.plugin.kubernetes
+      org.alien4cloud.plugin.kubernetes.modifier
       ">
         <context:exclude-filter type="regex"
                                 expression="alien4cloud.orchestrators.services.OrchestratorSecurityService"/>
@@ -62,6 +62,7 @@
         <!--<context:exclude-filter type="regex" expression="alien4cloud.rest.deployment..*"/>-->
         <context:exclude-filter type="regex" expression="alien4cloud.rest.websocket..*"/>
         <context:exclude-filter type="regex" expression="org.alien4cloud.tosca.editor.EditorStaticResourcesConfigurer"/>
+        <context:exclude-filter type="regex" expression="org.alien4cloud.plugin.kubernetes.csar.*"/>
     </context:component-scan>
 
     <bean id="alienconfigFactory" class="alien4cloud.utils.AlienConfigFactory"/>

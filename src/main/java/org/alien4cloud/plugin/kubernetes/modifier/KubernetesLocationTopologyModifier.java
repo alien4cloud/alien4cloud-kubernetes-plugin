@@ -1,28 +1,30 @@
 package org.alien4cloud.plugin.kubernetes.modifier;
 
-import alien4cloud.paas.plan.ToscaNodeLifecycleConstants;
 import alien4cloud.paas.wf.util.WorkflowUtils;
 import alien4cloud.tosca.context.ToscaContext;
 import alien4cloud.tosca.context.ToscaContextual;
 import alien4cloud.utils.AlienUtils;
 import alien4cloud.utils.PropertyUtil;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import lombok.extern.java.Log;
 import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
-import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
 import org.alien4cloud.tosca.model.Csar;
-import org.alien4cloud.tosca.model.definitions.*;
+import org.alien4cloud.tosca.model.definitions.AbstractPropertyValue;
+import org.alien4cloud.tosca.model.definitions.ComplexPropertyValue;
+import org.alien4cloud.tosca.model.definitions.ListPropertyValue;
+import org.alien4cloud.tosca.model.definitions.ScalarPropertyValue;
 import org.alien4cloud.tosca.model.templates.Capability;
 import org.alien4cloud.tosca.model.templates.NodeTemplate;
 import org.alien4cloud.tosca.model.templates.RelationshipTemplate;
 import org.alien4cloud.tosca.model.templates.Topology;
 import org.alien4cloud.tosca.model.types.CapabilityType;
-import org.alien4cloud.tosca.model.types.NodeType;
 import org.alien4cloud.tosca.normative.constants.NormativeCapabilityTypes;
 import org.alien4cloud.tosca.normative.constants.NormativeRelationshipConstants;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -36,15 +38,8 @@ import java.util.UUID;
  */
 @Log
 @Component(value = "kubernetes-modifier")
-public class KubernetesLocationTopologyModifier extends TopologyModifierSupport {
+public class KubernetesLocationTopologyModifier extends AbstractKubernetesTopologyModifier {
 
-    public static final String A4C_TYPES_CONTAINER_RUNTIME = "org.alien4cloud.extended.container.types.ContainerRuntime";
-    public static final String K8S_TYPES_ABSTRACT_CONTAINER = "org.alien4cloud.kubernetes.api.types.AbstractContainer";
-    public static final String A4C_TYPES_CONTAINER_DEPLOYMENT_UNIT = "org.alien4cloud.extended.container.types.ContainerDeploymentUnit";
-    public static final String K8S_TYPES_ABSTRACT_DEPLOYMENT = "org.alien4cloud.kubernetes.api.types.AbstractDeployment";
-    public static final String A4C_TYPES_APPLICATION_DOCKER_CONTAINER = "tosca.nodes.Container.Application.DockerContainer";
-    public static final String K8S_TYPES_ABSTRACT_SERVICE = "org.alien4cloud.kubernetes.api.types.AbstractService";
-    public static final String K8S_CSAR_VERSION = "2.0.0-SNAPSHOT";
     public static final String A4C_KUBERNETES_MODIFIER_TAG = "a4c_kubernetes-modifier";
 
     @Override
@@ -66,7 +61,7 @@ public class KubernetesLocationTopologyModifier extends TopologyModifierSupport 
                 setNodeTagValue(hostNode, A4C_KUBERNETES_MODIFIER_TAG, "Created to host " + nodeTemplate.getName());
 
                 // set a generated name to the K8S object
-                setNodePropertyPathValue(csar, topology, hostNode, "metadata.name", new ScalarPropertyValue(hostNode.getName() + "_" + UUID.randomUUID().toString()));
+                setNodePropertyPathValue(csar, topology, hostNode, "metadata.name", new ScalarPropertyValue(generateKubeName(hostNode.getName() + "_" + UUID.randomUUID().toString())));
                 Set<NodeTemplate> hostedContainers = getSourceNodes(topology, nodeTemplate, "host");
                 // we may have a single hosted container
                 for (NodeTemplate containerNode : hostedContainers) {
@@ -89,7 +84,7 @@ public class KubernetesLocationTopologyModifier extends TopologyModifierSupport 
             AbstractPropertyValue defaultInstances = getNodeCapabilityPropertyValue(nodeTemplate, "scalable", "default_instances");
             // feed the replica property
             setNodePropertyPathValue(csar, topology, nodeTemplate, "spec.replicas", defaultInstances);
-            setNodePropertyPathValue(csar, topology, nodeTemplate, "metadata.name", new ScalarPropertyValue(nodeTemplate.getName() + "_" + UUID.randomUUID().toString()));
+            setNodePropertyPathValue(csar, topology, nodeTemplate, "metadata.name", new ScalarPropertyValue(generateKubeName(nodeTemplate.getName() + "_" + UUID.randomUUID().toString())));
         }
 
         // for each container capability of type endpoint
@@ -103,15 +98,23 @@ public class KubernetesLocationTopologyModifier extends TopologyModifierSupport 
             NodeTemplate deploymentNodeTemplate = getHostNode(topology, containerRuntimeNodeTemplate);
 
             // fill properties on the hosting K8S container
-            AbstractPropertyValue cpu_share = PropertyUtil.getPropertyValueFromPath(AlienUtils.safe(containerNodeTemplate.getProperties()), "cpu_share");
+            Map<String, AbstractPropertyValue> properties = AlienUtils.safe(containerNodeTemplate.getProperties());
+            AbstractPropertyValue cpu_share = PropertyUtil.getPropertyValueFromPath(properties, "cpu_share");
             setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.resources.requests.cpu", cpu_share);
             setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.resources.limits.cpu", cpu_share);
-            AbstractPropertyValue mem_share = PropertyUtil.getPropertyValueFromPath(AlienUtils.safe(containerNodeTemplate.getProperties()), "mem_share");
+            AbstractPropertyValue mem_share = PropertyUtil.getPropertyValueFromPath(properties, "mem_share");
             setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.resources.requests.memory", mem_share);
             setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.resources.limits.memory", mem_share);
             String imageName = getContainerImageName(containerNodeTemplate);
             setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.image", new ScalarPropertyValue(imageName));
-            setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.name", new ScalarPropertyValue(containerNodeTemplate.getName()));
+            setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.name", new ScalarPropertyValue(generateKubeName(containerNodeTemplate.getName())));
+            AbstractPropertyValue docker_run_cmd = PropertyUtil.getPropertyValueFromPath(properties, "docker_run_cmd");
+            if (docker_run_cmd != null && docker_run_cmd instanceof ScalarPropertyValue) {
+                List<Object> values = Lists.newArrayList("/bin/bash", "-c", ((ScalarPropertyValue)docker_run_cmd).getValue());
+                ListPropertyValue listPropertyValue = new ListPropertyValue();
+                listPropertyValue.setValue(values);
+                setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.command", listPropertyValue);
+            }
 
             // find every endpoint
             Set<String> endpointNames = Sets.newHashSet();
@@ -124,14 +127,14 @@ public class KubernetesLocationTopologyModifier extends TopologyModifierSupport 
             for (String endpointName : endpointNames) {
                 // fill the ports map of the hosting K8S AbstractContainer
                 AbstractPropertyValue port = containerNodeTemplate.getCapabilities().get(endpointName).getProperties().get("port");
-                setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.ports." + endpointName, port);
+                setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.ports." + generateKubeName(endpointName), port);
 
                 // add an abstract service node
                 NodeTemplate serviceNode = addNodeTemplate(csar, topology, containerNodeTemplate.getName() + "_" + endpointName + "_Service", K8S_TYPES_ABSTRACT_SERVICE, K8S_CSAR_VERSION);
                 setNodeTagValue(serviceNode, A4C_KUBERNETES_MODIFIER_TAG, "Proxy of node <" + containerNodeTemplate.getName() + "> capability <" + endpointName + ">");
 
                 // fill properties of service
-                setNodePropertyPathValue(csar, topology, serviceNode, "metadata.name", new ScalarPropertyValue(serviceNode.getName() + "_" + UUID.randomUUID().toString()));
+                setNodePropertyPathValue(csar, topology, serviceNode, "metadata.name", new ScalarPropertyValue(generateKubeName(serviceNode.getName() + "_" + UUID.randomUUID().toString())));
                 setNodePropertyPathValue(csar, topology, serviceNode, "spec.service_type", new ScalarPropertyValue("NodePort"));
                 // get the "pod name"
                 AbstractPropertyValue podName = PropertyUtil.getPropertyValueFromPath(AlienUtils.safe(deploymentNodeTemplate.getProperties()), "metadata.name");
@@ -139,7 +142,7 @@ public class KubernetesLocationTopologyModifier extends TopologyModifierSupport 
 
                 // fill port list
                 Map<String, Object> portEntry = Maps.newHashMap();
-                portEntry.put("name", new ScalarPropertyValue(endpointName));
+                portEntry.put("name", new ScalarPropertyValue(generateKubeName(endpointName)));
                 portEntry.put("port", port);
                 ComplexPropertyValue complexPropertyValue = new ComplexPropertyValue(portEntry);
                 appendNodePropertyPathValue(csar, topology, serviceNode, "spec.ports", complexPropertyValue);
@@ -168,17 +171,6 @@ public class KubernetesLocationTopologyModifier extends TopologyModifierSupport 
                 }
             }
         }
-    }
-
-    /**
-     * Get the image name from the type implementation artifact file.
-     * TODO: make resilient
-     */
-    private String getContainerImageName(NodeTemplate nodeTemplate) {
-        NodeType nodeType = ToscaContext.get(NodeType.class, nodeTemplate.getType());
-        Interface stdInterface = nodeType.getInterfaces().get(ToscaNodeLifecycleConstants.STANDARD);
-        Operation createOperation = stdInterface.getOperations().get(ToscaNodeLifecycleConstants.CREATE);
-        return createOperation.getImplementationArtifact().getArtifactRef();
     }
 
 }
