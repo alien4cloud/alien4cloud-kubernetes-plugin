@@ -5,22 +5,38 @@ metadata:
   template_version: 2.0.0-SNAPSHOT
   template_author: alien4cloud
 
-
-description: |
-  A nodecellar topology template composing of:
-    - 1 ContainerUnit
-    - 1 Nodecellar nodes hosted_on the ContainerUnit
-    - 1 MongoDBs having a relationship with the Nodecellar node.
-
 imports:
+  - alien-base-types:2.0.0-SNAPSHOT
   - docker-types:2.0.0-SNAPSHOT
   - tosca-normative-types:1.0.0-SNAPSHOT
+  - org.alien4cloud.kubernetes.api:2.0.0-SNAPSHOT
   - docker-draft.sandbox.samples:2.0.0-SNAPSHOT
 
 topology_template:
   node_templates:
     ContainerRuntime:
-      type: org.alien4cloud.extended.container.types.ContainerRuntime
+      metadata:
+        a4c_kubernetes-modifier : Replacement of a org.alien4cloud.extended.container.types.ContainerRuntime
+      type: org.alien4cloud.kubernetes.api.types.AbstractContainer
+      properties:
+        container:
+          image: "afraisse/nodecellar:exp"
+          name: "nodecellar--706822375"
+          resources:
+            requests:
+              memory: "128 MB"
+              cpu: 1.0
+            limits:
+              memory: "128 MB"
+              cpu: 1.0
+          ports:
+            -
+              name: "nodecellar-app"
+              containerPort: 3000
+          command:
+            - "/bin/bash"
+            - "-c"
+            - "cd /nodecellar && nodejs server.js"
       requirements:
         - hostedOnContainerDeploymentUnitHost:
             type_requirement: host
@@ -61,7 +77,26 @@ topology_template:
             max_instances: 1
             default_instances: 1
     ContainerDeploymentUnit:
-      type: org.alien4cloud.extended.container.types.ContainerDeploymentUnit
+      metadata:
+        a4c_kubernetes-modifier : Replacement of a org.alien4cloud.extended.container.types.ContainerDeploymentUnit
+      type: org.alien4cloud.kubernetes.api.types.AbstractDeployment
+      properties:
+        apiVersion: "apps/v1beta1"
+        kind: Deployment
+        spec:
+          template:
+            metadata:
+              labels:
+                app: "containerdeploymentunit--620425336"
+          replicas: 1
+        metadata:
+          name: "containerdeploymentunit--620425336"
+      requirements:
+        - ContainerDeploymentUnit_Mongo_mongo_db_Service:
+            type_requirement: dependency
+            node: Mongo_mongo_db_Service
+            capability: tosca.capabilities.Node
+            relationship: tosca.relationships.DependsOn
       capabilities:
         scalable:
           properties:
@@ -69,7 +104,30 @@ topology_template:
             max_instances: 1
             default_instances: 1
     ContainerRuntime_2:
-      type: org.alien4cloud.extended.container.types.ContainerRuntime
+      metadata:
+        a4c_kubernetes-modifier : Replacement of a org.alien4cloud.extended.container.types.ContainerRuntime
+      type: org.alien4cloud.kubernetes.api.types.AbstractContainer
+      properties:
+        container:
+          image: "mongo:latest"
+          name: "mongo--1909092837"
+          resources:
+            requests:
+              memory: "128 MB"
+              cpu: 1.0
+            limits:
+              memory: "128 MB"
+              cpu: 1.0
+          ports:
+            -
+              name: "mongo-db"
+              containerPort: 27017
+      requirements:
+        - ContainerRuntime_2_ContainerRuntime_2_DU:
+            type_requirement: host
+            node: ContainerRuntime_2_DU
+            capability: tosca.capabilities.Container.Docker
+            relationship: tosca.relationships.HostedOn
     Mongo:
       type: org.alien4cloud.nodes.Application.Docker.Mongo
       properties:
@@ -96,4 +154,70 @@ topology_template:
             min_instances: 1
             max_instances: 1
             default_instances: 1
-
+    ContainerRuntime_2_DU:
+      metadata:
+        a4c_kubernetes-modifier : Created to host ContainerRuntime_2
+      type: org.alien4cloud.kubernetes.api.types.AbstractDeployment
+      properties:
+        apiVersion: "apps/v1beta1"
+        kind: Deployment
+        spec:
+          template:
+            metadata:
+              labels:
+                app: "containerruntime-2-du--1914569420"
+          replicas: 1
+        metadata:
+          name: "containerruntime-2-du--1914569420"
+      capabilities:
+        scalable:
+          properties:
+            min_instances: 1
+            max_instances: 1
+            default_instances: 1
+    Mongo_mongo_db_Service:
+      metadata:
+        a4c_kubernetes-modifier : Proxy of node <Mongo> capability <mongo_db>
+      type: org.alien4cloud.kubernetes.api.types.AbstractService
+      properties:
+        apiVersion: v1
+        kind: Service
+        spec:
+          service_type: NodePort
+          selector:
+            name: "containerruntime-2-du--1914569420"
+          ports:
+            -
+              port: 27017
+              name: "mongo-db"
+        metadata:
+          name: "mongo-mongo-db-service-450098423"
+      requirements:
+        - Mongo_mongo_db_Service_ContainerRuntime_2_DU:
+            type_requirement: dependency
+            node: ContainerRuntime_2_DU
+            capability: tosca.capabilities.Node
+            relationship: tosca.relationships.DependsOn
+    Nodecellar_nodecellar_app_Service:
+      metadata:
+        a4c_kubernetes-modifier : Proxy of node <Nodecellar> capability <nodecellar_app>
+      type: org.alien4cloud.kubernetes.api.types.AbstractService
+      properties:
+        apiVersion: v1
+        kind: Service
+        spec:
+          service_type: NodePort
+          selector:
+            name: "containerdeploymentunit--620425336"
+          ports:
+            -
+              port: 3000
+              name: "nodecellar-app"
+        metadata:
+          name: "nodecellar-nodecellar-app-service--215431874"
+      requirements:
+        - Nodecellar_nodecellar_app_Service_ContainerDeploymentUnit:
+            type_requirement: dependency
+            node: ContainerDeploymentUnit
+            capability: tosca.capabilities.Node
+            relationship: tosca.relationships.DependsOn

@@ -23,7 +23,7 @@ topology_template:
       properties:
         container:
           image: "afraisse/nodecellar:exp"
-          name: nodecellar
+          name: "nodecellar--706822375"
           resources:
             requests:
               memory: "128 MB"
@@ -32,7 +32,9 @@ topology_template:
               memory: "128 MB"
               cpu: 1.0
           ports:
-            nodecellar-app: 3000
+            -
+              name: "nodecellar-app"
+              containerPort: 3000
           command:
             - "/bin/bash"
             - "-c"
@@ -84,9 +86,13 @@ topology_template:
         apiVersion: "apps/v1beta1"
         kind: Deployment
         spec:
+          template:
+            metadata:
+              labels:
+                app: "containerdeploymentunit--620425336"
           replicas: 1
         metadata:
-          name: "containerdeploymentunit-565f7f6f-49b1-4c81-bb72-3d2bab4772e4"
+          name: "containerdeploymentunit--620425336"
       requirements:
         - ContainerDeploymentUnit_Mongo_mongo_db_Service:
             type_requirement: dependency
@@ -106,7 +112,7 @@ topology_template:
       properties:
         container:
           image: "mongo:latest"
-          name: mongo
+          name: "mongo--1909092837"
           resources:
             requests:
               memory: "128 MB"
@@ -115,7 +121,9 @@ topology_template:
               memory: "128 MB"
               cpu: 1.0
           ports:
-            mongo-db: 27017
+            -
+              name: "mongo-db"
+              containerPort: 27017
       requirements:
         - ContainerRuntime_2_ContainerRuntime_2_DU:
             type_requirement: host
@@ -156,9 +164,13 @@ topology_template:
         apiVersion: "apps/v1beta1"
         kind: Deployment
         spec:
+          template:
+            metadata:
+              labels:
+                app: "containerruntime-2-du--1914569420"
           replicas: 1
         metadata:
-          name: "containerruntime-2-du-7861ea01-a281-436d-823b-ee4422ff4e01"
+          name: "containerruntime-2-du--1914569420"
       capabilities:
         scalable:
           properties:
@@ -175,13 +187,13 @@ topology_template:
         spec:
           service_type: NodePort
           selector:
-            name: "containerruntime-2-du-7861ea01-a281-436d-823b-ee4422ff4e01"
+            name: "containerruntime-2-du--1914569420"
           ports:
             -
               port: 27017
               name: "mongo-db"
         metadata:
-          name: "mongo-mongo-db-service-25ea45ec-77c6-44d4-a849-350fcbd00d4b"
+          name: "mongo-mongo-db-service-450098423"
       requirements:
         - Mongo_mongo_db_Service_ContainerRuntime_2_DU:
             type_requirement: dependency
@@ -198,13 +210,13 @@ topology_template:
         spec:
           service_type: NodePort
           selector:
-            name: "containerdeploymentunit-565f7f6f-49b1-4c81-bb72-3d2bab4772e4"
+            name: "containerdeploymentunit--620425336"
           ports:
             -
               port: 3000
               name: "nodecellar-app"
         metadata:
-          name: "nodecellar-nodecellar-app-service-f113c7fb-24ca-4177-a261-989ce89c1310"
+          name: "nodecellar-nodecellar-app-service--215431874"
       requirements:
         - Nodecellar_nodecellar_app_Service_ContainerDeploymentUnit:
             type_requirement: dependency

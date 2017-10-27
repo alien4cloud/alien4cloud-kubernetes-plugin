@@ -56,6 +56,9 @@ data_types:
         description: |
           The port that will be exposed by this service.
         required: false
+        constraints:
+          - greater_or_equal: 1
+          - less_or_equal: 65535
       protocol:
         type: string
         description: |
@@ -67,8 +70,8 @@ data_types:
           Number or name of the port to access on the pods targeted by the service. Number must be in the range 1 to 65535. Name must be an IANA_SVC_NAME. If this is a string, it will be looked up as a named port in the target Pod's container ports. If this is not specified, the value of the 'port' field is used (an identity map). This field is ignored for services with clusterIP=None, and should be omitted or set equal to the 'port' field. More info: http://kubernetes.io/docs/user-guide/services#defining-a-service
         required: false
         constraints:
-          - less_or_equal: 1
-          - greater_or_equal: 65535
+          - greater_or_equal: 1
+          - less_or_equal: 65535
 
   org.alien4cloud.kubernetes.api.datatypes.ServiceSpec:
     derived_from: tosca.datatypes.Root
@@ -179,7 +182,7 @@ data_types:
         description: |
           The deployment strategy to use to replace existing pods with new ones.
       template:
-        type: string # datetype: PodTemplateSpec
+        type: org.alien4cloud.kubernetes.api.datatypes.PodTemplateSpec
         required: false
         description: |
           Template describes the pods that will be created.
@@ -194,13 +197,29 @@ data_types:
             app: nginx
     properties:
       metadata:
-        type: string
+        type: org.alien4cloud.kubernetes.api.datatypes.PodTemplateMetadata
+        required: true
         description: |
           Standard object's metadata. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata
-      spec:
-        type: org.alien4cloud.kubernetes.api.datatypes.PodSpec
-        description: |
-          Specification of the desired behavior of the pod. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#spec-and-status
+#      spec:
+#        type: org.alien4cloud.kubernetes.api.datatypes.PodSpec
+#        description: |
+#          Specification of the desired behavior of the pod. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#spec-and-status
+
+  org.alien4cloud.kubernetes.api.datatypes.PodTemplateMetadata:
+    derived_from: tosca.datatypes.Root
+    description: >
+      c.f. hhttps://kubernetes.io/docs/api-reference/v1.6/#podtemplatespec-v1-core
+      For instance:
+        metadata:
+          labels:
+            app: nginx
+    properties:
+      labels:
+        type: map
+        required: true
+        entry_schema:
+          type: string
 
   org.alien4cloud.kubernetes.api.datatypes.PodSpec:
     derived_from: tosca.datatypes.Root
@@ -311,6 +330,44 @@ data_types:
       #   description: |
       #     array  List of volumes that can be mounted by containers belonging to the pod. More info: http://kubernetes.io/docs/user-guide/volumes
 
+  org.alien4cloud.kubernetes.api.datatypes.ContainerPort:
+    derived_from: tosca.datatypes.Root
+    properties:
+      containerPort:
+        type: integer
+        description: |
+          Number of port to expose on the pod's IP address.
+        required: true
+        constraints:
+          - greater_or_equal: 1
+          - less_or_equal: 65535
+      name:
+        type: string
+        required: false
+        description: |
+          If specified, this must be an IANA_SVC_NAME and unique within the pod. Each named port in a pod must have a unique name. Name for the port that can be referred to by services.
+      hostIP:
+        type: string
+        required: false
+        description: |
+          What host IP to bind the external port to.
+      hostPort:
+        type: integer
+        description: |
+          Number of port to expose on the host. If specified, this must be a valid port number, 0 < x < 65536. If HostNetwork is specified, this must match ContainerPort. Most containers do not need this.
+        required: false
+        constraints:
+          - greater_or_equal: 1
+          - less_or_equal: 65535
+      protocol:
+        type: string
+        required: false
+        default: TCP
+        description: |
+          Protocol for port. Must be UDP or TCP. Defaults to "TCP".
+        constraints:
+          - valid_values: [TCP, UDP]
+
   org.alien4cloud.kubernetes.api.datatypes.ContainerSpec:
     derived_from: tosca.datatypes.Root
     properties:
@@ -363,11 +420,10 @@ data_types:
         description: |
           Name of the container specified as a DNS_LABEL. Each container in a pod must have a unique name (DNS_LABEL). Cannot be updated.
       ports:
-        # FIXME: here we should have a list of single entry map !
-        type: map
+        type: list
         required: false
         entry_schema:
-          type: string
+          type: org.alien4cloud.kubernetes.api.datatypes.ContainerPort
         description: |
           array List of ports to expose from the container. Exposing a port here gives the system additional information about the network connections a container uses, but is primarily informational. Not specifying a port here DOES NOT prevent that port from being exposed. Any port which is listening on the default "0.0.0.0" address inside a container will be accessible from the network. Cannot be updated.
       # readinessProbe:
@@ -779,45 +835,40 @@ node_types:
     description: >
       Represent a kubernetes final resource after node matching (Pod, ReplicaSet or Deployment)
     properties:
-      resource_def:
-        type: map
-        entry_schema:
-          type: tosca.datatypes.Root
-        description: the structured representation of what will be serialized in property resource_yaml
       resource_yaml:
         type: string
         description: this is the yaml serialization (and eventually transformation) of property resource_def
-    artifacts:
-      - deployment:
-          type: tosca.artifacts.File
-          file: kubernetes/deployment.yaml
-          description: A kubernetes file
+#    artifacts:
+#      - deployment:
+#          type: tosca.artifacts.File
+#          file: kubernetes/deployment.yaml
+#          description: A kubernetes file
 
   org.alien4cloud.kubernetes.api.types.DeploymentResource:
     derived_from: org.alien4cloud.kubernetes.api.types.BaseResource
     capabilities:
       scalable: tosca.capabilities.Scalable
-    interfaces:
-      Standard:
-        create:
-          implementation: kubectl_deployment_wrapper.sh
-          description: |
-            - filter variable in the artifact file
-            - Deploy the deployment onto kubernets
-            - Export some informations to expose it as attributes ?
+#    interfaces:
+#      Standard:
+#        create:
+#          implementation: kubectl_deployment_wrapper.sh
+#          description: |
+#            - filter variable in the artifact file
+#            - Deploy the deployment onto kubernets
+#            - Export some informations to expose it as attributes ?
 
   org.alien4cloud.kubernetes.api.types.ServiceResource:
     derived_from: org.alien4cloud.kubernetes.api.types.BaseResource
     attributes:
       ip_address: { get_operation_output: [SELF, Standard, create, IP_ADDRESS] }
       port: { get_operation_output: [SELF, Standard, create, PORT] }
-    interfaces:
-      Standard:
-        create:
-          implementation: kubectl_service_wrapper.sh
-          description: |
-            - Deploy the service onto kubernets
-            - Export the service ip_address and port to expose it as attributes
+#    interfaces:
+#      Standard:
+#        create:
+#          implementation: kubectl_service_wrapper.sh
+#          description: |
+#            - Deploy the service onto kubernets
+#            - Export the service ip_address and port to expose it as attributes
 
 policy_types:
   org.alien4cloud.kubernetes.api.policies.AntiAffinityLabel:
