@@ -45,7 +45,8 @@
       org.alien4cloud.tosca.editor,
       org.alien4cloud.tosca.topology,
       org.alien4cloud.tosca.variable,
-      org.alien4cloud.plugin.kubernetes.modifier
+      org.alien4cloud.plugin.kubernetes.modifier,
+      org.alien4cloud.plugin.kubernetes.policies
       ">
         <context:exclude-filter type="regex"
                                 expression="alien4cloud.orchestrators.services.OrchestratorSecurityService"/>

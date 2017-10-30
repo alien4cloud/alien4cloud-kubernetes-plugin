@@ -1,33 +1,14 @@
 package org.alien4cloud.plugin.kubernetes.modifier;
 
-import alien4cloud.paas.plan.ToscaNodeLifecycleConstants;
-import alien4cloud.paas.wf.util.WorkflowUtils;
-import alien4cloud.tosca.context.ToscaContext;
-import alien4cloud.tosca.context.ToscaContextual;
-import alien4cloud.utils.AlienUtils;
-import alien4cloud.utils.PropertyUtil;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
-import lombok.extern.java.Log;
-import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
 import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
-import org.alien4cloud.tosca.model.Csar;
-import org.alien4cloud.tosca.model.definitions.*;
-import org.alien4cloud.tosca.model.templates.Capability;
+import org.alien4cloud.tosca.model.definitions.Interface;
+import org.alien4cloud.tosca.model.definitions.Operation;
 import org.alien4cloud.tosca.model.templates.NodeTemplate;
-import org.alien4cloud.tosca.model.templates.RelationshipTemplate;
-import org.alien4cloud.tosca.model.templates.Topology;
-import org.alien4cloud.tosca.model.types.CapabilityType;
 import org.alien4cloud.tosca.model.types.NodeType;
-import org.alien4cloud.tosca.normative.constants.NormativeCapabilityTypes;
-import org.alien4cloud.tosca.normative.constants.NormativeRelationshipConstants;
-import org.springframework.stereotype.Component;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import alien4cloud.paas.plan.ToscaNodeLifecycleConstants;
+import alien4cloud.tosca.context.ToscaContext;
+import lombok.extern.java.Log;
 
 @Log
 public abstract class AbstractKubernetesTopologyModifier extends TopologyModifierSupport {

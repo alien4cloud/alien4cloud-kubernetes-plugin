@@ -1,7 +1,7 @@
 tosca_definitions_version: alien_dsl_2_0_0
 
 metadata:
-  template_name: 01-two-mongo-post-location-modifier
+  template_name: 01-two-mongo-post-node-modifier
   template_version: 2.0.0-SNAPSHOT
   template_author: Username
 
@@ -32,7 +32,8 @@ topology_template:
               memory: "128 MB"
               cpu: 1.0
           ports:
-            mongo-db: 27017
+            - name: "mongo-db"
+              containerPort: 27017
       requirements:
         - hostedOnContainerDeploymentUnitHost:
             type_requirement: host
@@ -98,7 +99,8 @@ topology_template:
               memory: "128 MB"
               cpu: 1.0
           ports:
-            mongo-db: 27017
+            - name: "mongo-db"
+              containerPort: 27017
       requirements:
         - Mongo2_CR_Mongo2_CR_DU:
             type_requirement: host
@@ -197,6 +199,12 @@ topology_template:
 
   policies:
     - mongo_anti_affinity:
+        type: org.alien4cloud.policies.AntiAffinity
+        description: The anti affinity policy between node 1 and 2
+        targets: [Mongo1_DU, Mongo2_CR_DU]
+        properties:
+          level: host
+    - mongo_anti_affinity_second_son:
         type: org.alien4cloud.policies.AntiAffinity
         description: The anti affinity policy between node 1 and 2
         targets: [Mongo1_DU, Mongo2_CR_DU]
