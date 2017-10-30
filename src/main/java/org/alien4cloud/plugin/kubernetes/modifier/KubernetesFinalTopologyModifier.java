@@ -12,6 +12,7 @@ import com.google.common.collect.Sets;
 import lombok.extern.java.Log;
 import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
 import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
+import org.alien4cloud.tosca.exceptions.InvalidPropertyValueException;
 import org.alien4cloud.tosca.model.Csar;
 import org.alien4cloud.tosca.model.definitions.*;
 import org.alien4cloud.tosca.model.templates.Capability;
@@ -19,9 +20,18 @@ import org.alien4cloud.tosca.model.templates.NodeTemplate;
 import org.alien4cloud.tosca.model.templates.RelationshipTemplate;
 import org.alien4cloud.tosca.model.templates.Topology;
 import org.alien4cloud.tosca.model.types.CapabilityType;
+import org.alien4cloud.tosca.model.types.DataType;
 import org.alien4cloud.tosca.model.types.NodeType;
+import org.alien4cloud.tosca.normative.ToscaNormativeUtil;
 import org.alien4cloud.tosca.normative.constants.NormativeCapabilityTypes;
 import org.alien4cloud.tosca.normative.constants.NormativeRelationshipConstants;
+import org.alien4cloud.tosca.normative.primitives.Size;
+import org.alien4cloud.tosca.normative.primitives.SizeUnit;
+import org.alien4cloud.tosca.normative.types.SizeType;
+import org.alien4cloud.tosca.normative.types.ToscaTypes;
+import org.alien4cloud.tosca.utils.FunctionEvaluator;
+import org.alien4cloud.tosca.utils.FunctionEvaluatorContext;
+import org.alien4cloud.tosca.utils.TopologyNavigationUtil;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -38,6 +48,12 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
 
     private static final String A4C_KUBERNETES_MODIFIER_TAG = "a4c_kubernetes-final-modifier";
 
+    private static Map<String, Parser> k8sParsers = Maps.newHashMap();
+
+    static {
+        k8sParsers.put(ToscaTypes.SIZE, new SizeParser(ToscaTypes.SIZE));
+    }
+
     @Override
     @ToscaContextual
     public void process(Topology topology, FlowExecutionContext context) {
@@ -50,7 +66,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
 
         // for each Service create a node of type ServiceResource
         Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures = Maps.newHashMap();
-        Set<NodeTemplate> serviceNodes = getNodesOfType(topology, K8S_TYPES_SERVICE, false);
+        Set<NodeTemplate> serviceNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_SERVICE, false);
         for (NodeTemplate serviceNode : serviceNodes) {
             NodeTemplate serviceResourceNode = addNodeTemplate(csar, topology, serviceNode.getName() + "_Resource", K8S_TYPES_SERVICE_RESOURCE, K8S_CSAR_VERSION);
             nodeReplacementMap.put(serviceNode.getName(), serviceResourceNode);
@@ -63,14 +79,17 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
             copyProperty(csar, topology, serviceNode, "metadata", serviceResourceNodeProperties, "resource_def.metadata");
 
             AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(AlienUtils.safe(serviceNode.getProperties()), "spec");
+            // TODO: propertyValue should be transformed before injected in the serviceResourceNodeProperties
+            NodeType nodeType = ToscaContext.get(NodeType.class, serviceNode.getType());
+            PropertyDefinition propertyDefinition = nodeType.getProperties().get("spec");
+            Object transformedValue = getTransformedValue(propertyValue, propertyDefinition, "");
             // rename entry service_type to type
-            renameProperty(propertyValue, "service_type", "type");
-            feedPropertyValue(serviceResourceNodeProperties, "resource_def.spec", propertyValue, false);
-//            copyProperty(csar, topology, serviceNode, "spec", serviceResourceNodeProperties, "resource_def.spec");
+            renameProperty(transformedValue, "service_type", "type");
+            feedPropertyValue(serviceResourceNodeProperties, "resource_def.spec", transformedValue, false);
         }
 
         // for each Deployment create a node of type DeploymentResource
-        Set<NodeTemplate> deploymentNodes = getNodesOfType(topology, K8S_TYPES_DEPLOYMENT, false);
+        Set<NodeTemplate> deploymentNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_DEPLOYMENT, false);
         for (NodeTemplate deploymentNode : deploymentNodes) {
             NodeTemplate deploymentResourceNode = addNodeTemplate(csar, topology, deploymentNode.getName() + "_Resource", K8S_TYPES_DEPLOYMENT_RESOURCE, K8S_CSAR_VERSION);
             nodeReplacementMap.put(deploymentNode.getName(), deploymentResourceNode);
@@ -81,29 +100,36 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
             copyProperty(csar, topology, deploymentNode, "apiVersion", deploymentResourceNodeProperties, "resource_def.apiVersion");
             copyProperty(csar, topology, deploymentNode, "kind", deploymentResourceNodeProperties, "resource_def.kind");
             copyProperty(csar, topology, deploymentNode, "metadata", deploymentResourceNodeProperties, "resource_def.metadata");
-            copyProperty(csar, topology, deploymentNode, "spec", deploymentResourceNodeProperties, "resource_def.spec");
+
+            AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(AlienUtils.safe(deploymentNode.getProperties()), "spec");
+            // TODO: propertyValue should be transformed before injected in the deploymentResourceNodeProperties
+            NodeType nodeType = ToscaContext.get(NodeType.class, deploymentNode.getType());
+            PropertyDefinition propertyDefinition = nodeType.getProperties().get("spec");
+            Object transformedValue = getTransformedValue(propertyValue, propertyDefinition, "");
+            feedPropertyValue(deploymentResourceNodeProperties, "resource_def.spec", transformedValue, false);
+//            copyAndTransformProperty(csar, topology, deploymentNode, "spec", deploymentResourceNodeProperties, "resource_def.spec");
 
             // find each node of type Service that targets this deployment
-            Set<NodeTemplate> sourceCandidates = getSourceNodes(topology, deploymentNode, "feature");
+            Set<NodeTemplate> sourceCandidates = TopologyNavigationUtil.getSourceNodes(topology, deploymentNode, "feature");
             for (NodeTemplate nodeTemplate : sourceCandidates) {
                 // TODO: manage inheritance ?
                 if (nodeTemplate.getType().equals(K8S_TYPES_SERVICE)) {
                     // find the replacer
                     NodeTemplate serviceResource = nodeReplacementMap.get(nodeTemplate.getName());
-                    if (!hasRelationship(serviceResource, deploymentResourceNode.getName(), "dependency", "feature")) {
+                    if (!TopologyNavigationUtil.hasRelationship(serviceResource, deploymentResourceNode.getName(), "dependency", "feature")) {
                         RelationshipTemplate relationshipTemplate = addRelationshipTemplate(csar, topology, serviceResource, deploymentResourceNode.getName(), NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
                         setNodeTagValue(relationshipTemplate, A4C_KUBERNETES_MODIFIER_TAG + "_created_from", nodeTemplate.getName() + " -> " + deploymentNode.getName());
                     }
                 }
             }
             // find each node of type service this deployment depends on
-            Set<NodeTemplate> targetCandidates = getTargetNodes(topology, deploymentNode, "dependency");
+            Set<NodeTemplate> targetCandidates = TopologyNavigationUtil.getTargetNodes(topology, deploymentNode, "dependency");
             for (NodeTemplate nodeTemplate : sourceCandidates) {
                 // TODO: manage inheritance ?
                 if (nodeTemplate.getType().equals(K8S_TYPES_SERVICE)) {
                     // find the replacer
                     NodeTemplate serviceResource = nodeReplacementMap.get(nodeTemplate.getName());
-                    if (!hasRelationship(deploymentResourceNode, serviceResource.getName(), "dependency", "feature")) {
+                    if (!TopologyNavigationUtil.hasRelationship(deploymentResourceNode, serviceResource.getName(), "dependency", "feature")) {
                         RelationshipTemplate relationshipTemplate = addRelationshipTemplate(csar, topology, deploymentResourceNode, serviceResource.getName(), NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
                         setNodeTagValue(relationshipTemplate, A4C_KUBERNETES_MODIFIER_TAG + "_created_from", deploymentNode.getName() + " -> " + nodeTemplate.getName());
                     }
@@ -111,34 +137,58 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
             }
         }
 
-        // for each container, add an entry in the deployment resource
-        Set<NodeTemplate> containerNodes = getNodesOfType(topology, K8S_TYPES_CONTAINER, false);
+        Map<String, PropertyValue> inputValues = Maps.newHashMap();
+        FunctionEvaluatorContext functionEvaluatorContext = new FunctionEvaluatorContext(topology, inputValues);
+
+        // for each container,
+        Set<NodeTemplate> containerNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_CONTAINER, false);
         for (NodeTemplate containerNode : containerNodes) {
             // get the hosting node
-            NodeTemplate deploymentNode = getHostNode(topology, containerNode);
+            NodeTemplate deploymentNode = TopologyNavigationUtil.getImmediateHostTemplate(topology, containerNode);
             // find the replacer
             NodeTemplate deploymentResource = nodeReplacementMap.get(deploymentNode.getName());
             Map<String, AbstractPropertyValue> deploymentResourceNodeProperties = resourceNodeYamlStructures.get(deploymentResource.getName());
 
-            AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(AlienUtils.safe(containerNode.getProperties()), "container");
-            transformMapToList(propertyValue, "ports");
-            feedPropertyValue(deploymentResourceNodeProperties, "resource_def.spec.template.spec.containers", propertyValue, true);
-//            appendProperty(csar, topology, containerNode, "container", deploymentResourceNodeProperties, "resource_def.spec.template.spec.containers");
-
+            // resolve env variables
             // TODO: in the interface, create operation, search for ENV_, resolve all get_property ...
-            Set<NodeTemplate> hostedContainers = getSourceNodes(topology, containerNode, "host");
-            for (NodeTemplate dockerContainerNode : hostedContainers) {
+            Set<NodeTemplate> hostedContainers = TopologyNavigationUtil.getSourceNodes(topology, containerNode, "host");
+            hostedContainers.stream().peek(nodeTemplate -> {
                 // we should have a single hosted docker container
-                NodeType nodeType = ToscaContext.get(NodeType.class, dockerContainerNode.getType());
-                nodeType.getInterfaces();
-            }
+                NodeType nodeType = ToscaContext.get(NodeType.class, nodeTemplate.getType());
+                if (nodeType.getInterfaces() != null && nodeType.getInterfaces().containsKey(ToscaNodeLifecycleConstants.STANDARD)) {
+                    Interface standardInterface = nodeType.getInterfaces().get(ToscaNodeLifecycleConstants.STANDARD);
+                    if (standardInterface.getOperations() != null && standardInterface.getOperations().containsKey(ToscaNodeLifecycleConstants.CREATE)) {
+                        Operation createOp = standardInterface.getOperations().get(ToscaNodeLifecycleConstants.CREATE);
+                        AlienUtils.safe(createOp.getInputParameters()).forEach((k, iValue) -> {
+                            if (iValue instanceof AbstractPropertyValue && k.startsWith("ENV_")) {
+                                String envKey = k.substring(4);
+                                try {
+                                    PropertyValue propertyValue = FunctionEvaluator.resolveValue(functionEvaluatorContext, nodeTemplate, nodeTemplate.getProperties(), (AbstractPropertyValue)iValue);
+//                                String value  = PropertyUtil.serializePropertyValue(propertyValue);
+                                    feedPropertyValue(containerNode.getProperties(), "container.env." + envKey, propertyValue, false);
+                                } catch(IllegalArgumentException iae) {
+                                    log.severe(iae.getMessage());
+                                }
+                            }
+                        });
+                    }
+                }
+            });
+
+            // add an entry in the deployment resource
+            AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(AlienUtils.safe(containerNode.getProperties()), "container");
+            // transform data
+            NodeType nodeType = ToscaContext.get(NodeType.class, containerNode.getType());
+            PropertyDefinition propertyDefinition = nodeType.getProperties().get("container");
+            Object transformedValue = getTransformedValue(propertyValue, propertyDefinition, "");
+            feedPropertyValue(deploymentResourceNodeProperties, "resource_def.spec.template.spec.containers", transformedValue, true);
 
         }
 
         // TODO: remove old useless nodes
         // TODO: we'll need to rename some entries in the maps
 
-        Set<NodeTemplate> resourceNodes = getNodesOfType(topology, K8S_TYPES_RESOURCE, true);
+        Set<NodeTemplate> resourceNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_RESOURCE, true);
         for (NodeTemplate resourceNode : resourceNodes) {
             Map<String, AbstractPropertyValue> resourceNodeProperties = resourceNodeYamlStructures.get(resourceNode.getName());
             if (resourceNodeProperties != null && resourceNodeProperties.containsKey("resource_def")) {
@@ -150,7 +200,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
 
     }
 
-    private void renameProperty(AbstractPropertyValue propertyValue, String propertyPath, String newName) {
+    private void renameProperty(Object propertyValue, String propertyPath, String newName) {
         PropertyUtil.NestedPropertyWrapper nestedPropertyWrapper = PropertyUtil.getNestedProperty(propertyValue, propertyPath);
         if (nestedPropertyWrapper != null) {
             Object value = nestedPropertyWrapper.parent.remove(nestedPropertyWrapper.key);
@@ -159,56 +209,86 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
         }
     }
 
-    private void transformMapToList(AbstractPropertyValue propertyPath, String entryName) {
-        PropertyUtil.NestedPropertyWrapper nestedPropertyWrapper = PropertyUtil.getNestedProperty(propertyPath, entryName);
-        if (nestedPropertyWrapper != null) {
-            Object value = nestedPropertyWrapper.parent.get(nestedPropertyWrapper.key);
-            // value can't be null if nestedPropertyWrapper isn't null
-            Map<String, Object> valueAsMap = PropertyUtil.getMapProperty(value);
-            if (valueAsMap != null) {
-                List<Object> list = Lists.newArrayList();
-                for (Map.Entry<String, Object> entryMapEntry : valueAsMap.entrySet()) {
-                    // for each map entry, create a map and add it in the list
-                    Map<String, Object> listEntry = Maps.newHashMap();
-                    listEntry.put(entryMapEntry.getKey(), entryMapEntry.getValue());
-                    list.add(listEntry);
-                }
-                nestedPropertyWrapper.parent.put(entryName, list);
-            }
-        }
-    }
-
     private void copyProperty(Csar csar, Topology topology, NodeTemplate sourceTemplate, String sourcePath, Map<String, AbstractPropertyValue> propertyValues, String targetPath) {
         AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(AlienUtils.safe(sourceTemplate.getProperties()), sourcePath);
         feedPropertyValue(propertyValues, targetPath, propertyValue, false);
     }
 
-    private void appendProperty(Csar csar, Topology topology, NodeTemplate sourceTemplate, String sourcePath, Map<String, AbstractPropertyValue> propertyValues, String targetPath) {
-        AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(AlienUtils.safe(sourceTemplate.getProperties()), sourcePath);
-        feedPropertyValue(propertyValues, targetPath, propertyValue, true);
-    }
-
     /**
      * Transform the object by replacing eventual PropertyValue found by it's value.
      */
-    private Object getValue(Object value) {
-        Object valueObject = value;
+    private Object getTransformedValue(Object value, PropertyDefinition propertyDefinition, String path) {
         if (value instanceof PropertyValue) {
-            valueObject = getValue(((PropertyValue)value).getValue());
+            return getTransformedValue(((PropertyValue)value).getValue(), propertyDefinition, path);
         } else if (value instanceof Map<?, ?>) {
             Map<String, Object> newMap = Maps.newHashMap();
-            for (Map.Entry<String, Object> entry : ((Map<String, Object>)valueObject).entrySet()) {
-                newMap.put(entry.getKey(), getValue(entry.getValue()));
+            if (!ToscaTypes.isPrimitive(propertyDefinition.getType())) {
+                DataType dataType = ToscaContext.get(DataType.class, propertyDefinition.getType());
+                for (Map.Entry<String, Object> entry : ((Map<String, Object>)value).entrySet()) {
+                    PropertyDefinition pd = dataType.getProperties().get(entry.getKey());
+                    String innerPath = (path.equals("")) ? entry.getKey() : path + "." + entry.getKey();
+                    Object entryValue = getTransformedValue(entry.getValue(), pd, innerPath);
+                    newMap.put(entry.getKey(), entryValue);
+                }
+            } else if (ToscaTypes.MAP.equals(propertyDefinition.getType())) {
+                PropertyDefinition pd = propertyDefinition.getEntrySchema();
+                for (Map.Entry<String, Object> entry : ((Map<String, Object>)value).entrySet()) {
+                    String innerPath = (path.equals("")) ? entry.getKey() : path + "." + entry.getKey();
+                    Object entryValue = getTransformedValue(entry.getValue(), pd, innerPath);
+                    newMap.put(entry.getKey(), entryValue);
+                }
             }
-            valueObject = newMap;
+            return newMap;
         } else if (value instanceof List<?>) {
+            PropertyDefinition pd = propertyDefinition.getEntrySchema();
             List<Object> newList = Lists.newArrayList();
-            for (Object entry : (List<Object>)valueObject) {
-                newList.add(getValue(entry));
+            for (Object entry : (List<Object>)value) {
+                Object entryValue = getTransformedValue(entry, pd, path);
+                newList.add(entryValue);
             }
-            valueObject = newList;
+            return newList;
+        } else {
+            if (ToscaTypes.isSimple(propertyDefinition.getType())) {
+                String valueAsString = value.toString();
+                if (k8sParsers.containsKey(propertyDefinition.getType())) {
+                    return k8sParsers.get(propertyDefinition.getType()).parseValue(valueAsString);
+                } else {
+                    switch (propertyDefinition.getType()) {
+                        case ToscaTypes.INTEGER: return Integer.parseInt(valueAsString);
+                        case ToscaTypes.FLOAT: return Float.parseFloat(valueAsString);
+                        case ToscaTypes.BOOLEAN: return Boolean.parseBoolean(valueAsString);
+                        default: return valueAsString;
+                    }
+                }
+            } else {
+                return value;
+            }
         }
-        return valueObject;
     }
 
+    private static abstract class Parser {
+        private String type;
+        public Parser(String type) {
+            this.type = type;
+        }
+        public abstract Object parseValue(String value);
+    }
+
+    private static class SizeParser extends Parser {
+        public SizeParser(String type) {
+            super(type);
+        }
+
+        @Override
+        public Object parseValue(String value) {
+            SizeType sizeType = new SizeType();
+            try {
+                Size size = sizeType.parse(value);
+                Double d = size.convert(SizeUnit.B.toString());
+                return d.longValue();
+            } catch (InvalidPropertyValueException e) {
+                return value;
+            }
+        }
+    }
 }

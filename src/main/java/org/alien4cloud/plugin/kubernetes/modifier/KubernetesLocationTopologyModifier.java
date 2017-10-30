@@ -19,6 +19,7 @@ import org.alien4cloud.tosca.model.templates.*;
 import org.alien4cloud.tosca.model.types.CapabilityType;
 import org.alien4cloud.tosca.normative.constants.NormativeCapabilityTypes;
 import org.alien4cloud.tosca.normative.constants.NormativeRelationshipConstants;
+import org.alien4cloud.tosca.utils.TopologyNavigationUtil;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -32,6 +33,8 @@ import java.util.UUID;
  * TODO: add A4C metadata at node level to identify generated nodes (done but actually not serialized Cf. ALIEN-2597)
  * TODO: "Merge env variables coming from properties & implementation interfaces"
  * TODO: add logs
+ *
+ * alien4cloud-kubernetes-plugin:kubernetes-modifier:post-location-match
  */
 @Log
 @Component(value = "kubernetes-modifier")
@@ -47,22 +50,24 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesTopolo
         Csar csar = new Csar(topology.getArchiveName(), topology.getArchiveVersion());
 
         // replace all ContainerRuntime by org.alien4cloud.kubernetes.api.types.AbstractContainer
-        Set<NodeTemplate> containerRuntimeNodes = getNodesOfType(topology, A4C_TYPES_CONTAINER_RUNTIME, false);
+        Set<NodeTemplate> containerRuntimeNodes = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_CONTAINER_RUNTIME, false);
         for (NodeTemplate nodeTemplate : containerRuntimeNodes) {
             nodeTemplate = replaceNode(csar, topology, nodeTemplate, K8S_TYPES_ABSTRACT_CONTAINER, K8S_CSAR_VERSION);
             setNodeTagValue(nodeTemplate, A4C_KUBERNETES_MODIFIER_TAG, "Replacement of a " + A4C_TYPES_CONTAINER_RUNTIME);
 
             // if containerRuntime is orphean, wrap it in an AbstractDeployment
-            if (!isHosted(topology, nodeTemplate)) {
+            if (!TopologyNavigationUtil.isHosted(topology, nodeTemplate)) {
                 NodeTemplate hostNode = addNodeTemplate(csar, topology, nodeTemplate.getName() + "_DU", K8S_TYPES_ABSTRACT_DEPLOYMENT, K8S_CSAR_VERSION);
                 setNodeTagValue(hostNode, A4C_KUBERNETES_MODIFIER_TAG, "Created to host " + nodeTemplate.getName());
 
                 // set a generated name to the K8S object
-                setNodePropertyPathValue(csar, topology, hostNode, "metadata.name", new ScalarPropertyValue(generateKubeName(hostNode.getName() + "_" + UUID.randomUUID().toString())));
-                Set<NodeTemplate> hostedContainers = getSourceNodes(topology, nodeTemplate, "host");
+                ScalarPropertyValue deploymentName = new ScalarPropertyValue(generateUniqueKubeName(hostNode.getName()));
+                setNodePropertyPathValue(csar, topology, hostNode, "metadata.name", deploymentName);
+                setNodePropertyPathValue(csar, topology, hostNode, "spec.template.metadata.labels.app", deploymentName);
+                Set<NodeTemplate> hostedContainers = TopologyNavigationUtil.getSourceNodes(topology, nodeTemplate, "host");
                 // we may have a single hosted container
                 for (NodeTemplate containerNode : hostedContainers) {
-                    AbstractPropertyValue defaultInstances = getNodeCapabilityPropertyValue(containerNode, "scalable", "default_instances");
+                    AbstractPropertyValue defaultInstances = TopologyNavigationUtil.getNodeCapabilityPropertyValue(containerNode, "scalable", "default_instances");
                     // feed the replica property
                     setNodePropertyPathValue(csar, topology, hostNode, "spec.replicas", defaultInstances);
                 }
@@ -75,26 +80,28 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesTopolo
         }
 
         // replace all ContainerDeploymentUnit by org.alien4cloud.kubernetes.api.types.AbstractDeployment
-        Set<NodeTemplate> containerDeploymentUnitNodes = getNodesOfType(topology, A4C_TYPES_CONTAINER_DEPLOYMENT_UNIT, false);
+        Set<NodeTemplate> containerDeploymentUnitNodes = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_CONTAINER_DEPLOYMENT_UNIT, false);
         for (NodeTemplate nodeTemplate : containerDeploymentUnitNodes) {
             nodeTemplate = replaceNode(csar, topology, nodeTemplate, K8S_TYPES_ABSTRACT_DEPLOYMENT, K8S_CSAR_VERSION);
             setNodeTagValue(nodeTemplate, A4C_KUBERNETES_MODIFIER_TAG, "Replacement of a " + A4C_TYPES_CONTAINER_DEPLOYMENT_UNIT);
 
-            AbstractPropertyValue defaultInstances = getNodeCapabilityPropertyValue(nodeTemplate, "scalable", "default_instances");
+            AbstractPropertyValue defaultInstances = TopologyNavigationUtil.getNodeCapabilityPropertyValue(nodeTemplate, "scalable", "default_instances");
             // feed the replica property
             setNodePropertyPathValue(csar, topology, nodeTemplate, "spec.replicas", defaultInstances);
-            setNodePropertyPathValue(csar, topology, nodeTemplate, "metadata.name", new ScalarPropertyValue(generateKubeName(nodeTemplate.getName() + "_" + UUID.randomUUID().toString())));
+            ScalarPropertyValue deploymentName = new ScalarPropertyValue(generateUniqueKubeName(nodeTemplate.getName()));
+            setNodePropertyPathValue(csar, topology, nodeTemplate, "metadata.name", deploymentName);
+            setNodePropertyPathValue(csar, topology, nodeTemplate, "spec.template.metadata.labels.app", deploymentName);
         }
 
         // for each container capability of type endpoint
         // - add a org.alien4cloud.kubernetes.api.types.ServiceResource and weave depends_on relationships
         // - populate properties on the K8S AbstractContainer that host the container image
-        Set<NodeTemplate> containerNodeNames = getNodesOfType(topology, A4C_TYPES_APPLICATION_DOCKER_CONTAINER, true);
+        Set<NodeTemplate> containerNodeNames = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_APPLICATION_DOCKER_CONTAINER, true);
         for (NodeTemplate containerNodeTemplate : containerNodeNames) {
             // father or mother
-            NodeTemplate containerRuntimeNodeTemplate = getHostNode(topology, containerNodeTemplate);
+            NodeTemplate containerRuntimeNodeTemplate = TopologyNavigationUtil.getImmediateHostTemplate(topology, containerNodeTemplate);
             // gran father or mother
-            NodeTemplate deploymentNodeTemplate = getHostNode(topology, containerRuntimeNodeTemplate);
+            NodeTemplate deploymentNodeTemplate = TopologyNavigationUtil.getImmediateHostTemplate(topology, containerRuntimeNodeTemplate);
 
             // fill properties on the hosting K8S container
             Map<String, AbstractPropertyValue> properties = AlienUtils.safe(containerNodeTemplate.getProperties());
@@ -106,7 +113,7 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesTopolo
             setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.resources.limits.memory", mem_share);
             String imageName = getContainerImageName(containerNodeTemplate);
             setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.image", new ScalarPropertyValue(imageName));
-            setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.name", new ScalarPropertyValue(generateKubeName(containerNodeTemplate.getName())));
+            setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.name", new ScalarPropertyValue(generateUniqueKubeName(containerNodeTemplate.getName())));
             AbstractPropertyValue docker_run_cmd = PropertyUtil.getPropertyValueFromPath(properties, "docker_run_cmd");
             if (docker_run_cmd != null && docker_run_cmd instanceof ScalarPropertyValue) {
                 List<Object> values = Lists.newArrayList("/bin/bash", "-c", ((ScalarPropertyValue)docker_run_cmd).getValue());
@@ -126,28 +133,34 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesTopolo
             for (String endpointName : endpointNames) {
                 // fill the ports map of the hosting K8S AbstractContainer
                 AbstractPropertyValue port = containerNodeTemplate.getCapabilities().get(endpointName).getProperties().get("port");
-                setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.ports." + generateKubeName(endpointName), port);
+                ComplexPropertyValue portPropertyValue = new ComplexPropertyValue(Maps.newHashMap());
+                portPropertyValue.getValue().put("containerPort", port);
+                portPropertyValue.getValue().put("name", generateKubeName(endpointName));
+                appendNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.ports", portPropertyValue);
+//                setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.ports." + generateKubeName(endpointName), port);
 
                 // add an abstract service node
                 NodeTemplate serviceNode = addNodeTemplate(csar, topology, containerNodeTemplate.getName() + "_" + endpointName + "_Service", K8S_TYPES_ABSTRACT_SERVICE, K8S_CSAR_VERSION);
                 setNodeTagValue(serviceNode, A4C_KUBERNETES_MODIFIER_TAG, "Proxy of node <" + containerNodeTemplate.getName() + "> capability <" + endpointName + ">");
 
                 // fill properties of service
-                setNodePropertyPathValue(csar, topology, serviceNode, "metadata.name", new ScalarPropertyValue(generateKubeName(serviceNode.getName() + "_" + UUID.randomUUID().toString())));
+                setNodePropertyPathValue(csar, topology, serviceNode, "metadata.name", new ScalarPropertyValue(generateUniqueKubeName(serviceNode.getName())));
                 setNodePropertyPathValue(csar, topology, serviceNode, "spec.service_type", new ScalarPropertyValue("NodePort"));
                 // get the "pod name"
                 AbstractPropertyValue podName = PropertyUtil.getPropertyValueFromPath(AlienUtils.safe(deploymentNodeTemplate.getProperties()), "metadata.name");
-                setNodePropertyPathValue(csar, topology, serviceNode, "spec.selector.name", podName);
+                setNodePropertyPathValue(csar, topology, serviceNode, "spec.selector.app", podName);
 
                 // fill port list
                 Map<String, Object> portEntry = Maps.newHashMap();
-                portEntry.put("name", new ScalarPropertyValue(generateKubeName(endpointName)));
+                String portName = generateKubeName(endpointName);
+                portEntry.put("name", new ScalarPropertyValue(portName));
+                portEntry.put("targetPort", new ScalarPropertyValue(portName));
                 portEntry.put("port", port);
                 ComplexPropertyValue complexPropertyValue = new ComplexPropertyValue(portEntry);
                 appendNodePropertyPathValue(csar, topology, serviceNode, "spec.ports", complexPropertyValue);
 
                 // find the deployment node parent of the container
-                NodeTemplate deploymentHost = getHostOfTypeInHostingHierarchy(topology, containerNodeTemplate, K8S_TYPES_ABSTRACT_DEPLOYMENT);
+                NodeTemplate deploymentHost = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology, containerNodeTemplate, K8S_TYPES_ABSTRACT_DEPLOYMENT);
                 // add a depends_on relationship between service and the deployment unit
                 addRelationshipTemplate(csar, topology, serviceNode, deploymentHost.getName(), NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
 
@@ -161,8 +174,8 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesTopolo
                     for (RelationshipTemplate relationship : AlienUtils.safe(containerSourceCandidateNodeTemplate.getRelationships()).values()) {
                         if (relationship.getTarget().equals(containerNodeTemplate.getName()) && relationship.getTargetedCapabilityName().equals(endpointName)) {
                             // we need to add a depends_on between the source deployment and the service (if not already exist)
-                            NodeTemplate sourceDeploymentHost = getHostOfTypeInHostingHierarchy(topology, containerSourceCandidateNodeTemplate, K8S_TYPES_ABSTRACT_DEPLOYMENT);
-                            if (!hasRelationship(sourceDeploymentHost, serviceNode.getName(), "dependency", "feature")) {
+                            NodeTemplate sourceDeploymentHost = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology, containerSourceCandidateNodeTemplate, K8S_TYPES_ABSTRACT_DEPLOYMENT);
+                            if (!TopologyNavigationUtil.hasRelationship(sourceDeploymentHost, serviceNode.getName(), "dependency", "feature")) {
                                 addRelationshipTemplate(csar, topology, sourceDeploymentHost, serviceNode.getName(), NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
                             }
                         }

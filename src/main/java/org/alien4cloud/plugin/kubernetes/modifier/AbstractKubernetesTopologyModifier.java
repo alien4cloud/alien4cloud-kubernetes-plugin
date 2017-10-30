@@ -3,12 +3,19 @@ package org.alien4cloud.plugin.kubernetes.modifier;
 import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
 import org.alien4cloud.tosca.model.definitions.Interface;
 import org.alien4cloud.tosca.model.definitions.Operation;
+import org.alien4cloud.tosca.model.definitions.PropertyValue;
 import org.alien4cloud.tosca.model.templates.NodeTemplate;
 import org.alien4cloud.tosca.model.types.NodeType;
 
 import alien4cloud.paas.plan.ToscaNodeLifecycleConstants;
 import alien4cloud.tosca.context.ToscaContext;
 import lombok.extern.java.Log;
+import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.collect.Maps;
+
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 @Log
 public abstract class AbstractKubernetesTopologyModifier extends TopologyModifierSupport {
@@ -44,6 +51,36 @@ public abstract class AbstractKubernetesTopologyModifier extends TopologyModifie
      */
     protected String generateKubeName(String candidate) {
         return candidate.toLowerCase().replaceAll("_", "-");
+    }
+
+    protected String generateUniqueKubeName(String prefix) {
+        // TODO: length should be < 63 ??
+        // TODO: better unique generation
+        // we hashCode the UUID, we know that we have some collision risk, but for the moment we accept
+        return generateUniqueKubeName(prefix + "-" + UUID.randomUUID().toString().hashCode());
+    }
+
+    /**
+     * Recursively get the root Object value eventually hosted by a PropertyValue. If the value is a collection (ListPropertyValue, AbstractPropertyValue) then returns a collection of Objects.
+     */
+    protected Object getValue(Object value) {
+        Object valueObject = value;
+        if (value instanceof PropertyValue) {
+            valueObject = getValue(((PropertyValue)value).getValue());
+        } else if (value instanceof Map<?, ?>) {
+            Map<String, Object> newMap = Maps.newHashMap();
+            for (Map.Entry<String, Object> entry : ((Map<String, Object>)valueObject).entrySet()) {
+                newMap.put(entry.getKey(), getValue(entry.getValue()));
+            }
+            valueObject = newMap;
+        } else if (value instanceof List<?>) {
+            List<Object> newList = Lists.newArrayList();
+            for (Object entry : (List<Object>)valueObject) {
+                newList.add(getValue(entry));
+            }
+            valueObject = newList;
+        }
+        return valueObject;
     }
 
 }

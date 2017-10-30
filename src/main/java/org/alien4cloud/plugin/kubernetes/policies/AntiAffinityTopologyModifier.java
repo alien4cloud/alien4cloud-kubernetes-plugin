@@ -15,6 +15,7 @@ import org.alien4cloud.tosca.model.definitions.ScalarPropertyValue;
 import org.alien4cloud.tosca.model.templates.NodeTemplate;
 import org.alien4cloud.tosca.model.templates.PolicyTemplate;
 import org.alien4cloud.tosca.model.templates.Topology;
+import org.alien4cloud.tosca.utils.TopologyNavigationUtil;
 import org.springframework.stereotype.Component;
 
 import com.google.common.collect.Lists;
@@ -49,7 +50,7 @@ public class AntiAffinityTopologyModifier extends AbstractKubernetesTopologyModi
      * @param policyTemplate
      */
     private void addAffinityData(Topology topology, PolicyTemplate policyTemplate) {
-        Set<NodeTemplate> targetedMembers = getTargetedMembers(topology, policyTemplate);
+        Set<NodeTemplate> targetedMembers = TopologyNavigationUtil.getTargetedMembers(topology, policyTemplate);
         safe(targetedMembers).forEach(nodeTemplate -> addAffinityData(topology, nodeTemplate, policyTemplate));
     }
 

@@ -1,0 +1,202 @@
+tosca_definitions_version: alien_dsl_2_0_0
+
+metadata:
+  template_name: final
+  template_version: 2.0.0-SNAPSHOT
+  template_author: Username
+
+description: ""
+
+imports:
+  - alien-base-types:2.0.0-SNAPSHOT
+  - docker-types:2.0.0-SNAPSHOT
+  - tosca-normative-types:1.0.0-SNAPSHOT
+  - org.alien4cloud.kubernetes.api:2.0.0-SNAPSHOT
+  - docker-draft.sandbox.samples:2.0.0-SNAPSHOT
+
+topology_template:
+  node_templates:
+    Apache1:
+      type: org.alien4cloud.nodes.Application.Docker.Apache
+      properties:
+        cpu_share: 1.0
+        mem_share: "128 MB"
+      requirements:
+        - hostedOnContainerRuntimeContainerRuntimeHost:
+            type_requirement: host
+            node: Apache1_CR
+            capability: org.alien4cloud.extended.container.capabilities.ApplicationHost
+            relationship: org.alien4cloud.extended.container.relationships.HostedOnContainerRuntime
+      capabilities:
+        http_endpoint:
+          properties:
+            port: 80
+            docker_bridge_port_mapping: 0
+            protocol: tcp
+            secure: false
+            network_name: PRIVATE
+            initiator: source
+        scalable:
+          properties:
+            min_instances: 1
+            max_instances: 1
+            default_instances: 1
+    Apache1_CR:
+      metadata:
+        a4c_kubernetes-modifier: Replacement of a org.alien4cloud.extended.container.types.ContainerRuntime
+      type: org.alien4cloud.kubernetes.api.types.Container
+      properties:
+        container:
+          image: "httpd:latest"
+          name: "apache1-1306960988"
+          resources:
+            requests:
+              memory: "128 MB"
+              cpu: 1.0
+            limits:
+              memory: "128 MB"
+              cpu: 1.0
+          ports:
+            - name: "http-endpoint"
+              containerPort: 80
+      requirements:
+        - hostedOnContainerDeploymentUnitHost:
+            type_requirement: host
+            node: Apache1_CDU
+            capability: tosca.capabilities.Container.Docker
+            relationship: tosca.relationships.HostedOn
+    Apache1_CDU:
+      metadata:
+        a4c_kubernetes-modifier: Replacement of a org.alien4cloud.extended.container.types.ContainerDeploymentUnit
+      type: org.alien4cloud.kubernetes.api.types.Deployment
+      properties:
+        apiVersion: "apps/v1beta1"
+        kind: Deployment
+        spec:
+          template:
+            metadata:
+              labels:
+                app: "apache1-cdu--6518986"
+          replicas: 1
+        metadata:
+          name: "apache1-cdu--6518986"
+      capabilities:
+        scalable:
+          properties:
+            min_instances: 1
+            max_instances: 1
+            default_instances: 1
+    Apache1_http_endpoint_Service:
+      metadata:
+        a4c_kubernetes-modifier: Proxy of node <Apache1> capability <http_endpoint>
+      type: org.alien4cloud.kubernetes.api.types.Service
+      properties:
+        apiVersion: v1
+        kind: Service
+        spec:
+          service_type: NodePort
+          selector:
+            app: "apache1-cdu--6518986"
+          ports:
+            - port: 80
+              name: "http-endpoint"
+              targetPort: "http-endpoint"
+        metadata:
+          name: "apache1-http-endpoint-service-624765444"
+      requirements:
+        - Apache1_http_endpoint_Service_Apache1_CDU:
+            type_requirement: dependency
+            node: Apache1_CDU
+            capability: tosca.capabilities.Node
+            relationship: tosca.relationships.DependsOn
+    Apache1_http_endpoint_Service_Resource:
+      metadata:
+        a4c_kubernetes-final-modifier_created_from: Apache1_http_endpoint_Service
+      type: org.alien4cloud.kubernetes.api.types.ServiceResource
+      properties:
+        resource_yaml: |
+            {
+              "metadata" : {
+                "name" : "apache1-http-endpoint-service-624765444"
+              },
+              "apiVersion" : "v1",
+              "kind" : "Service",
+              "spec" : {
+                "selector" : {
+                  "app" : "apache1-cdu--6518986"
+                },
+                "ports" : [ {
+                  "port" : 80,
+                  "name" : "http-endpoint",
+                  "targetPort" : "http-endpoint"
+                } ],
+                "type" : "NodePort"
+              }
+            }
+
+      requirements:
+        - Apache1_http_endpoint_Service_Resource_Apache1_CDU_Resource:
+            metadata:
+              a4c_kubernetes-final-modifier_created_from: "Apache1_http_endpoint_Service -> Apache1_CDU"
+            type_requirement: dependency
+            node: Apache1_CDU_Resource
+            capability: tosca.capabilities.Node
+            relationship: tosca.relationships.DependsOn
+    Apache1_CDU_Resource:
+      metadata:
+        a4c_kubernetes-final-modifier_created_from: Apache1_CDU
+      type: org.alien4cloud.kubernetes.api.types.DeploymentResource
+      properties:
+        resource_yaml: |
+            {
+              "metadata" : {
+                "name" : "apache1-cdu--6518986"
+              },
+              "apiVersion" : "apps/v1beta1",
+              "kind" : "Deployment",
+              "spec" : {
+                "template" : {
+                  "metadata" : {
+                    "labels" : {
+                      "app" : "apache1-cdu--6518986"
+                    }
+                  },
+                  "spec" : {
+                    "containers" : [ {
+                      "image" : "httpd:latest",
+                      "name" : "apache1-1306960988",
+                      "resources" : {
+                        "requests" : {
+                          "memory" : 128000000,
+                          "cpu" : 1.0
+                        },
+                        "limits" : {
+                          "memory" : 128000000,
+                          "cpu" : 1.0
+                        }
+                      },
+                      "ports" : [ {
+                        "name" : "http-endpoint",
+                        "containerPort" : 80
+                      } ]
+                    } ]
+                  }
+                },
+                "replicas" : 1
+              }
+            }
+
+      requirements:
+        - Apache1_CDU_Resource_Apache1_http_endpoint_Service_Resource:
+            metadata:
+              a4c_kubernetes-final-modifier_created_from: "Apache1_CDU -> Apache1_http_endpoint_Service"
+            type_requirement: dependency
+            node: Apache1_http_endpoint_Service_Resource
+            capability: tosca.capabilities.Node
+            relationship: tosca.relationships.DependsOn
+      capabilities:
+        scalable:
+          properties:
+            min_instances: 1
+            max_instances: 1
+            default_instances: 1

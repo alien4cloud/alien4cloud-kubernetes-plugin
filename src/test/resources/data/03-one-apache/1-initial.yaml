@@ -1,0 +1,57 @@
+tosca_definitions_version: alien_dsl_2_0_0
+
+metadata:
+  template_name: initial
+  template_version: 2.0.0-SNAPSHOT
+  template_author: alien4cloud
+
+description: ""
+
+imports:
+  - docker-types:2.0.0-SNAPSHOT
+  - tosca-normative-types:1.0.0-SNAPSHOT
+  - docker-draft.sandbox.samples:2.0.0-SNAPSHOT
+
+topology_template:
+  node_templates:
+    Apache1:
+      type: org.alien4cloud.nodes.Application.Docker.Apache
+      properties:
+        cpu_share: 1.0
+        mem_share: "128 MB"
+      requirements:
+        - hostedOnContainerRuntimeContainerRuntimeHost:
+            type_requirement: host
+            node: Apache1_CR
+            capability: org.alien4cloud.extended.container.capabilities.ApplicationHost
+            relationship: org.alien4cloud.extended.container.relationships.HostedOnContainerRuntime
+      capabilities:
+        http_endpoint:
+          properties:
+            port: 80
+            docker_bridge_port_mapping: 0
+            protocol: tcp
+            secure: false
+            network_name: PRIVATE
+            initiator: source
+        scalable:
+          properties:
+            min_instances: 1
+            max_instances: 1
+            default_instances: 1
+    Apache1_CR:
+      type: org.alien4cloud.extended.container.types.ContainerRuntime
+      requirements:
+        - hostedOnContainerDeploymentUnitHost:
+            type_requirement: host
+            node: Apache1_CDU
+            capability: tosca.capabilities.Container.Docker
+            relationship: tosca.relationships.HostedOn
+    Apache1_CDU:
+      type: org.alien4cloud.extended.container.types.ContainerDeploymentUnit
+      capabilities:
+        scalable:
+          properties:
+            min_instances: 1
+            max_instances: 1
+            default_instances: 1
