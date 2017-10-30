@@ -1,29 +1,24 @@
 package org.alien4cloud.plugin.kubernetes.modifier;
 
-import alien4cloud.paas.plan.ToscaNodeLifecycleConstants;
-import alien4cloud.paas.wf.util.WorkflowUtils;
-import alien4cloud.tosca.context.ToscaContext;
-import alien4cloud.tosca.context.ToscaContextual;
-import alien4cloud.utils.AlienUtils;
-import alien4cloud.utils.PropertyUtil;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
-import lombok.extern.java.Log;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
-import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
 import org.alien4cloud.tosca.exceptions.InvalidPropertyValueException;
 import org.alien4cloud.tosca.model.Csar;
-import org.alien4cloud.tosca.model.definitions.*;
-import org.alien4cloud.tosca.model.templates.Capability;
+import org.alien4cloud.tosca.model.definitions.AbstractPropertyValue;
+import org.alien4cloud.tosca.model.definitions.ComplexPropertyValue;
+import org.alien4cloud.tosca.model.definitions.Interface;
+import org.alien4cloud.tosca.model.definitions.Operation;
+import org.alien4cloud.tosca.model.definitions.PropertyDefinition;
+import org.alien4cloud.tosca.model.definitions.PropertyValue;
+import org.alien4cloud.tosca.model.definitions.ScalarPropertyValue;
 import org.alien4cloud.tosca.model.templates.NodeTemplate;
 import org.alien4cloud.tosca.model.templates.RelationshipTemplate;
 import org.alien4cloud.tosca.model.templates.Topology;
-import org.alien4cloud.tosca.model.types.CapabilityType;
 import org.alien4cloud.tosca.model.types.DataType;
 import org.alien4cloud.tosca.model.types.NodeType;
-import org.alien4cloud.tosca.normative.ToscaNormativeUtil;
-import org.alien4cloud.tosca.normative.constants.NormativeCapabilityTypes;
 import org.alien4cloud.tosca.normative.constants.NormativeRelationshipConstants;
 import org.alien4cloud.tosca.normative.primitives.Size;
 import org.alien4cloud.tosca.normative.primitives.SizeUnit;
@@ -34,10 +29,15 @@ import org.alien4cloud.tosca.utils.FunctionEvaluatorContext;
 import org.alien4cloud.tosca.utils.TopologyNavigationUtil;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+
+import alien4cloud.paas.plan.ToscaNodeLifecycleConstants;
+import alien4cloud.tosca.context.ToscaContext;
+import alien4cloud.tosca.context.ToscaContextual;
+import alien4cloud.utils.AlienUtils;
+import alien4cloud.utils.PropertyUtil;
+import lombok.extern.java.Log;
 
 /**
  * Transform a matched K8S topology containing <code>Container</code>s, <code>Deployment</code>s, <code>Service</code>s and replace them with <code>DeploymentResource</code>s and <code>ServiceResource</code>s.
@@ -128,7 +128,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
             }
             // find each node of type service this deployment depends on
             Set<NodeTemplate> targetCandidates = TopologyNavigationUtil.getTargetNodes(topology, deploymentNode, "dependency");
-            for (NodeTemplate nodeTemplate : sourceCandidates) {
+            for (NodeTemplate nodeTemplate : targetCandidates) {
                 // TODO: manage inheritance ?
                 if (nodeTemplate.getType().equals(K8S_TYPES_SERVICE)) {
                     // find the replacer
@@ -194,15 +194,8 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
 
         }
 
-        for (NodeTemplate serviceNode : serviceNodes) {
-            removeNode(serviceNode);
-        }
-        for (NodeTemplate deploymentNode : deploymentNodes) {
-            removeNode(deploymentNode);
-        }
-
-        // TODO: remove old useless nodes
-        // TODO: we'll need to rename some entries in the maps
+        serviceNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
+        deploymentNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
 
         Set<NodeTemplate> resourceNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_RESOURCE, true);
         for (NodeTemplate resourceNode : resourceNodes) {
