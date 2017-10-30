@@ -1,7 +1,7 @@
 tosca_definitions_version: alien_dsl_2_0_0
 
 metadata:
-  template_name: simple-post-location-modifier
+  template_name: post-location-modifier
   template_version: 2.0.0-SNAPSHOT
   template_author: Username
 
@@ -23,7 +23,7 @@ topology_template:
       properties:
         container:
           image: "afraisse/nodecellar:exp"
-          name: "nodecellar--1259160934"
+          name: "nodecellar-1924433860"
           resources:
             requests:
               memory: "128 MB"
@@ -89,10 +89,10 @@ topology_template:
           template:
             metadata:
               labels:
-                app: "containerdeploymentunit-1288499612"
+                app: "containerdeploymentunit--1612974517"
           replicas: 1
         metadata:
-          name: "containerdeploymentunit-1288499612"
+          name: "containerdeploymentunit--1612974517"
       requirements:
         - ContainerDeploymentUnit_Mongo_mongo_db_Service:
             type_requirement: dependency
@@ -112,7 +112,7 @@ topology_template:
       properties:
         container:
           image: "mongo:latest"
-          name: "mongo-774737878"
+          name: "mongo--531691872"
           resources:
             requests:
               memory: "128 MB"
@@ -167,10 +167,10 @@ topology_template:
           template:
             metadata:
               labels:
-                app: "containerruntime-2-du-2050868722"
+                app: "containerruntime-2-du--712321668"
           replicas: 1
         metadata:
-          name: "containerruntime-2-du-2050868722"
+          name: "containerruntime-2-du--712321668"
       capabilities:
         scalable:
           properties:
@@ -187,13 +187,14 @@ topology_template:
         spec:
           service_type: NodePort
           selector:
-            app: "containerruntime-2-du-2050868722"
+            app: "containerruntime-2-du--712321668"
           ports:
             -
               port: 27017
               name: "mongo-db"
+              targetPort: "mongo-db"
         metadata:
-          name: "mongo-mongo-db-service--909978259"
+          name: "mongo-mongo-db-service-1695575075"
       requirements:
         - Mongo_mongo_db_Service_ContainerRuntime_2_DU:
             type_requirement: dependency
@@ -210,13 +211,14 @@ topology_template:
         spec:
           service_type: NodePort
           selector:
-            app: "containerdeploymentunit-1288499612"
+            app: "containerdeploymentunit--1612974517"
           ports:
             -
               port: 3000
               name: "nodecellar-app"
+              targetPort: "nodecellar-app"
         metadata:
-          name: "nodecellar-nodecellar-app-service-2131725209"
+          name: "nodecellar-nodecellar-app-service-1642818934"
       requirements:
         - Nodecellar_nodecellar_app_Service_ContainerDeploymentUnit:
             type_requirement: dependency

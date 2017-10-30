@@ -201,6 +201,7 @@ data_types:
           Standard object's metadata. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata
       spec:
         type: org.alien4cloud.kubernetes.api.datatypes.PodSpec
+        required: false
         description: |
           Specification of the desired behavior of the pod. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#spec-and-status
 
@@ -366,6 +367,16 @@ data_types:
         constraints:
           - valid_values: [TCP, UDP]
 
+  org.alien4cloud.kubernetes.api.datatypes.ContainerEnv:
+    derived_from: tosca.datatypes.Root
+    properties:
+      name:
+        type: string
+        required: true
+      value:
+        type: string
+        required: true
+
   org.alien4cloud.kubernetes.api.datatypes.ContainerSpec:
     derived_from: tosca.datatypes.Root
     properties:
@@ -382,10 +393,10 @@ data_types:
         entry_schema:
           type: string
       env:
-        type: map
+        type: list
         required: false
         entry_schema:
-          type: string
+          type: org.alien4cloud.kubernetes.api.datatypes.ContainerEnv
         description: |
           List of environment variables to set in the container. Cannot be updated.
       # envFrom:
@@ -855,11 +866,17 @@ node_types:
 #            - Deploy the deployment onto kubernets
 #            - Export some informations to expose it as attributes ?
 
+
   org.alien4cloud.kubernetes.api.types.ServiceResource:
     derived_from: org.alien4cloud.kubernetes.api.types.BaseResource
+    properties:
+      service_name:
+        type: string
+        required: true
     attributes:
       ip_address: { get_operation_output: [SELF, Standard, create, IP_ADDRESS] }
       port: { get_operation_output: [SELF, Standard, create, PORT] }
+
 #    interfaces:
 #      Standard:
 #        create:
@@ -867,6 +884,8 @@ node_types:
 #          description: |
 #            - Deploy the service onto kubernets
 #            - Export the service ip_address and port to expose it as attributes
+# input:
+# KUBE_SERVICE_NAME: { get_property: [SELF, service_name] }
 
 policy_types:
   org.alien4cloud.kubernetes.api.policies.AntiAffinityLabel:

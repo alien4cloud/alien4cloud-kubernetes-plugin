@@ -57,7 +57,7 @@ public abstract class AbstractKubernetesTopologyModifier extends TopologyModifie
         // TODO: length should be < 63 ??
         // TODO: better unique generation
         // we hashCode the UUID, we know that we have some collision risk, but for the moment we accept
-        return generateUniqueKubeName(prefix + "-" + UUID.randomUUID().toString().hashCode());
+        return generateKubeName(prefix + "-" + UUID.randomUUID().toString().hashCode());
     }
 
     /**

@@ -78,6 +78,9 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
             copyProperty(csar, topology, serviceNode, "kind", serviceResourceNodeProperties, "resource_def.kind");
             copyProperty(csar, topology, serviceNode, "metadata", serviceResourceNodeProperties, "resource_def.metadata");
 
+            AbstractPropertyValue namePropertyValue = PropertyUtil.getPropertyValueFromPath(AlienUtils.safe(serviceNode.getProperties()), "metadata.name");
+            setNodePropertyPathValue(csar, topology, serviceResourceNode, "service_name", namePropertyValue);
+
             AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(AlienUtils.safe(serviceNode.getProperties()), "spec");
             // TODO: propertyValue should be transformed before injected in the serviceResourceNodeProperties
             NodeType nodeType = ToscaContext.get(NodeType.class, serviceNode.getType());
@@ -86,6 +89,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
             // rename entry service_type to type
             renameProperty(transformedValue, "service_type", "type");
             feedPropertyValue(serviceResourceNodeProperties, "resource_def.spec", transformedValue, false);
+
         }
 
         // for each Deployment create a node of type DeploymentResource
@@ -152,7 +156,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
             // resolve env variables
             // TODO: in the interface, create operation, search for ENV_, resolve all get_property ...
             Set<NodeTemplate> hostedContainers = TopologyNavigationUtil.getSourceNodes(topology, containerNode, "host");
-            hostedContainers.stream().peek(nodeTemplate -> {
+            for (NodeTemplate nodeTemplate : hostedContainers) {
                 // we should have a single hosted docker container
                 NodeType nodeType = ToscaContext.get(NodeType.class, nodeTemplate.getType());
                 if (nodeType.getInterfaces() != null && nodeType.getInterfaces().containsKey(ToscaNodeLifecycleConstants.STANDARD)) {
@@ -164,8 +168,13 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
                                 String envKey = k.substring(4);
                                 try {
                                     PropertyValue propertyValue = FunctionEvaluator.resolveValue(functionEvaluatorContext, nodeTemplate, nodeTemplate.getProperties(), (AbstractPropertyValue)iValue);
-//                                String value  = PropertyUtil.serializePropertyValue(propertyValue);
-                                    feedPropertyValue(containerNode.getProperties(), "container.env." + envKey, propertyValue, false);
+                                    if (propertyValue != null) {
+                                        ComplexPropertyValue envEntry = new ComplexPropertyValue();
+                                        envEntry.setValue(Maps.newHashMap());
+                                        envEntry.getValue().put("name", envKey);
+                                        envEntry.getValue().put("value", propertyValue);
+                                        appendNodePropertyPathValue(csar, topology, containerNode, "container.env", envEntry);
+                                    }
                                 } catch(IllegalArgumentException iae) {
                                     log.severe(iae.getMessage());
                                 }
@@ -173,7 +182,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
                         });
                     }
                 }
-            });
+            }
 
             // add an entry in the deployment resource
             AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(AlienUtils.safe(containerNode.getProperties()), "container");
@@ -183,6 +192,13 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
             Object transformedValue = getTransformedValue(propertyValue, propertyDefinition, "");
             feedPropertyValue(deploymentResourceNodeProperties, "resource_def.spec.template.spec.containers", transformedValue, true);
 
+        }
+
+        for (NodeTemplate serviceNode : serviceNodes) {
+            removeNode(serviceNode);
+        }
+        for (NodeTemplate deploymentNode : deploymentNodes) {
+            removeNode(deploymentNode);
         }
 
         // TODO: remove old useless nodes
@@ -218,7 +234,9 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
      * Transform the object by replacing eventual PropertyValue found by it's value.
      */
     private Object getTransformedValue(Object value, PropertyDefinition propertyDefinition, String path) {
-        if (value instanceof PropertyValue) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof PropertyValue) {
             return getTransformedValue(((PropertyValue)value).getValue(), propertyDefinition, path);
         } else if (value instanceof Map<?, ?>) {
             Map<String, Object> newMap = Maps.newHashMap();

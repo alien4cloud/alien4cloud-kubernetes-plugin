@@ -1,7 +1,7 @@
 tosca_definitions_version: alien_dsl_2_0_0
 
 metadata:
-  template_name: post-node-matching
+  template_name: final
   template_version: 2.0.0-SNAPSHOT
   template_author: Username
 
@@ -32,8 +32,7 @@ topology_template:
               memory: "128 MB"
               cpu: 1.0
           ports:
-            -
-              name: "nodecellar-app"
+            - name: "nodecellar-app"
               containerPort: 3000
           command:
             - "/bin/bash"
@@ -121,8 +120,7 @@ topology_template:
               memory: "128 MB"
               cpu: 1.0
           ports:
-            -
-              name: "mongo-db"
+            - name: "mongo-db"
               containerPort: 27017
       requirements:
         - ContainerRuntime_2_ContainerRuntime_2_DU:
@@ -189,8 +187,7 @@ topology_template:
           selector:
             app: "containerruntime-2-du--712321668"
           ports:
-            -
-              port: 27017
+            - port: 27017
               name: "mongo-db"
               targetPort: "mongo-db"
         metadata:
@@ -213,8 +210,7 @@ topology_template:
           selector:
             app: "containerdeploymentunit--1612974517"
           ports:
-            -
-              port: 3000
+            - port: 3000
               name: "nodecellar-app"
               targetPort: "nodecellar-app"
         metadata:
@@ -225,3 +221,188 @@ topology_template:
             node: ContainerDeploymentUnit
             capability: tosca.capabilities.Node
             relationship: tosca.relationships.DependsOn
+    Mongo_mongo_db_Service_Resource:
+      metadata:
+        a4c_kubernetes-final-modifier_created_from: Mongo_mongo_db_Service
+      type: org.alien4cloud.kubernetes.api.types.ServiceResource
+      properties:
+        service_name: "mongo-mongo-db-service-1695575075"
+        resource_yaml: |
+            {
+              "metadata" : {
+                "name" : "mongo-mongo-db-service-1695575075"
+              },
+              "apiVersion" : "v1",
+              "kind" : "Service",
+              "spec" : {
+                "selector" : {
+                  "app" : "containerruntime-2-du--712321668"
+                },
+                "ports" : [ {
+                  "port" : 27017,
+                  "name" : "mongo-db",
+                  "targetPort" : "mongo-db"
+                } ],
+                "type" : "NodePort"
+              }
+            }
+
+      requirements:
+        - Mongo_mongo_db_Service_Resource_ContainerRuntime_2_DU_Resource:
+            metadata:
+              a4c_kubernetes-final-modifier_created_from: "Mongo_mongo_db_Service -> ContainerRuntime_2_DU"
+            type_requirement: dependency
+            node: ContainerRuntime_2_DU_Resource
+            capability: tosca.capabilities.Node
+            relationship: tosca.relationships.DependsOn
+    Nodecellar_nodecellar_app_Service_Resource:
+      metadata:
+        a4c_kubernetes-final-modifier_created_from: Nodecellar_nodecellar_app_Service
+      type: org.alien4cloud.kubernetes.api.types.ServiceResource
+      properties:
+        service_name: "nodecellar-nodecellar-app-service-1642818934"
+        resource_yaml: |
+            {
+              "metadata" : {
+                "name" : "nodecellar-nodecellar-app-service-1642818934"
+              },
+              "apiVersion" : "v1",
+              "kind" : "Service",
+              "spec" : {
+                "selector" : {
+                  "app" : "containerdeploymentunit--1612974517"
+                },
+                "ports" : [ {
+                  "port" : 3000,
+                  "name" : "nodecellar-app",
+                  "targetPort" : "nodecellar-app"
+                } ],
+                "type" : "NodePort"
+              }
+            }
+
+      requirements:
+        - Nodecellar_nodecellar_app_Service_Resource_ContainerDeploymentUnit_Resource:
+            metadata:
+              a4c_kubernetes-final-modifier_created_from: "Nodecellar_nodecellar_app_Service -> ContainerDeploymentUnit"
+            type_requirement: dependency
+            node: ContainerDeploymentUnit_Resource
+            capability: tosca.capabilities.Node
+            relationship: tosca.relationships.DependsOn
+    ContainerDeploymentUnit_Resource:
+      metadata:
+        a4c_kubernetes-final-modifier_created_from: ContainerDeploymentUnit
+      type: org.alien4cloud.kubernetes.api.types.DeploymentResource
+      properties:
+        resource_yaml: |
+            {
+              "metadata" : {
+                "name" : "containerdeploymentunit--1612974517"
+              },
+              "apiVersion" : "apps/v1beta1",
+              "kind" : "Deployment",
+              "spec" : {
+                "template" : {
+                  "metadata" : {
+                    "labels" : {
+                      "app" : "containerdeploymentunit--1612974517"
+                    }
+                  },
+                  "spec" : {
+                    "containers" : [ {
+                      "image" : "afraisse/nodecellar:exp",
+                      "name" : "nodecellar-1924433860",
+                      "resources" : {
+                        "requests" : {
+                          "memory" : 128000000,
+                          "cpu" : 1.0
+                        },
+                        "limits" : {
+                          "memory" : 128000000,
+                          "cpu" : 1.0
+                        }
+                      },
+                      "ports" : [ {
+                        "name" : "nodecellar-app",
+                        "containerPort" : 3000
+                      } ],
+                      "command" : [ "/bin/bash", "-c", "cd /nodecellar && nodejs server.js" ]
+                    } ]
+                  }
+                },
+                "replicas" : 1
+              }
+            }
+
+      requirements:
+        - ContainerDeploymentUnit_Resource_Nodecellar_nodecellar_app_Service_Resource:
+            metadata:
+              a4c_kubernetes-final-modifier_created_from: "ContainerDeploymentUnit -> Nodecellar_nodecellar_app_Service"
+            type_requirement: dependency
+            node: Nodecellar_nodecellar_app_Service_Resource
+            capability: tosca.capabilities.Node
+            relationship: tosca.relationships.DependsOn
+      capabilities:
+        scalable:
+          properties:
+            min_instances: 1
+            max_instances: 1
+            default_instances: 1
+    ContainerRuntime_2_DU_Resource:
+      metadata:
+        a4c_kubernetes-final-modifier_created_from: ContainerRuntime_2_DU
+      type: org.alien4cloud.kubernetes.api.types.DeploymentResource
+      properties:
+        resource_yaml: |
+            {
+              "metadata" : {
+                "name" : "containerruntime-2-du--712321668"
+              },
+              "apiVersion" : "apps/v1beta1",
+              "kind" : "Deployment",
+              "spec" : {
+                "template" : {
+                  "metadata" : {
+                    "labels" : {
+                      "app" : "containerruntime-2-du--712321668"
+                    }
+                  },
+                  "spec" : {
+                    "containers" : [ {
+                      "image" : "mongo:latest",
+                      "name" : "mongo--531691872",
+                      "resources" : {
+                        "requests" : {
+                          "memory" : 128000000,
+                          "cpu" : 1.0
+                        },
+                        "limits" : {
+                          "memory" : 128000000,
+                          "cpu" : 1.0
+                        }
+                      },
+                      "ports" : [ {
+                        "name" : "mongo-db",
+                        "containerPort" : 27017
+                      } ]
+                    } ]
+                  }
+                },
+                "replicas" : 1
+              }
+            }
+
+      requirements:
+        - ContainerRuntime_2_DU_Resource_Mongo_mongo_db_Service_Resource:
+            metadata:
+              a4c_kubernetes-final-modifier_created_from: "ContainerRuntime_2_DU -> Mongo_mongo_db_Service"
+            type_requirement: dependency
+            node: Mongo_mongo_db_Service_Resource
+            capability: tosca.capabilities.Node
+            relationship: tosca.relationships.DependsOn
+      capabilities:
+        scalable:
+          properties:
+            min_instances: 1
+            max_instances: 1
+            default_instances: 1
