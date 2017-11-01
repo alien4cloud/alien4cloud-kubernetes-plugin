@@ -23,11 +23,11 @@ Feature: Topology modifier
     Given I upload unzipped CSAR from path "src/main/resources/csar/tosca.yml"
 
   Scenario: Transform a base topology
-#    Given I upload unzipped CSAR from path "src/test/resources/data/03-one-apache/1-initial.yaml"
+#    Given I upload unzipped CSAR from path "src/test/resources/data/00-simple-topology/1-initial.yaml"
 #    And I get the topology related to the CSAR with name "initial" and version "2.0.0-SNAPSHOT"
 #    When I execute the modifier "kubernetes-modifier" on the current topology
 
-    Given I upload unzipped CSAR from path "src/test/resources/data/03-one-apache/3-post-node-matching.yaml"
+    Given I upload unzipped CSAR from path "src/test/resources/data/00-simple-topology/3-post-node-matching.yaml"
     And I get the topology related to the CSAR with name "post-node-matching" and version "2.0.0-SNAPSHOT"
     When I execute the modifier "kubernetes-final-modifier" on the current topology
 

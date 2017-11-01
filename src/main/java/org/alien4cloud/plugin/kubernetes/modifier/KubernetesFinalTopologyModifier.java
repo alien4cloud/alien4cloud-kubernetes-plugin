@@ -4,6 +4,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import alien4cloud.paas.plan.ToscaNodeLifecycleConstants;
+import alien4cloud.paas.wf.util.WorkflowUtils;
+import alien4cloud.rest.utils.JsonUtil;
+import alien4cloud.tosca.context.ToscaContext;
+import alien4cloud.tosca.context.ToscaContextual;
+import alien4cloud.utils.AlienUtils;
+import alien4cloud.utils.PropertyUtil;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+import lombok.SneakyThrows;
+import lombok.extern.java.Log;
 import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
 import org.alien4cloud.tosca.exceptions.InvalidPropertyValueException;
 import org.alien4cloud.tosca.model.Csar;
@@ -46,7 +58,7 @@ import lombok.extern.java.Log;
 @Component(value = "kubernetes-final-modifier")
 public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyModifier {
 
-    private static final String A4C_KUBERNETES_MODIFIER_TAG = "a4c_kubernetes-final-modifier";
+    public static final String A4C_KUBERNETES_MODIFIER_TAG = "a4c_kubernetes-final-modifier";
 
     private static Map<String, Parser> k8sParsers = Maps.newHashMap();
 
@@ -166,17 +178,31 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
                         AlienUtils.safe(createOp.getInputParameters()).forEach((k, iValue) -> {
                             if (iValue instanceof AbstractPropertyValue && k.startsWith("ENV_")) {
                                 String envKey = k.substring(4);
-                                try {
-                                    PropertyValue propertyValue = FunctionEvaluator.resolveValue(functionEvaluatorContext, nodeTemplate, nodeTemplate.getProperties(), (AbstractPropertyValue)iValue);
-                                    if (propertyValue != null) {
-                                        ComplexPropertyValue envEntry = new ComplexPropertyValue();
-                                        envEntry.setValue(Maps.newHashMap());
-                                        envEntry.getValue().put("name", envKey);
-                                        envEntry.getValue().put("value", propertyValue);
-                                        appendNodePropertyPathValue(csar, topology, containerNode, "container.env", envEntry);
+
+                                if (KubeAttributeDetector.isServiceIpAddress(topology, nodeTemplate, iValue)) {
+                                    NodeTemplate serviceTemplate = KubeAttributeDetector.getServiceDependency(topology, nodeTemplate, iValue);
+                                    AbstractPropertyValue serviceNameValue = PropertyUtil.getPropertyValueFromPath(serviceTemplate.getProperties(), "metadata.name");
+                                    String serviceName = PropertyUtil.getScalarValue(serviceNameValue);
+                                    ComplexPropertyValue envEntry = new ComplexPropertyValue();
+                                    envEntry.setValue(Maps.newHashMap());
+                                    envEntry.getValue().put("name", envKey);
+                                    envEntry.getValue().put("value", "$" + serviceName + "$");
+                                    appendNodePropertyPathValue(csar, topology, containerNode, "container.env", envEntry);
+                                } else if (KubeAttributeDetector.isServicePort(topology, nodeTemplate, iValue)) {
+
+                                } else {
+                                    try {
+                                        PropertyValue propertyValue = FunctionEvaluator.resolveValue(functionEvaluatorContext, nodeTemplate, nodeTemplate.getProperties(), (AbstractPropertyValue)iValue);
+                                        if (propertyValue != null) {
+                                            ComplexPropertyValue envEntry = new ComplexPropertyValue();
+                                            envEntry.setValue(Maps.newHashMap());
+                                            envEntry.getValue().put("name", envKey);
+                                            envEntry.getValue().put("value", propertyValue);
+                                            appendNodePropertyPathValue(csar, topology, containerNode, "container.env", envEntry);
+                                        }
+                                    } catch(IllegalArgumentException iae) {
+                                        log.severe(iae.getMessage());
                                     }
-                                } catch(IllegalArgumentException iae) {
-                                    log.severe(iae.getMessage());
                                 }
                             }
                         });

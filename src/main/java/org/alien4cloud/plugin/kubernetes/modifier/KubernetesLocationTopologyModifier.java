@@ -41,6 +41,8 @@ import java.util.UUID;
 public class KubernetesLocationTopologyModifier extends AbstractKubernetesTopologyModifier {
 
     public static final String A4C_KUBERNETES_MODIFIER_TAG = "a4c_kubernetes-modifier";
+    public static final String A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT = A4C_KUBERNETES_MODIFIER_TAG + "_service_endpoint";
+
 
     @Override
     @ToscaContextual
@@ -57,7 +59,7 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesTopolo
 
             // if containerRuntime is orphean, wrap it in an AbstractDeployment
             if (!TopologyNavigationUtil.isHosted(topology, nodeTemplate)) {
-                NodeTemplate hostNode = addNodeTemplate(csar, topology, nodeTemplate.getName() + "_DU", K8S_TYPES_ABSTRACT_DEPLOYMENT, K8S_CSAR_VERSION);
+                NodeTemplate hostNode = addNodeTemplate(csar, topology, nodeTemplate.getName() + "Pod", K8S_TYPES_ABSTRACT_DEPLOYMENT, K8S_CSAR_VERSION);
                 setNodeTagValue(hostNode, A4C_KUBERNETES_MODIFIER_TAG, "Created to host " + nodeTemplate.getName());
 
                 // set a generated name to the K8S object
@@ -142,6 +144,7 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesTopolo
                 // add an abstract service node
                 NodeTemplate serviceNode = addNodeTemplate(csar, topology, containerNodeTemplate.getName() + "_" + endpointName + "_Service", K8S_TYPES_ABSTRACT_SERVICE, K8S_CSAR_VERSION);
                 setNodeTagValue(serviceNode, A4C_KUBERNETES_MODIFIER_TAG, "Proxy of node <" + containerNodeTemplate.getName() + "> capability <" + endpointName + ">");
+                setNodeTagValue(serviceNode, A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT, endpointName);
 
                 // fill properties of service
                 setNodePropertyPathValue(csar, topology, serviceNode, "metadata.name", new ScalarPropertyValue(generateUniqueKubeName(serviceNode.getName())));

@@ -19,12 +19,12 @@ imports:
 
 topology_template:
   node_templates:
-    ContainerRuntime:
+    NocellarContainer:
       type: org.alien4cloud.extended.container.types.ContainerRuntime
       requirements:
         - hostedOnContainerDeploymentUnitHost:
             type_requirement: host
-            node: ContainerDeploymentUnit
+            node: NodecellarPod
             capability: tosca.capabilities.Container.Docker
             relationship: tosca.relationships.HostedOn
     Nodecellar:
@@ -43,7 +43,7 @@ topology_template:
             relationship: tosca.relationships.ConnectsTo
         - hostedOnContainerRuntimeContainerRuntimeHost:
             type_requirement: host
-            node: ContainerRuntime
+            node: NocellarContainer
             capability: org.alien4cloud.extended.container.capabilities.ApplicationHost
             relationship: org.alien4cloud.extended.container.relationships.HostedOnContainerRuntime
       capabilities:
@@ -60,7 +60,7 @@ topology_template:
             min_instances: 1
             max_instances: 1
             default_instances: 1
-    ContainerDeploymentUnit:
+    NodecellarPod:
       type: org.alien4cloud.extended.container.types.ContainerDeploymentUnit
       capabilities:
         scalable:
@@ -68,7 +68,7 @@ topology_template:
             min_instances: 1
             max_instances: 1
             default_instances: 1
-    ContainerRuntime_2:
+    MongoContainer:
       type: org.alien4cloud.extended.container.types.ContainerRuntime
     Mongo:
       type: org.alien4cloud.nodes.Application.Docker.Mongo
@@ -78,7 +78,7 @@ topology_template:
       requirements:
         - hostedOnContainerRuntimeContainerRuntime2Host:
             type_requirement: host
-            node: ContainerRuntime_2
+            node: MongoContainer
             capability: org.alien4cloud.extended.container.capabilities.ApplicationHost
             relationship: org.alien4cloud.extended.container.relationships.HostedOnContainerRuntime
       capabilities:
