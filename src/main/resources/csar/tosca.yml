@@ -904,6 +904,9 @@ policy_types:
     derived_from: org.alien4cloud.policies.AntiAffinity
     description: >
       c.f. https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+    metadata:
+      # pluginId:pluginBean:phase
+      a4c_policy_impl: alien4cloud-kubernetes-plugin:kubernetes-anti-affinity-modifier:post-node-match
 
     # properties:
     #   affinity:

@@ -1,13 +1,8 @@
 package org.alien4cloud.plugin.kubernetes.modifier;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
 import alien4cloud.paas.plan.ToscaNodeLifecycleConstants;
 import alien4cloud.tosca.context.ToscaContext;
 import alien4cloud.tosca.context.ToscaContextual;
-import alien4cloud.utils.AlienUtils;
 import alien4cloud.utils.PropertyUtil;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -15,13 +10,7 @@ import lombok.extern.java.Log;
 import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
 import org.alien4cloud.tosca.exceptions.InvalidPropertyValueException;
 import org.alien4cloud.tosca.model.Csar;
-import org.alien4cloud.tosca.model.definitions.AbstractPropertyValue;
-import org.alien4cloud.tosca.model.definitions.ComplexPropertyValue;
-import org.alien4cloud.tosca.model.definitions.Interface;
-import org.alien4cloud.tosca.model.definitions.Operation;
-import org.alien4cloud.tosca.model.definitions.PropertyDefinition;
-import org.alien4cloud.tosca.model.definitions.PropertyValue;
-import org.alien4cloud.tosca.model.definitions.ScalarPropertyValue;
+import org.alien4cloud.tosca.model.definitions.*;
 import org.alien4cloud.tosca.model.templates.NodeTemplate;
 import org.alien4cloud.tosca.model.templates.RelationshipTemplate;
 import org.alien4cloud.tosca.model.templates.Topology;
@@ -36,6 +25,12 @@ import org.alien4cloud.tosca.utils.FunctionEvaluator;
 import org.alien4cloud.tosca.utils.FunctionEvaluatorContext;
 import org.alien4cloud.tosca.utils.TopologyNavigationUtil;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import static alien4cloud.utils.AlienUtils.safe;
 
 /**
  * Transform a matched K8S topology containing <code>Container</code>s, <code>Deployment</code>s, <code>Service</code>s and replace them with <code>DeploymentResource</code>s and <code>ServiceResource</code>s.
@@ -77,11 +72,10 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
             copyProperty(csar, topology, serviceNode, "kind", serviceResourceNodeProperties, "resource_def.kind");
             copyProperty(csar, topology, serviceNode, "metadata", serviceResourceNodeProperties, "resource_def.metadata");
 
-            AbstractPropertyValue namePropertyValue = PropertyUtil.getPropertyValueFromPath(AlienUtils.safe(serviceNode.getProperties()), "metadata.name");
+            AbstractPropertyValue namePropertyValue = PropertyUtil.getPropertyValueFromPath(safe(serviceNode.getProperties()), "metadata.name");
             setNodePropertyPathValue(csar, topology, serviceResourceNode, "service_name", namePropertyValue);
 
-            AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(AlienUtils.safe(serviceNode.getProperties()), "spec");
-            // TODO: propertyValue should be transformed before injected in the serviceResourceNodeProperties
+            AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(safe(serviceNode.getProperties()), "spec");
             NodeType nodeType = ToscaContext.get(NodeType.class, serviceNode.getType());
             PropertyDefinition propertyDefinition = nodeType.getProperties().get("spec");
             Object transformedValue = getTransformedValue(propertyValue, propertyDefinition, "");
@@ -109,7 +103,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
             copyProperty(csar, topology, deploymentNode, "kind", deploymentResourceNodeProperties, "resource_def.kind");
             copyProperty(csar, topology, deploymentNode, "metadata", deploymentResourceNodeProperties, "resource_def.metadata");
 
-            AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(AlienUtils.safe(deploymentNode.getProperties()), "spec");
+            AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(safe(deploymentNode.getProperties()), "spec");
             // TODO: propertyValue should be transformed before injected in the deploymentResourceNodeProperties
             NodeType nodeType = ToscaContext.get(NodeType.class, deploymentNode.getType());
             PropertyDefinition propertyDefinition = nodeType.getProperties().get("spec");
@@ -160,7 +154,6 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
             Map<String, AbstractPropertyValue> deploymentResourceNodeProperties = resourceNodeYamlStructures.get(deploymentResource.getName());
 
             // resolve env variables
-            // TODO: in the interface, create operation, search for ENV_, resolve all get_property ...
             Set<NodeTemplate> hostedContainers = TopologyNavigationUtil.getSourceNodes(topology, containerNode, "host");
             for (NodeTemplate nodeTemplate : hostedContainers) {
                 // we should have a single hosted docker container
@@ -169,7 +162,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
                     Interface standardInterface = nodeType.getInterfaces().get(ToscaNodeLifecycleConstants.STANDARD);
                     if (standardInterface.getOperations() != null && standardInterface.getOperations().containsKey(ToscaNodeLifecycleConstants.CREATE)) {
                         Operation createOp = standardInterface.getOperations().get(ToscaNodeLifecycleConstants.CREATE);
-                        AlienUtils.safe(createOp.getInputParameters()).forEach((k, iValue) -> {
+                        safe(createOp.getInputParameters()).forEach((k, iValue) -> {
                             if (iValue instanceof AbstractPropertyValue && k.startsWith("ENV_")) {
                                 String envKey = k.substring(4);
 
@@ -234,7 +227,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
             });
 
             // add an entry in the deployment resource
-            AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(AlienUtils.safe(containerNode.getProperties()), "container");
+            AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(safe(containerNode.getProperties()), "container");
             // transform data
             NodeType nodeType = ToscaContext.get(NodeType.class, containerNode.getType());
             PropertyDefinition propertyDefinition = nodeType.getProperties().get("container");
@@ -243,10 +236,12 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
 
         }
 
-
-
-        serviceNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
-        deploymentNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
+        // TODO bug on node matching view since these nodes are the real matched ones
+        // TODO then find a way to delete servicesNodes and deloymentNodes as they are not used
+        // serviceNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
+        // deploymentNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
+        Set<NodeTemplate> containers = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_APPLICATION_DOCKER_CONTAINER, true);
+        safe(containers).forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
 
         Set<NodeTemplate> resourceNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_RESOURCE, true);
         for (NodeTemplate resourceNode : resourceNodes) {
@@ -270,7 +265,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
     }
 
     private void copyProperty(Csar csar, Topology topology, NodeTemplate sourceTemplate, String sourcePath, Map<String, AbstractPropertyValue> propertyValues, String targetPath) {
-        AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(AlienUtils.safe(sourceTemplate.getProperties()), sourcePath);
+        AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(safe(sourceTemplate.getProperties()), sourcePath);
         feedPropertyValue(propertyValues, targetPath, propertyValue, false);
     }
 
