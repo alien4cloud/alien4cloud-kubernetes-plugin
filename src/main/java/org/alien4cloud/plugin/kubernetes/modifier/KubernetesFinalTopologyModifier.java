@@ -1,21 +1,11 @@
 package org.alien4cloud.plugin.kubernetes.modifier;
 
+import static alien4cloud.utils.AlienUtils.safe;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import alien4cloud.paas.plan.ToscaNodeLifecycleConstants;
-import alien4cloud.paas.wf.util.WorkflowUtils;
-import alien4cloud.rest.utils.JsonUtil;
-import alien4cloud.tosca.context.ToscaContext;
-import alien4cloud.tosca.context.ToscaContextual;
-import alien4cloud.utils.AlienUtils;
-import alien4cloud.utils.PropertyUtil;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
-import lombok.SneakyThrows;
-import lombok.extern.java.Log;
 import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
 import org.alien4cloud.tosca.exceptions.InvalidPropertyValueException;
 import org.alien4cloud.tosca.model.Csar;
@@ -47,7 +37,6 @@ import com.google.common.collect.Maps;
 import alien4cloud.paas.plan.ToscaNodeLifecycleConstants;
 import alien4cloud.tosca.context.ToscaContext;
 import alien4cloud.tosca.context.ToscaContextual;
-import alien4cloud.utils.AlienUtils;
 import alien4cloud.utils.PropertyUtil;
 import lombok.extern.java.Log;
 
@@ -91,10 +80,10 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
             copyProperty(csar, topology, serviceNode, "kind", serviceResourceNodeProperties, "resource_def.kind");
             copyProperty(csar, topology, serviceNode, "metadata", serviceResourceNodeProperties, "resource_def.metadata");
 
-            AbstractPropertyValue namePropertyValue = PropertyUtil.getPropertyValueFromPath(AlienUtils.safe(serviceNode.getProperties()), "metadata.name");
+            AbstractPropertyValue namePropertyValue = PropertyUtil.getPropertyValueFromPath(safe(serviceNode.getProperties()), "metadata.name");
             setNodePropertyPathValue(csar, topology, serviceResourceNode, "service_name", namePropertyValue);
 
-            AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(AlienUtils.safe(serviceNode.getProperties()), "spec");
+            AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(safe(serviceNode.getProperties()), "spec");
             // TODO: propertyValue should be transformed before injected in the serviceResourceNodeProperties
             NodeType nodeType = ToscaContext.get(NodeType.class, serviceNode.getType());
             PropertyDefinition propertyDefinition = nodeType.getProperties().get("spec");
@@ -123,7 +112,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
             copyProperty(csar, topology, deploymentNode, "kind", deploymentResourceNodeProperties, "resource_def.kind");
             copyProperty(csar, topology, deploymentNode, "metadata", deploymentResourceNodeProperties, "resource_def.metadata");
 
-            AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(AlienUtils.safe(deploymentNode.getProperties()), "spec");
+            AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(safe(deploymentNode.getProperties()), "spec");
             // TODO: propertyValue should be transformed before injected in the deploymentResourceNodeProperties
             NodeType nodeType = ToscaContext.get(NodeType.class, deploymentNode.getType());
             PropertyDefinition propertyDefinition = nodeType.getProperties().get("spec");
@@ -183,7 +172,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
                     Interface standardInterface = nodeType.getInterfaces().get(ToscaNodeLifecycleConstants.STANDARD);
                     if (standardInterface.getOperations() != null && standardInterface.getOperations().containsKey(ToscaNodeLifecycleConstants.CREATE)) {
                         Operation createOp = standardInterface.getOperations().get(ToscaNodeLifecycleConstants.CREATE);
-                        AlienUtils.safe(createOp.getInputParameters()).forEach((k, iValue) -> {
+                        safe(createOp.getInputParameters()).forEach((k, iValue) -> {
                             if (iValue instanceof AbstractPropertyValue && k.startsWith("ENV_")) {
                                 String envKey = k.substring(4);
 
@@ -248,7 +237,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
             });
 
             // add an entry in the deployment resource
-            AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(AlienUtils.safe(containerNode.getProperties()), "container");
+            AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(safe(containerNode.getProperties()), "container");
             // transform data
             NodeType nodeType = ToscaContext.get(NodeType.class, containerNode.getType());
             PropertyDefinition propertyDefinition = nodeType.getProperties().get("container");
@@ -259,8 +248,12 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
 
 
 
-        serviceNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
-        deploymentNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
+        // TODO bug on node matching view since these nodes are the real matched ones
+        // TODO then find a way to delete servicesNodes and deloymentNodes as they are not used
+        // serviceNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
+        // deploymentNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
+        Set<NodeTemplate> containers = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_APPLICATION_DOCKER_CONTAINER, true);
+        safe(containers).forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
 
         Set<NodeTemplate> resourceNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_RESOURCE, true);
         for (NodeTemplate resourceNode : resourceNodes) {
@@ -284,7 +277,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
     }
 
     private void copyProperty(Csar csar, Topology topology, NodeTemplate sourceTemplate, String sourcePath, Map<String, AbstractPropertyValue> propertyValues, String targetPath) {
-        AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(AlienUtils.safe(sourceTemplate.getProperties()), sourcePath);
+        AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(safe(sourceTemplate.getProperties()), sourcePath);
         feedPropertyValue(propertyValues, targetPath, propertyValue, false);
     }
 

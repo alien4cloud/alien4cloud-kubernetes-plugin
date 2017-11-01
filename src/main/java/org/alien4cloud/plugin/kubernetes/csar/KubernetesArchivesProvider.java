@@ -5,7 +5,7 @@ import org.springframework.stereotype.Component;
 import alien4cloud.plugin.archives.AbstractArchiveProviderPlugin;
 
 @Component("kubernete-archives-provider")
-public class KubeArchivesProvider extends AbstractArchiveProviderPlugin {
+public class KubernetesArchivesProvider extends AbstractArchiveProviderPlugin {
 
     @Override
     protected String[] getArchivesPaths() {
