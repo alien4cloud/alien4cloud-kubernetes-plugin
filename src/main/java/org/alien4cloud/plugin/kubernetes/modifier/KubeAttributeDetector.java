@@ -4,9 +4,13 @@ import alien4cloud.model.common.Tag;
 import alien4cloud.paas.wf.util.WorkflowUtils;
 import alien4cloud.tosca.context.ToscaContext;
 import alien4cloud.utils.AlienUtils;
+import alien4cloud.utils.PropertyUtil;
+import org.alien4cloud.tosca.model.definitions.AbstractPropertyValue;
 import org.alien4cloud.tosca.model.definitions.FunctionPropertyValue;
 import org.alien4cloud.tosca.model.definitions.IValue;
+import org.alien4cloud.tosca.model.templates.Capability;
 import org.alien4cloud.tosca.model.templates.NodeTemplate;
+import org.alien4cloud.tosca.model.templates.RelationshipTemplate;
 import org.alien4cloud.tosca.model.templates.Topology;
 import org.alien4cloud.tosca.model.types.NodeType;
 import org.alien4cloud.tosca.normative.constants.ToscaFunctionConstants;
@@ -23,10 +27,6 @@ public class KubeAttributeDetector {
 
     public static boolean isServiceIpAddress(Topology topology, NodeTemplate sourceNodeTemplate, IValue inputParameterValue ) {
         return isTargetServiceAttribute(topology, sourceNodeTemplate, inputParameterValue, "ip_address");
-    }
-
-    public static boolean isServicePort(Topology topology, NodeTemplate sourceNodeTemplate, IValue inputParameterValue ) {
-        return isTargetServiceAttribute(topology, sourceNodeTemplate, inputParameterValue, "port");
     }
 
     private static boolean isTargetServiceAttribute(Topology topology, NodeTemplate sourceNodeTemplate, IValue inputParameterValue, String attributeName) {
@@ -56,7 +56,12 @@ public class KubeAttributeDetector {
         return false;
     }
 
-    public static String getTargetedEndpointPort(Topology topology, NodeTemplate sourceNodeTemplate, IValue inputParameterValue ) {
+    public static boolean isTargetedEndpointProperty(Topology topology, NodeTemplate sourceNodeTemplate, IValue inputParameterValue ) {
+        AbstractPropertyValue abstractPropertyValue = getTargetedEndpointProperty(topology, sourceNodeTemplate, inputParameterValue);
+        return abstractPropertyValue != null;
+    }
+
+    public static AbstractPropertyValue getTargetedEndpointProperty(Topology topology, NodeTemplate sourceNodeTemplate, IValue inputParameterValue ) {
         // a get_attribute that searchs an ip_address on a requirement that targets a Docker Container should return true
         if (inputParameterValue instanceof FunctionPropertyValue) {
             FunctionPropertyValue evaluatedFunction = (FunctionPropertyValue) inputParameterValue;
@@ -64,15 +69,18 @@ public class KubeAttributeDetector {
                 if (evaluatedFunction.getTemplateName().equals(ToscaFunctionConstants.R_TARGET)) {
                     String requirement = evaluatedFunction.getCapabilityOrRequirementName();
                     if (requirement != null) {
-                        Set<NodeTemplate> targetNodes = TopologyNavigationUtil.getTargetNodes(topology, sourceNodeTemplate, requirement);
-                        for (NodeTemplate targetNode : targetNodes) {
+                        Set<RelationshipTemplate> targetRelationships = TopologyNavigationUtil.getTargetRelationships(sourceNodeTemplate, requirement);
+                        for (RelationshipTemplate targetRelationship : targetRelationships) {
                             // is this node a container ?
+                            NodeTemplate targetNode = topology.getNodeTemplates().get(targetRelationship.getTarget());
                             NodeType targetNodeType = ToscaContext.get(NodeType.class, targetNode.getType());
                             if (WorkflowUtils.isOfType(targetNodeType, AbstractKubernetesTopologyModifier.A4C_TYPES_APPLICATION_DOCKER_CONTAINER)) {
-// Each capabilities of type endpoint
-                                //                                targetNode.getCapabilities().
-//                                TODO: get the target port
-//                                return targetNode;
+
+                                Capability endpoint = targetNode.getCapabilities().get(targetRelationship.getTargetedCapabilityName());
+                                AbstractPropertyValue targetPropertyValue = PropertyUtil.getPropertyValueFromPath(endpoint.getProperties(), evaluatedFunction.getElementNameToFetch());
+                                if (targetPropertyValue != null) {
+                                    return targetPropertyValue;
+                                }
                             }
                         }
                     }

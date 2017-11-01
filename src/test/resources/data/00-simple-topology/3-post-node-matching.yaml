@@ -19,11 +19,11 @@ topology_template:
     NocellarContainer:
       metadata:
         a4c_kubernetes-modifier: Replacement of a org.alien4cloud.extended.container.types.ContainerRuntime
-      type: org.alien4cloud.kubernetes.api.types.AbstractContainer
+      type: org.alien4cloud.kubernetes.api.types.Container
       properties:
         container:
           image: "afraisse/nodecellar:exp"
-          name: "nodecellar--687592120"
+          name: "nodecellar--1839952299"
           resources:
             requests:
               memory: "128 MB"
@@ -81,7 +81,7 @@ topology_template:
     NodecellarPod:
       metadata:
         a4c_kubernetes-modifier: Replacement of a org.alien4cloud.extended.container.types.ContainerDeploymentUnit
-      type: org.alien4cloud.kubernetes.api.types.AbstractDeployment
+      type: org.alien4cloud.kubernetes.api.types.Deployment
       properties:
         apiVersion: "apps/v1beta1"
         kind: Deployment
@@ -89,10 +89,10 @@ topology_template:
           template:
             metadata:
               labels:
-                app: "nodecellarpod-1957152042"
+                app: "nodecellarpod--1286920069"
           replicas: 1
         metadata:
-          name: "nodecellarpod-1957152042"
+          name: "nodecellarpod--1286920069"
       requirements:
         - NodecellarPod_Mongo_mongo_db_Service:
             type_requirement: dependency
@@ -108,11 +108,11 @@ topology_template:
     MongoContainer:
       metadata:
         a4c_kubernetes-modifier: Replacement of a org.alien4cloud.extended.container.types.ContainerRuntime
-      type: org.alien4cloud.kubernetes.api.types.AbstractContainer
+      type: org.alien4cloud.kubernetes.api.types.Container
       properties:
         container:
           image: "mongo:latest"
-          name: "mongo--463536508"
+          name: "mongo--616698580"
           resources:
             requests:
               memory: "128 MB"
@@ -159,7 +159,7 @@ topology_template:
     MongoContainerPod:
       metadata:
         a4c_kubernetes-modifier: Created to host MongoContainer
-      type: org.alien4cloud.kubernetes.api.types.AbstractDeployment
+      type: org.alien4cloud.kubernetes.api.types.Deployment
       properties:
         apiVersion: "apps/v1beta1"
         kind: Deployment
@@ -167,10 +167,10 @@ topology_template:
           template:
             metadata:
               labels:
-                app: "mongocontainerpod--569612711"
+                app: "mongocontainerpod-661810815"
           replicas: 1
         metadata:
-          name: "mongocontainerpod--569612711"
+          name: "mongocontainerpod-661810815"
       capabilities:
         scalable:
           properties:
@@ -181,21 +181,21 @@ topology_template:
       metadata:
         a4c_kubernetes-modifier: Proxy of node <Mongo> capability <mongo_db>
         a4c_kubernetes-modifier_service_endpoint: mongo_db
-      type: org.alien4cloud.kubernetes.api.types.AbstractService
+      type: org.alien4cloud.kubernetes.api.types.Service
       properties:
         apiVersion: v1
         kind: Service
         spec:
           service_type: NodePort
           selector:
-            app: "mongocontainerpod--569612711"
+            app: "mongocontainerpod-661810815"
           ports:
             -
               port: 27017
               name: "mongo-db"
               targetPort: "mongo-db"
         metadata:
-          name: "mongo-mongo-db-service--820724864"
+          name: "mongo-mongo-db-service--1372310420"
       requirements:
         - Mongo_mongo_db_Service_MongoContainerPod:
             type_requirement: dependency
@@ -206,21 +206,21 @@ topology_template:
       metadata:
         a4c_kubernetes-modifier: Proxy of node <Nodecellar> capability <nodecellar_app>
         a4c_kubernetes-modifier_service_endpoint: nodecellar_app
-      type: org.alien4cloud.kubernetes.api.types.AbstractService
+      type: org.alien4cloud.kubernetes.api.types.Service
       properties:
         apiVersion: v1
         kind: Service
         spec:
           service_type: NodePort
           selector:
-            app: "nodecellarpod-1957152042"
+            app: "nodecellarpod--1286920069"
           ports:
             -
               port: 3000
               name: "nodecellar-app"
               targetPort: "nodecellar-app"
         metadata:
-          name: "nodecellar-nodecellar-app-service-1014248081"
+          name: "nodecellar-nodecellar-app-service-332760315"
       requirements:
         - Nodecellar_nodecellar_app_Service_NodecellarPod:
             type_requirement: dependency

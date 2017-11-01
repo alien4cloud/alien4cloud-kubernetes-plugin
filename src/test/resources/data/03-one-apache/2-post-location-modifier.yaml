@@ -16,7 +16,7 @@ imports:
 
 topology_template:
   node_templates:
-    Apache1:
+    Apache:
       type: org.alien4cloud.nodes.Application.Docker.Apache
       properties:
         cpu_share: 1.0
@@ -24,7 +24,7 @@ topology_template:
       requirements:
         - hostedOnContainerRuntimeContainerRuntimeHost:
             type_requirement: host
-            node: Apache1_CR
+            node: ApacheContainer
             capability: org.alien4cloud.extended.container.capabilities.ApplicationHost
             relationship: org.alien4cloud.extended.container.relationships.HostedOnContainerRuntime
       capabilities:
@@ -41,14 +41,14 @@ topology_template:
             min_instances: 1
             max_instances: 1
             default_instances: 1
-    Apache1_CR:
+    ApacheContainer:
       metadata:
         a4c_kubernetes-modifier: Replacement of a org.alien4cloud.extended.container.types.ContainerRuntime
       type: org.alien4cloud.kubernetes.api.types.AbstractContainer
       properties:
         container:
           image: "httpd:latest"
-          name: "apache1-1306960988"
+          name: "apache-1540498633"
           resources:
             requests:
               memory: "128 MB"
@@ -63,10 +63,10 @@ topology_template:
       requirements:
         - hostedOnContainerDeploymentUnitHost:
             type_requirement: host
-            node: Apache1_CDU
+            node: ApacheDeployment
             capability: tosca.capabilities.Container.Docker
             relationship: tosca.relationships.HostedOn
-    Apache1_CDU:
+    ApacheDeployment:
       metadata:
         a4c_kubernetes-modifier: Replacement of a org.alien4cloud.extended.container.types.ContainerDeploymentUnit
       type: org.alien4cloud.kubernetes.api.types.AbstractDeployment
@@ -77,19 +77,20 @@ topology_template:
           template:
             metadata:
               labels:
-                app: "apache1-cdu--6518986"
+                app: "apachedeployment-405928074"
           replicas: 1
         metadata:
-          name: "apache1-cdu--6518986"
+          name: "apachedeployment-405928074"
       capabilities:
         scalable:
           properties:
             min_instances: 1
             max_instances: 1
             default_instances: 1
-    Apache1_http_endpoint_Service:
+    Apache_http_endpoint_Service:
       metadata:
-        a4c_kubernetes-modifier: Proxy of node <Apache1> capability <http_endpoint>
+        a4c_kubernetes-modifier: Proxy of node <Apache> capability <http_endpoint>
+        a4c_kubernetes-modifier_service_endpoint: http_endpoint
       type: org.alien4cloud.kubernetes.api.types.AbstractService
       properties:
         apiVersion: v1
@@ -97,17 +98,17 @@ topology_template:
         spec:
           service_type: NodePort
           selector:
-            app: "apache1-cdu--6518986"
+            app: "apachedeployment-405928074"
           ports:
             -
               port: 80
               name: "http-endpoint"
               targetPort: "http-endpoint"
         metadata:
-          name: "apache1-http-endpoint-service-624765444"
+          name: "apache-http-endpoint-service-1151546243"
       requirements:
-        - Apache1_http_endpoint_Service_Apache1_CDU:
+        - Apache_http_endpoint_Service_ApacheDeployment:
             type_requirement: dependency
-            node: Apache1_CDU
+            node: ApacheDeployment
             capability: tosca.capabilities.Node
             relationship: tosca.relationships.DependsOn

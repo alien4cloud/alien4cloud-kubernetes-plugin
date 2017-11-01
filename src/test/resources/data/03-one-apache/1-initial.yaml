@@ -14,15 +14,15 @@ imports:
 
 topology_template:
   node_templates:
-    Apache1:
+    Apache:
       type: org.alien4cloud.nodes.Application.Docker.Apache
       properties:
-        cpu_share: 1.0
+        cpu_share: 0.2
         mem_share: "128 MB"
       requirements:
         - hostedOnContainerRuntimeContainerRuntimeHost:
             type_requirement: host
-            node: Apache1_CR
+            node: ApacheContainer
             capability: org.alien4cloud.extended.container.capabilities.ApplicationHost
             relationship: org.alien4cloud.extended.container.relationships.HostedOnContainerRuntime
       capabilities:
@@ -39,15 +39,15 @@ topology_template:
             min_instances: 1
             max_instances: 1
             default_instances: 1
-    Apache1_CR:
+    ApacheContainer:
       type: org.alien4cloud.extended.container.types.ContainerRuntime
       requirements:
         - hostedOnContainerDeploymentUnitHost:
             type_requirement: host
-            node: Apache1_CDU
+            node: ApacheDeployment
             capability: tosca.capabilities.Container.Docker
             relationship: tosca.relationships.HostedOn
-    Apache1_CDU:
+    ApacheDeployment:
       type: org.alien4cloud.extended.container.types.ContainerDeploymentUnit
       capabilities:
         scalable:

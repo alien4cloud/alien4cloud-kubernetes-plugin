@@ -856,11 +856,13 @@ node_types:
   org.alien4cloud.kubernetes.api.types.DeploymentResource:
     derived_from: org.alien4cloud.kubernetes.api.types.BaseResource
     properties:
-      service_dependency_definitions:
+      service_dependency_lookups:
         type: string
         required: false
         description: |
-          A CSV key:value pairs where key should be replaced the interpretation of value in the JSON
+          A CSV key:value pairs where key should be replaced by the interpretation of value in the JSON.
+          The value is the Kube name of the service for which the scheduler will need to find the ClusterIP and
+          replace the key in the JSON with the found value.
     capabilities:
       scalable: tosca.capabilities.Scalable
 #    interfaces:
@@ -872,7 +874,7 @@ node_types:
 #            - Deploy the deployment onto kubernets
 #            - Export some informations to expose it as attributes ?
 # input:
-# KUBE_SERVICE_DEPENDENCIES: { get_property: [SELF, service_dependency_definitions] }
+# KUBE_SERVICE_DEPENDENCIES: { get_property: [SELF, service_dependency_lookups] }
 
   org.alien4cloud.kubernetes.api.types.ServiceResource:
     derived_from: org.alien4cloud.kubernetes.api.types.BaseResource

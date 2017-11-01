@@ -156,6 +156,8 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
         Map<String, PropertyValue> inputValues = Maps.newHashMap();
         FunctionEvaluatorContext functionEvaluatorContext = new FunctionEvaluatorContext(topology, inputValues);
 
+        Map<String, List<String>> serviceIpAddressesPerDeploymentResource = Maps.newHashMap();
+
         // for each container,
         Set<NodeTemplate> containerNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_CONTAINER, false);
         for (NodeTemplate containerNode : containerNodes) {
@@ -183,13 +185,26 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
                                     NodeTemplate serviceTemplate = KubeAttributeDetector.getServiceDependency(topology, nodeTemplate, iValue);
                                     AbstractPropertyValue serviceNameValue = PropertyUtil.getPropertyValueFromPath(serviceTemplate.getProperties(), "metadata.name");
                                     String serviceName = PropertyUtil.getScalarValue(serviceNameValue);
+
+                                    List<String> serviceIpAddresses = serviceIpAddressesPerDeploymentResource.get(deploymentResource.getName());
+                                    if (serviceIpAddresses == null) {
+                                        serviceIpAddresses = Lists.newArrayList();
+                                        serviceIpAddressesPerDeploymentResource.put(deploymentResource.getName(), serviceIpAddresses);
+                                    }
+                                    serviceIpAddresses.add(serviceName);
+
                                     ComplexPropertyValue envEntry = new ComplexPropertyValue();
                                     envEntry.setValue(Maps.newHashMap());
                                     envEntry.getValue().put("name", envKey);
-                                    envEntry.getValue().put("value", "$" + serviceName + "$");
+                                    envEntry.getValue().put("value", "$SERVICE_IP_LOOKUP" + (serviceIpAddresses.size() - 1));
                                     appendNodePropertyPathValue(csar, topology, containerNode, "container.env", envEntry);
-                                } else if (KubeAttributeDetector.isServicePort(topology, nodeTemplate, iValue)) {
-
+                                } else if (KubeAttributeDetector.isTargetedEndpointProperty(topology, nodeTemplate, iValue)) {
+                                    AbstractPropertyValue apv = KubeAttributeDetector.getTargetedEndpointProperty(topology, nodeTemplate, iValue);
+                                    ComplexPropertyValue envEntry = new ComplexPropertyValue();
+                                    envEntry.setValue(Maps.newHashMap());
+                                    envEntry.getValue().put("name", envKey);
+                                    envEntry.getValue().put("value", PropertyUtil.getScalarValue(apv));
+                                    appendNodePropertyPathValue(csar, topology, containerNode, "container.env", envEntry);
                                 } else {
                                     try {
                                         PropertyValue propertyValue = FunctionEvaluator.resolveValue(functionEvaluatorContext, nodeTemplate, nodeTemplate.getProperties(), (AbstractPropertyValue)iValue);
@@ -210,6 +225,20 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
                 }
             }
 
+            // populate the service_dependency_lookups property of the deployment resource nodes
+            serviceIpAddressesPerDeploymentResource.forEach((deploymentResourceNodeName, ipAddressLookups) -> {
+                NodeTemplate deploymentResourceNode = topology.getNodeTemplates().get(deploymentResourceNodeName);
+                StringBuilder serviceDependencyDefinitionsValue = new StringBuilder();
+                for (int i=0; i<ipAddressLookups.size(); i++) {
+                    if (i > 0) {
+                        serviceDependencyDefinitionsValue.append(",");
+                    }
+                    serviceDependencyDefinitionsValue.append("SERVICE_IP_LOOKUP").append(i);
+                    serviceDependencyDefinitionsValue.append(":").append(ipAddressLookups.get(i));
+                }
+                setNodePropertyPathValue(csar, topology, deploymentResourceNode, "service_dependency_lookups", new ScalarPropertyValue(serviceDependencyDefinitionsValue.toString()));
+            });
+
             // add an entry in the deployment resource
             AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(AlienUtils.safe(containerNode.getProperties()), "container");
             // transform data
@@ -219,6 +248,8 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
             feedPropertyValue(deploymentResourceNodeProperties, "resource_def.spec.template.spec.containers", transformedValue, true);
 
         }
+
+
 
         serviceNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
         deploymentNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
