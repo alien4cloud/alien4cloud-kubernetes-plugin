@@ -26,6 +26,7 @@ Feature: Topology modifier
     And I get the topology related to the CSAR with name "initial" and version "2.0.0-SNAPSHOT"
     When I execute the modifier "kubernetes-modifier" on the current topology
     # TODO: match the policy
+    And I match the policy named "Placement" to the concrete policy of type "org.alien4cloud.kubernetes.api.policies.AntiAffinityLabel" version "2.0.0-SNAPSHOT"
     And I execute the modifier "kubernetes-anti-affinity-modifier" on the current topology
     And I execute the modifier "kubernetes-automatching-modifier" on the current topology
     And I execute the modifier "kubernetes-final-modifier" on the current topology
