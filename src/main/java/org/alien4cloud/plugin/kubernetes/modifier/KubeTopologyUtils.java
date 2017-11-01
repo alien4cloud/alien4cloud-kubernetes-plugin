@@ -21,14 +21,22 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Created by xdegenne on 31/10/2017.
+ * A utility to browse Kube topologies (enhanced by Kube modifiers).
  */
-public class KubeAttributeDetector {
+public class KubeTopologyUtils {
 
+    /**
+     * For a given node template, returns true if the function if of type get_attribute(TARGET, requirement, property)
+     * and the target is a docker container and the capability has an "ip_address" attribute (endpoint).
+     */
     public static boolean isServiceIpAddress(Topology topology, NodeTemplate sourceNodeTemplate, IValue inputParameterValue ) {
         return isTargetServiceAttribute(topology, sourceNodeTemplate, inputParameterValue, "ip_address");
     }
 
+    /**
+     * For a given node template, returns true if the function if of type get_attribute(TARGET, requirement, property)
+     * and the target is a docker container's endpoint.
+     */
     private static boolean isTargetServiceAttribute(Topology topology, NodeTemplate sourceNodeTemplate, IValue inputParameterValue, String attributeName) {
         // a get_attribute that searchs an ip_address on a requirement that targets a Docker Container should return true
         if (inputParameterValue instanceof FunctionPropertyValue) {
@@ -56,11 +64,19 @@ public class KubeAttributeDetector {
         return false;
     }
 
+    /**
+     * For a given node template, if the inputParameterValue value is a function if of type get_attribute(TARGET, requirement, property)
+     * and the target is a docker container, return true if the targeted capability has this property.
+     */
     public static boolean isTargetedEndpointProperty(Topology topology, NodeTemplate sourceNodeTemplate, IValue inputParameterValue ) {
         AbstractPropertyValue abstractPropertyValue = getTargetedEndpointProperty(topology, sourceNodeTemplate, inputParameterValue);
         return abstractPropertyValue != null;
     }
 
+    /**
+     * For a given node template, if the inputParameterValue value is a function if of type get_attribute(TARGET, requirement, property)
+     * and the target is a docker container, return the value of the property.
+     */
     public static AbstractPropertyValue getTargetedEndpointProperty(Topology topology, NodeTemplate sourceNodeTemplate, IValue inputParameterValue ) {
         // a get_attribute that searchs an ip_address on a requirement that targets a Docker Container should return true
         if (inputParameterValue instanceof FunctionPropertyValue) {
@@ -90,6 +106,9 @@ public class KubeAttributeDetector {
         return null;
     }
 
+    /**
+     * For a given deployment node template, returns the service node it depends on regarding a given input parameter of type get_attribute(TARGET, requirement, property).
+     */
     public static NodeTemplate getServiceDependency(Topology topology, NodeTemplate sourceNodeTemplate, IValue inputParameterValue ) {
         // a get_attribute that searchs an ip_address on a requirement that targets a Docker Container should return true
         if (inputParameterValue instanceof FunctionPropertyValue) {
@@ -117,6 +136,9 @@ public class KubeAttributeDetector {
         return null;
     }
 
+    /**
+     * For a given deployment node, returns the service that depends on this deployment considering a given endpoint name.
+     */
     public static NodeTemplate getServiceRelatedToDeployment(Topology topology, NodeTemplate deploymentNodeTemplate, String endpointName) {
         Set<NodeTemplate> sourceNodes = TopologyNavigationUtil.getSourceNodes(topology, deploymentNodeTemplate, "feature");
         for (NodeTemplate sourceNode : sourceNodes) {

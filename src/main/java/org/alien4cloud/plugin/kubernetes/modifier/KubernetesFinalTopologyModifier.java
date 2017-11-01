@@ -5,16 +5,12 @@ import java.util.Map;
 import java.util.Set;
 
 import alien4cloud.paas.plan.ToscaNodeLifecycleConstants;
-import alien4cloud.paas.wf.util.WorkflowUtils;
-import alien4cloud.rest.utils.JsonUtil;
 import alien4cloud.tosca.context.ToscaContext;
 import alien4cloud.tosca.context.ToscaContextual;
 import alien4cloud.utils.AlienUtils;
 import alien4cloud.utils.PropertyUtil;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
-import lombok.SneakyThrows;
 import lombok.extern.java.Log;
 import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
 import org.alien4cloud.tosca.exceptions.InvalidPropertyValueException;
@@ -40,16 +36,6 @@ import org.alien4cloud.tosca.utils.FunctionEvaluator;
 import org.alien4cloud.tosca.utils.FunctionEvaluatorContext;
 import org.alien4cloud.tosca.utils.TopologyNavigationUtil;
 import org.springframework.stereotype.Component;
-
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-
-import alien4cloud.paas.plan.ToscaNodeLifecycleConstants;
-import alien4cloud.tosca.context.ToscaContext;
-import alien4cloud.tosca.context.ToscaContextual;
-import alien4cloud.utils.AlienUtils;
-import alien4cloud.utils.PropertyUtil;
-import lombok.extern.java.Log;
 
 /**
  * Transform a matched K8S topology containing <code>Container</code>s, <code>Deployment</code>s, <code>Service</code>s and replace them with <code>DeploymentResource</code>s and <code>ServiceResource</code>s.
@@ -187,8 +173,8 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
                             if (iValue instanceof AbstractPropertyValue && k.startsWith("ENV_")) {
                                 String envKey = k.substring(4);
 
-                                if (KubeAttributeDetector.isServiceIpAddress(topology, nodeTemplate, iValue)) {
-                                    NodeTemplate serviceTemplate = KubeAttributeDetector.getServiceDependency(topology, nodeTemplate, iValue);
+                                if (KubeTopologyUtils.isServiceIpAddress(topology, nodeTemplate, iValue)) {
+                                    NodeTemplate serviceTemplate = KubeTopologyUtils.getServiceDependency(topology, nodeTemplate, iValue);
                                     AbstractPropertyValue serviceNameValue = PropertyUtil.getPropertyValueFromPath(serviceTemplate.getProperties(), "metadata.name");
                                     String serviceName = PropertyUtil.getScalarValue(serviceNameValue);
 
@@ -204,8 +190,8 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
                                     envEntry.getValue().put("name", envKey);
                                     envEntry.getValue().put("value", "${SERVICE_IP_LOOKUP" + (serviceIpAddresses.size() - 1) + "}");
                                     appendNodePropertyPathValue(csar, topology, containerNode, "container.env", envEntry);
-                                } else if (KubeAttributeDetector.isTargetedEndpointProperty(topology, nodeTemplate, iValue)) {
-                                    AbstractPropertyValue apv = KubeAttributeDetector.getTargetedEndpointProperty(topology, nodeTemplate, iValue);
+                                } else if (KubeTopologyUtils.isTargetedEndpointProperty(topology, nodeTemplate, iValue)) {
+                                    AbstractPropertyValue apv = KubeTopologyUtils.getTargetedEndpointProperty(topology, nodeTemplate, iValue);
                                     if (apv != null){
                                         ComplexPropertyValue envEntry = new ComplexPropertyValue();
                                         envEntry.setValue(Maps.newHashMap());

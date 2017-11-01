@@ -865,8 +865,8 @@ node_types:
           A CSV key:value pairs where key should be replaced by the interpretation of value in the JSON.
           The value is the Kube name of the service for which the scheduler will need to find the ClusterIP and
           replace the key in the JSON with the found value.
-    capabilities:
-      scalable: tosca.capabilities.Scalable
+#    capabilities:
+#      scalable: tosca.capabilities.Scalable
     interfaces:
       Standard:
         create:
