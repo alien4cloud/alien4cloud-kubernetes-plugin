@@ -844,9 +844,11 @@ node_types:
     description: >
       Represent a kubernetes final resource after node matching (Pod, ReplicaSet or Deployment)
     properties:
-      resource_yaml:
+      resource_spec:
         type: string
-        description: this is the yaml serialization (and eventually transformation) of property resource_def
+        description: |
+          The the JSON serialization (and eventually transformation) of initial node properties.
+          This JSON can be used to instanciate the resource on the K8S cluster.
 #    artifacts:
 #      - deployment:
 #          type: tosca.artifacts.File
@@ -865,16 +867,17 @@ node_types:
           replace the key in the JSON with the found value.
     capabilities:
       scalable: tosca.capabilities.Scalable
-#    interfaces:
-#      Standard:
-#        create:
-#          implementation: kubectl_deployment_wrapper.sh
-#          description: |
-#            - filter variable in the artifact file
-#            - Deploy the deployment onto kubernets
-#            - Export some informations to expose it as attributes ?
-# input:
-# KUBE_SERVICE_DEPENDENCIES: { get_property: [SELF, service_dependency_lookups] }
+    interfaces:
+      Standard:
+        create:
+          inputs:
+            KUBE_SERVICE_DEPENDENCIES: { get_property: [SELF, service_dependency_lookups] }
+            KUBE_RESOURCE_DEPLOYMENT_CONFIG: { get_property: [SELF, resource_spec] }
+          implementation: scripts/kubectl_deployment_wrapper.sh
+          description: |
+            - filter variable in the artifact file
+            - Deploy the deployment onto kubernets
+            - Export some informations to expose it as attributes ?
 
   org.alien4cloud.kubernetes.api.types.ServiceResource:
     derived_from: org.alien4cloud.kubernetes.api.types.BaseResource
@@ -885,16 +888,16 @@ node_types:
     attributes:
       ip_address: { get_operation_output: [SELF, Standard, create, IP_ADDRESS] }
       port: { get_operation_output: [SELF, Standard, create, PORT] }
-
-#    interfaces:
-#      Standard:
-#        create:
-#          implementation: kubectl_service_wrapper.sh
-#          description: |
-#            - Deploy the service onto kubernets
-#            - Export the service ip_address and port to expose it as attributes
-# input:
-# KUBE_SERVICE_NAME: { get_property: [SELF, service_name] }
+    interfaces:
+      Standard:
+        create:
+          input:
+            KUBE_SERVICE_NAME: { get_property: [SELF, service_name] }
+            KUBE_SERVICE_CONFIG: { get_property: [SELF, resource_spec] }
+          implementation: scripts/kubectl_service_wrapper.sh
+          description: |
+            - Deploy the service onto kubernets
+            - Export the service ip_address and port to expose it as attributes
 
 policy_types:
   org.alien4cloud.kubernetes.api.policies.AntiAffinityLabel:

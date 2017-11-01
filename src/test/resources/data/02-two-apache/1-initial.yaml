@@ -1,7 +1,7 @@
 tosca_definitions_version: alien_dsl_2_0_0
 
 metadata:
-  template_name: 02-two-apache-initial
+  template_name: initial
   template_version: 2.0.0-SNAPSHOT
   template_author: alien4cloud
 
@@ -17,12 +17,12 @@ topology_template:
     Apache1:
       type: org.alien4cloud.nodes.Application.Docker.Apache
       properties:
-        cpu_share: 1.0
+        cpu_share: 0.2
         mem_share: "128 MB"
       requirements:
         - hostedOnContainerRuntimeContainerRuntimeHost:
             type_requirement: host
-            node: Apache1_CR
+            node: Apache1Container
             capability: org.alien4cloud.extended.container.capabilities.ApplicationHost
             relationship: org.alien4cloud.extended.container.relationships.HostedOnContainerRuntime
       capabilities:
@@ -42,12 +42,12 @@ topology_template:
     Apache2:
       type: org.alien4cloud.nodes.Application.Docker.Apache
       properties:
-        cpu_share: 1.0
+        cpu_share: 0.2
         mem_share: "128 MB"
       requirements:
         - hostedOnContainerRuntimeContainerRuntime2Host:
             type_requirement: host
-            node: Apache2_CR
+            node: Apache2Container
             capability: org.alien4cloud.extended.container.capabilities.ApplicationHost
             relationship: org.alien4cloud.extended.container.relationships.HostedOnContainerRuntime
       capabilities:
@@ -64,15 +64,15 @@ topology_template:
             min_instances: 1
             max_instances: 1
             default_instances: 1
-    Apache1_CR:
+    Apache1Container:
       type: org.alien4cloud.extended.container.types.ContainerRuntime
       requirements:
         - hostedOnContainerDeploymentUnitHost:
             type_requirement: host
-            node: Apache1_CDU
+            node: Apache1Deployment
             capability: tosca.capabilities.Container.Docker
             relationship: tosca.relationships.HostedOn
-    Apache1_CDU:
+    Apache1Deployment:
       type: org.alien4cloud.extended.container.types.ContainerDeploymentUnit
       capabilities:
         scalable:
@@ -80,9 +80,9 @@ topology_template:
             min_instances: 1
             max_instances: 1
             default_instances: 1
-    Apache2_CR:
+    Apache2Container:
       type: org.alien4cloud.extended.container.types.ContainerRuntime
   policies:
     - Placement:
         type: tosca.policies.Placement
-        targets: [ Apache2_CR, Apache1_CDU ]
+        targets: [ Apache2Container, Apache1Deployment ]

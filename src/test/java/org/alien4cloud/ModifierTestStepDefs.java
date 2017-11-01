@@ -79,19 +79,12 @@ import static org.mockito.Mockito.*;
 @Slf4j
 public class ModifierTestStepDefs {
 
-//    CommonStepDefinitions commonStepDefinitions = new CommonStepDefinitions();
-
-//    @Mock
-//    private RepositoryService repositoryService;
-
     @Resource(name = "alien-es-dao")
     private IGenericSearchDAO alienDAO;
     @Inject
     private DeploymentConfigurationDao deploymentConfigurationDao;
     @Inject
     private ArchiveUploadService csarUploadService;
-    @Inject
-    private EditorService editorService;
     @Inject
     private EditionContextManager editionContextManager;
     @Inject
@@ -110,16 +103,9 @@ public class ModifierTestStepDefs {
     @Inject
     private ApplicationContext applicationContext;
 
-    private LinkedList<String> topologyIds = new LinkedList();
-
-    private EvaluationContext topologyEvaluationContext;
-    private EvaluationContext dtoEvaluationContext;
-    private EvaluationContext exceptionEvaluationContext;
-    private EvaluationContext csarEvaluationContext;
-
     private Exception thrownException;
 
-    private Map<String, String> topologyIdToLastOperationId = new HashMap<>();
+    private Topology currentTopology;
 
     private List<Class> typesToClean = Lists.newArrayList();
     public static final Path CSAR_TARGET_PATH = Paths.get("target/csars");
@@ -144,10 +130,6 @@ public class ModifierTestStepDefs {
 
     @Before
     public void init() throws IOException {
-//        MockitoAnnotations.initMocks(this);
-//        when(repositoryService.canResolveArtifact(anyString(), anyString(), anyString(), anyMapOf(String.class, Object.class))).thenReturn(true);
-//        when(repositoryService.resolveArtifact(anyString(), anyString(), anyString(), anyMapOf(String.class, Object.class))).thenReturn("");
-
         thrownException = null;
 
         GetMultipleDataResult<Application> apps = alienDAO.search(Application.class, "", null, 100);
@@ -166,7 +148,6 @@ public class ModifierTestStepDefs {
             }
         }
 
-        topologyIds.clear();
         editionContextManager.clearCache();
 
         for (Class<?> type : typesToClean) {
@@ -236,15 +217,13 @@ public class ModifierTestStepDefs {
     public void iGetTheTopologyRelatedToTheCSARWithName(String archiveName, String archiveVersion) throws Throwable {
         Topology topology = catalogService.get(archiveName + ":" + archiveVersion);
         if (topology != null) {
-            topologyIds.addLast(topology.getId());
+            currentTopology = topology;
         }
     }
 
     @When("^I execute the modifier \"(.*?)\" on the current topology$")
     public void i_execute_the_modifier_on_the_current_topology(String beanName) throws Throwable {
-        String topologyId = topologyIds.getLast();
-
-        Topology topology = catalogService.getOrFail(topologyId);
+        Topology topology = currentTopology;
 
         ITopologyModifier modifier = (ITopologyModifier)applicationContext.getBean(beanName);
         FlowExecutionContext executionContext = new FlowExecutionContext(deploymentConfigurationDao, topology, new EnvironmentContext(null, null));

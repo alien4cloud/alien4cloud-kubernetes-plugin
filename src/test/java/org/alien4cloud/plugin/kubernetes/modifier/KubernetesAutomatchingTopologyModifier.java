@@ -1,4 +1,4 @@
-package org.alien4cloud;
+package org.alien4cloud.plugin.kubernetes.modifier;
 
 import alien4cloud.paas.plan.ToscaNodeLifecycleConstants;
 import alien4cloud.tosca.context.ToscaContext;

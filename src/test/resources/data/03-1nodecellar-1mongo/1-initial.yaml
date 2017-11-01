@@ -24,7 +24,7 @@ topology_template:
       requirements:
         - hostedOnContainerDeploymentUnitHost:
             type_requirement: host
-            node: NodecellarPod
+            node: NodecellarDeployment
             capability: tosca.capabilities.Container.Docker
             relationship: tosca.relationships.HostedOn
     Nodecellar:
@@ -60,7 +60,7 @@ topology_template:
             min_instances: 1
             max_instances: 1
             default_instances: 1
-    NodecellarPod:
+    NodecellarDeployment:
       type: org.alien4cloud.extended.container.types.ContainerDeploymentUnit
       capabilities:
         scalable:
@@ -96,4 +96,3 @@ topology_template:
             min_instances: 1
             max_instances: 1
             default_instances: 1
-

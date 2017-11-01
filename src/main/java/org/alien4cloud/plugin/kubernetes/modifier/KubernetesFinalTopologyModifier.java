@@ -81,6 +81,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
         Set<NodeTemplate> serviceNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_SERVICE, false);
         for (NodeTemplate serviceNode : serviceNodes) {
             NodeTemplate serviceResourceNode = addNodeTemplate(csar, topology, serviceNode.getName() + "_Resource", K8S_TYPES_SERVICE_RESOURCE, K8S_CSAR_VERSION);
+
             nodeReplacementMap.put(serviceNode.getName(), serviceResourceNode);
             setNodeTagValue(serviceResourceNode, A4C_KUBERNETES_MODIFIER_TAG + "_created_from", serviceNode.getName());
             Map<String, AbstractPropertyValue> serviceResourceNodeProperties = Maps.newHashMap();
@@ -110,6 +111,11 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
             NodeTemplate deploymentResourceNode = addNodeTemplate(csar, topology, deploymentNode.getName() + "_Resource", K8S_TYPES_DEPLOYMENT_RESOURCE, K8S_CSAR_VERSION);
             nodeReplacementMap.put(deploymentNode.getName(), deploymentResourceNode);
             setNodeTagValue(deploymentResourceNode, A4C_KUBERNETES_MODIFIER_TAG + "_created_from", deploymentNode.getName());
+
+            // ensure a policy that targets the deployment will now target the resource
+            // not very necessary because the policy here doesn't mean nothing ...
+            changePolicyTarget(topology, deploymentNode, deploymentResourceNode);
+
             Map<String, AbstractPropertyValue> deploymentResourceNodeProperties = Maps.newHashMap();
             resourceNodeYamlStructures.put(deploymentResourceNode.getName(), deploymentResourceNodeProperties);
 
@@ -196,15 +202,17 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
                                     ComplexPropertyValue envEntry = new ComplexPropertyValue();
                                     envEntry.setValue(Maps.newHashMap());
                                     envEntry.getValue().put("name", envKey);
-                                    envEntry.getValue().put("value", "$SERVICE_IP_LOOKUP" + (serviceIpAddresses.size() - 1));
+                                    envEntry.getValue().put("value", "${SERVICE_IP_LOOKUP" + (serviceIpAddresses.size() - 1) + "}");
                                     appendNodePropertyPathValue(csar, topology, containerNode, "container.env", envEntry);
                                 } else if (KubeAttributeDetector.isTargetedEndpointProperty(topology, nodeTemplate, iValue)) {
                                     AbstractPropertyValue apv = KubeAttributeDetector.getTargetedEndpointProperty(topology, nodeTemplate, iValue);
-                                    ComplexPropertyValue envEntry = new ComplexPropertyValue();
-                                    envEntry.setValue(Maps.newHashMap());
-                                    envEntry.getValue().put("name", envKey);
-                                    envEntry.getValue().put("value", PropertyUtil.getScalarValue(apv));
-                                    appendNodePropertyPathValue(csar, topology, containerNode, "container.env", envEntry);
+                                    if (apv != null){
+                                        ComplexPropertyValue envEntry = new ComplexPropertyValue();
+                                        envEntry.setValue(Maps.newHashMap());
+                                        envEntry.getValue().put("name", envKey);
+                                        envEntry.getValue().put("value", PropertyUtil.getScalarValue(apv));
+                                        appendNodePropertyPathValue(csar, topology, containerNode, "container.env", envEntry);
+                                    }
                                 } else {
                                     try {
                                         PropertyValue propertyValue = FunctionEvaluator.resolveValue(functionEvaluatorContext, nodeTemplate, nodeTemplate.getProperties(), (AbstractPropertyValue)iValue);
@@ -260,7 +268,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
             if (resourceNodeProperties != null && resourceNodeProperties.containsKey("resource_def")) {
                 Object propertyValue = getValue(resourceNodeProperties.get("resource_def"));
                 String serializedPropertyValue = PropertyUtil.serializePropertyValue(propertyValue);
-                setNodePropertyPathValue(csar, topology, resourceNode, "resource_yaml", new ScalarPropertyValue(serializedPropertyValue));
+                setNodePropertyPathValue(csar, topology, resourceNode, "resource_spec", new ScalarPropertyValue(serializedPropertyValue));
             }
         }
 

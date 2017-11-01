@@ -59,7 +59,7 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesTopolo
 
             // if containerRuntime is orphean, wrap it in an AbstractDeployment
             if (!TopologyNavigationUtil.isHosted(topology, nodeTemplate)) {
-                NodeTemplate hostNode = addNodeTemplate(csar, topology, nodeTemplate.getName() + "Pod", K8S_TYPES_ABSTRACT_DEPLOYMENT, K8S_CSAR_VERSION);
+                NodeTemplate hostNode = addNodeTemplate(csar, topology, nodeTemplate.getName() + "Deployment", K8S_TYPES_ABSTRACT_DEPLOYMENT, K8S_CSAR_VERSION);
                 setNodeTagValue(hostNode, A4C_KUBERNETES_MODIFIER_TAG, "Created to host " + nodeTemplate.getName());
 
                 // set a generated name to the K8S object
