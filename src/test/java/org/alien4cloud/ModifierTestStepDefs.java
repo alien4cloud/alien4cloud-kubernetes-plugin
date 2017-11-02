@@ -17,9 +17,12 @@ import alien4cloud.repository.services.RepositoryService;
 import alien4cloud.rest.utils.JsonUtil;
 import alien4cloud.security.model.User;
 import alien4cloud.topology.TopologyDTO;
+import alien4cloud.tosca.context.ToscaContext;
 import alien4cloud.tosca.parser.*;
+import alien4cloud.tosca.topology.TemplateBuilder;
 import alien4cloud.utils.AlienConstants;
 import alien4cloud.utils.FileUtil;
+import alien4cloud.utils.PropertyUtil;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import cucumber.api.DataTable;
@@ -34,6 +37,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.alien4cloud.alm.deployment.configuration.flow.EnvironmentContext;
 import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
 import org.alien4cloud.alm.deployment.configuration.flow.ITopologyModifier;
+import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
 import org.alien4cloud.alm.deployment.configuration.services.DeploymentConfigurationDao;
 import org.alien4cloud.tosca.catalog.ArchiveUploadService;
 import org.alien4cloud.tosca.catalog.index.CsarService;
@@ -44,6 +48,8 @@ import org.alien4cloud.tosca.editor.operations.AbstractEditorOperation;
 import org.alien4cloud.tosca.editor.operations.UpdateFileOperation;
 import org.alien4cloud.tosca.exporter.ArchiveExportService;
 import org.alien4cloud.tosca.model.Csar;
+import org.alien4cloud.tosca.model.definitions.ScalarPropertyValue;
+import org.alien4cloud.tosca.model.templates.PolicyTemplate;
 import org.alien4cloud.tosca.model.templates.Topology;
 import org.alien4cloud.tosca.model.types.*;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -232,6 +238,26 @@ public class ModifierTestStepDefs {
         String yaml = archiveExportService.getYaml(new Csar(topology.getArchiveName(), topology.getArchiveVersion()), topology, false, ToscaParser.LATEST_DSL);
         log.info(yaml);
         System.out.println("yaml = " + yaml);
+    }
+
+    @When("^I match the policy named \"(.*?)\" to the concrete policy of type \"(.*?)\"$")
+    public void i_match_the_policy_named_to_the_concrete_policy_of_type_version(String policyName, String newPpolicyType) throws Throwable {
+        // TODO: uggly quick code to be refactored (use existing policy matching code ?)
+        PolicyTemplate policy = currentTopology.getPolicies().get(policyName);
+        ToscaContext.init(currentTopology.getDependencies());
+        PolicyType policyType = ToscaContext.get(PolicyType.class, newPpolicyType);
+        ToscaContext.destroy();
+        PolicyTemplate tempObject = TemplateBuilder.buildPolicyTemplate(policyType, policy, false);
+        tempObject.setName(policy.getName());
+        tempObject.setTargets(policy.getTargets());
+        currentTopology.getPolicies().put(policyName, tempObject);
+    }
+
+    @When("^I set the policy \"(.*?)\" property \"(.*?)\" to \"(.*?)\"$")
+    public void i_set_the_policy_property_to(String policyName, String propertyName, String propertyValue) throws Throwable {
+        PolicyTemplate policy = currentTopology.getPolicies().get(policyName);
+        ScalarPropertyValue scalarPropertyValue = new ScalarPropertyValue(propertyValue);
+        TopologyModifierSupport.feedPropertyValue(policy.getProperties(), propertyName, scalarPropertyValue, false);
     }
 
 }
