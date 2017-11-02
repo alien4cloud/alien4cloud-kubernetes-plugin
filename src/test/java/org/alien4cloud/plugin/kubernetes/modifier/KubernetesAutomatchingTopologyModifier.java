@@ -1,8 +1,11 @@
 package org.alien4cloud.plugin.kubernetes.modifier;
 
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.*;
+
 import alien4cloud.tosca.context.ToscaContextual;
 import lombok.extern.java.Log;
 import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
+import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
 import org.alien4cloud.tosca.model.Csar;
 import org.alien4cloud.tosca.model.templates.NodeTemplate;
 import org.alien4cloud.tosca.model.templates.Topology;
@@ -16,7 +19,7 @@ import java.util.Set;
  */
 @Log
 @Component(value = "kubernetes-automatching-modifier")
-public class KubernetesAutomatchingTopologyModifier extends AbstractKubernetesTopologyModifier {
+public class KubernetesAutomatchingTopologyModifier extends TopologyModifierSupport {
 
     @Override
     @ToscaContextual

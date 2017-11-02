@@ -8,6 +8,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import lombok.extern.java.Log;
 import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
+import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
 import org.alien4cloud.tosca.exceptions.InvalidPropertyValueException;
 import org.alien4cloud.tosca.model.Csar;
 import org.alien4cloud.tosca.model.definitions.*;
@@ -31,13 +32,19 @@ import java.util.Map;
 import java.util.Set;
 
 import static alien4cloud.utils.AlienUtils.safe;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.*;
+
+
 
 /**
- * Transform a matched K8S topology containing <code>Container</code>s, <code>Deployment</code>s, <code>Service</code>s and replace them with <code>DeploymentResource</code>s and <code>ServiceResource</code>s.
+ * Transform a matched K8S topology containing <code>Container</code>s, <code>Deployment</code>s, <code>Service</code>s
+ * and replace them with <code>DeploymentResource</code>s and <code>ServiceResource</code>s.
+ *
+ * TODO: add logs using FlowExecutionContext
  */
 @Log
 @Component(value = "kubernetes-final-modifier")
-public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyModifier {
+public class KubernetesFinalTopologyModifier extends TopologyModifierSupport {
 
     public static final String A4C_KUBERNETES_MODIFIER_TAG = "a4c_kubernetes-final-modifier";
 
@@ -104,7 +111,6 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesTopologyM
             copyProperty(csar, topology, deploymentNode, "metadata", deploymentResourceNodeProperties, "resource_def.metadata");
 
             AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(safe(deploymentNode.getProperties()), "spec");
-            // TODO: propertyValue should be transformed before injected in the deploymentResourceNodeProperties
             NodeType nodeType = ToscaContext.get(NodeType.class, deploymentNode.getType());
             PropertyDefinition propertyDefinition = nodeType.getProperties().get("spec");
             Object transformedValue = getTransformedValue(propertyValue, propertyDefinition, "");

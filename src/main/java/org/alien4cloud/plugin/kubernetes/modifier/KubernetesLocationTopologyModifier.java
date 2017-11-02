@@ -1,5 +1,7 @@
 package org.alien4cloud.plugin.kubernetes.modifier;
 
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.*;
+
 import alien4cloud.paas.wf.util.WorkflowUtils;
 import alien4cloud.tosca.context.ToscaContext;
 import alien4cloud.tosca.context.ToscaContextual;
@@ -10,6 +12,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import lombok.extern.java.Log;
 import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
+import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
 import org.alien4cloud.tosca.model.Csar;
 import org.alien4cloud.tosca.model.definitions.AbstractPropertyValue;
 import org.alien4cloud.tosca.model.definitions.ComplexPropertyValue;
@@ -30,15 +33,13 @@ import java.util.UUID;
 /**
  * Transform an abstract topology containing <code>DockerContainer</code>s, <code>ContainerRuntime</code>s and <code>ContainerDeploymentUnit</code>s to an abstract K8S topology.
  *
- * TODO: add A4C metadata at node level to identify generated nodes (done but actually not serialized Cf. ALIEN-2597)
- * TODO: "Merge env variables coming from properties & implementation interfaces"
- * TODO: add logs
+ * TODO: add logs using FlowExecutionContext
  *
  * alien4cloud-kubernetes-plugin:kubernetes-modifier:post-location-match
  */
 @Log
 @Component(value = "kubernetes-modifier")
-public class KubernetesLocationTopologyModifier extends AbstractKubernetesTopologyModifier {
+public class KubernetesLocationTopologyModifier extends TopologyModifierSupport {
 
     public static final String A4C_KUBERNETES_MODIFIER_TAG = "a4c_kubernetes-modifier";
     public static final String A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT = A4C_KUBERNETES_MODIFIER_TAG + "_service_endpoint";

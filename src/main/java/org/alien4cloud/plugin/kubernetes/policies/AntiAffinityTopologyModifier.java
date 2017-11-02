@@ -1,18 +1,11 @@
 package org.alien4cloud.plugin.kubernetes.policies;
 
-import static alien4cloud.utils.AlienUtils.safe;
-
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
-
-import javax.annotation.PostConstruct;
-
+import alien4cloud.tosca.context.ToscaContextual;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import lombok.extern.slf4j.Slf4j;
 import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
-import org.alien4cloud.plugin.kubernetes.modifier.AbstractKubernetesTopologyModifier;
+import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
 import org.alien4cloud.tosca.model.Csar;
 import org.alien4cloud.tosca.model.definitions.ComplexPropertyValue;
 import org.alien4cloud.tosca.model.definitions.ScalarPropertyValue;
@@ -22,18 +15,20 @@ import org.alien4cloud.tosca.model.templates.Topology;
 import org.alien4cloud.tosca.utils.TopologyNavigationUtil;
 import org.springframework.stereotype.Component;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
+import javax.annotation.PostConstruct;
+import java.util.*;
+import java.util.stream.Collectors;
 
-import alien4cloud.tosca.context.ToscaContextual;
-import lombok.extern.slf4j.Slf4j;
+import static alien4cloud.utils.AlienUtils.safe;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_DEPLOYMENT;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.generateKubeName;
 
 /**
  * This topology modifiers is associated with the kubernetes anti-affinity policy.
  */
 @Component("kubernetes-anti-affinity-modifier")
 @Slf4j
-public class AntiAffinityTopologyModifier extends AbstractKubernetesTopologyModifier {
+public class AntiAffinityTopologyModifier extends TopologyModifierSupport {
 
     private static final String PREFERRED_DURING_SCHE_IGNORED_DURING_EXEC_PATH = "spec.template.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution";
     private static final String K8S_POLICIES_ANTI_AFFINITY_LABEL = "org.alien4cloud.kubernetes.api.policies.AntiAffinityLabel";
