@@ -1,6 +1,7 @@
 package org.alien4cloud.plugin.kubernetes.policies;
 
 import alien4cloud.tosca.context.ToscaContextual;
+import alien4cloud.utils.PropertyUtil;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +23,7 @@ import java.util.stream.Collectors;
 import static alien4cloud.utils.AlienUtils.safe;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_DEPLOYMENT;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.generateKubeName;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.generateUniqueKubeName;
 
 /**
  * This topology modifiers is associated with the kubernetes anti-affinity policy.
@@ -75,12 +77,12 @@ public class AntiAffinityTopologyModifier extends TopologyModifierSupport {
         // template label is the policy name
         String templateLabel = generateKubeName(policyTemplate.getName());
 
-        // template label value is the name of the node template
-        String templateLabelValue = generateKubeName(nodeTemplate.getName());
+        // template label value is the Kube name of the deployment
+        String templateLabelValue = getDeploymentNodeName(nodeTemplate);
 
         // label selector values are targets.
         // kubernetize them first
-        Set<String> labelSelectorValues = targets.stream().map(target -> generateKubeName(target.getName())).collect(Collectors.toSet());
+        Set<String> labelSelectorValues = targets.stream().map(target -> getDeploymentNodeName(target)).collect(Collectors.toSet());
         // then remove the node being processing from the targets
         labelSelectorValues.remove(templateLabelValue);
 
@@ -92,6 +94,10 @@ public class AntiAffinityTopologyModifier extends TopologyModifierSupport {
 
         context.log().info("Anti-affinity policy <{}>: configured for node {}", policyTemplate.getName(), nodeTemplate.getName());
         log.debug("Anti-affinity policy <{}>: configured for node {}", policyTemplate.getName(), nodeTemplate.getName());
+    }
+
+    private String getDeploymentNodeName(NodeTemplate nodeTemplate) {
+        return PropertyUtil.getScalarValue(PropertyUtil.getPropertyValueFromPath(nodeTemplate.getProperties(), "metadata.name"));
     }
 
     private void addTemplateLabel(Topology topology, NodeTemplate nodeTemplate, String label, String labelValue) {
