@@ -2,16 +2,11 @@
 
 # configuration
 PREFIX=K8S_
-KUBE_ADMIN_CONFIG_PATH=admin.conf
-
-# local variables
-K8S_VAR_1=1
-K8S_VAR_2=2
-K8S_VAR_3=3
-K8S_VAR_4=4
+KUBE_ADMIN_CONFIG_PATH=/etc/kubernetes/admin.conf
 
 function resolve_service_dependencies_variables(){
 	echo "resolving dependencies variables..."
+
 	for service_dependency in $(echo ${KUBE_SERVICE_DEPENDENCIES} | tr ',' ' ')
 	do
         	var_name=$(echo $service_dependency | cut -d ':' -f 1)
@@ -20,25 +15,6 @@ function resolve_service_dependencies_variables(){
 		echo "${var_name} : ${var_value}"
         	eval "${var_name}=${var_value}"
 	done
-}
-
-function export_prefixed_variables(){
-    VARIABLES_TMP_FILE=$(mktemp)
-
-    (set -o posix ; set) | grep "^${PREFIX}" | while read -r key_value ; do
-        _NAME=`echo ${key_value} | cut -d"=" -f1`
-        _NAME_WITHOUT_PREFIX=${_NAME#*${PREFIX}}
-        _VALUE=`echo ${key_value} | cut -d"=" -f2`
-
-        # because 'while/loop' create a subshell we cannot easily export variables from here
-        # that's why we generate a file and 'source' this file outside of the loop.
-        echo "export ${_NAME_WITHOUT_PREFIX}=${_VALUE}" >> "${VARIABLES_TMP_FILE}"
-    done
-
-    source ${VARIABLES_TMP_FILE}
-
-    # cleanup
-    rm "${VARIABLES_TMP_FILE}"
 }
 
 function deploy_resource(){
@@ -56,9 +32,11 @@ function deploy_resource(){
 
     exit_if_error
 
+    export DEPLOYMENT_ID
+
     command="kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" get deployment ${DEPLOYMENT_ID} -o=jsonpath={.status.conditions[*].status}"
 
-    wait_until_done_or_exit "$command" 30
+    wait_until_done_or_exit "$command" 60
 }
 
 function wait_until_done_or_exit {
@@ -69,7 +47,7 @@ function wait_until_done_or_exit {
   cmd_output=$(echo $command | sh)
   cmd_code=$?
   while [ "${cmd_code}" -eq "0" ] && [ "${retries}" -lt "${max_retries}" ] ; do
-    case "${cmd_output}" in 
+    case "${cmd_output}" in
     *False*)
       # At least one condition is not fulfil - keep going
       ;;
@@ -80,7 +58,7 @@ function wait_until_done_or_exit {
       ;;
     esac
 
-    echo "Waiting to see "${success_output}" ... (${retries}/${max_retries})"
+    echo "Waiting for deployment to be completed ... (${retries}/${max_retries})"
     sleep 5
     retries=$((${retries}+1))
     cmd_output=$(echo $command | sh)
@@ -88,7 +66,7 @@ function wait_until_done_or_exit {
   done
 
   if [ "${retries}" -eq "${max_retries}" ] ; then
-    echo "Exit with error while executing $command. Reached max retries (=$max_retries)"
+    echo "Giving up waiting for deployment to complete. Reached max retries (=$max_retries)"
     exit 1
   fi
   echo $cmd_output

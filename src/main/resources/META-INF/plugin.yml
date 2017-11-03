@@ -7,7 +7,14 @@ configuration_class: org.alien4cloud.plugin.kubernetes.PluginConfiguration
 component_descriptors:
   - bean_name: kubernetes-modifier
     name: Kubernetes modifier.
-    description: Topology modifier that transform a generic topology into a Kubernetes topology.
+    description: >
+      Topology modifier that transform a generic topology into a Kubernetes topology.
+      Insert this modifier to post-location-match phase. Note that you MUST also insert the kubernetes-final-modifier to your location.
   - bean_name: kubernetes-anti-affinity-modifier
     name: Kubernetes modifier for anti-affinity policy.
     description: Anti-affinity policy implementation modifier.
+  - bean_name: kubernetes-final-modifier
+    name: Kubernetes spec generator modifier.
+    description: >
+      This topology modifier generates kube yaml spec files and TOSCA nodes for deployment.
+      Insert this modifier to post-matched-node-setup phase. Note that you MUST also insert the kubernetes-modifier to your location.

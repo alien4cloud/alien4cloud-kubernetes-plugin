@@ -2,15 +2,10 @@ package org.alien4cloud.plugin.kubernetes.modifier;
 
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.*;
 
-import alien4cloud.paas.wf.util.WorkflowUtils;
-import alien4cloud.tosca.context.ToscaContext;
-import alien4cloud.tosca.context.ToscaContextual;
-import alien4cloud.utils.AlienUtils;
-import alien4cloud.utils.PropertyUtil;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
-import lombok.extern.java.Log;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
 import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
 import org.alien4cloud.tosca.model.Csar;
@@ -18,17 +13,26 @@ import org.alien4cloud.tosca.model.definitions.AbstractPropertyValue;
 import org.alien4cloud.tosca.model.definitions.ComplexPropertyValue;
 import org.alien4cloud.tosca.model.definitions.ListPropertyValue;
 import org.alien4cloud.tosca.model.definitions.ScalarPropertyValue;
-import org.alien4cloud.tosca.model.templates.*;
+import org.alien4cloud.tosca.model.templates.Capability;
+import org.alien4cloud.tosca.model.templates.NodeTemplate;
+import org.alien4cloud.tosca.model.templates.RelationshipTemplate;
+import org.alien4cloud.tosca.model.templates.Topology;
 import org.alien4cloud.tosca.model.types.CapabilityType;
 import org.alien4cloud.tosca.normative.constants.NormativeCapabilityTypes;
 import org.alien4cloud.tosca.normative.constants.NormativeRelationshipConstants;
 import org.alien4cloud.tosca.utils.TopologyNavigationUtil;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+
+import alien4cloud.paas.wf.util.WorkflowUtils;
+import alien4cloud.tosca.context.ToscaContext;
+import alien4cloud.tosca.context.ToscaContextual;
+import alien4cloud.utils.AlienUtils;
+import alien4cloud.utils.PropertyUtil;
+import lombok.extern.java.Log;
 
 /**
  * Transform an abstract topology containing <code>DockerContainer</code>s, <code>ContainerRuntime</code>s and <code>ContainerDeploymentUnit</code>s to an abstract K8S topology.
@@ -58,7 +62,7 @@ public class KubernetesLocationTopologyModifier extends TopologyModifierSupport 
             nodeTemplate = replaceNode(csar, topology, nodeTemplate, K8S_TYPES_ABSTRACT_CONTAINER, K8S_CSAR_VERSION);
             setNodeTagValue(nodeTemplate, A4C_KUBERNETES_MODIFIER_TAG, "Replacement of a " + A4C_TYPES_CONTAINER_RUNTIME);
 
-            // if containerRuntime is orphean, wrap it in an AbstractDeployment
+            // if containerRuntime is orphan, wrap it into an AbstractDeployment
             if (!TopologyNavigationUtil.isHosted(topology, nodeTemplate)) {
                 NodeTemplate hostNode = addNodeTemplate(csar, topology, nodeTemplate.getName() + "Deployment", K8S_TYPES_ABSTRACT_DEPLOYMENT, K8S_CSAR_VERSION);
                 setNodeTagValue(hostNode, A4C_KUBERNETES_MODIFIER_TAG, "Created to host " + nodeTemplate.getName());
