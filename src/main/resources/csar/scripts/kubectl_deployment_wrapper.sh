@@ -1,8 +1,10 @@
 #!/bin/bash
 
 # configuration
-PREFIX=K8S_
 KUBE_ADMIN_CONFIG_PATH=/etc/kubernetes/admin.conf
+
+# Provided variables:
+# KUBE_SERVICE_DEPENDENCIES: contains a list of key values VARIABLE_WHERE_TO_STORE_SERVICE_IP:service-name,VAR2:service-name2
 
 function string_replace {
   echo "$1" | sed -e "s/$2/$3/g"
@@ -30,7 +32,7 @@ function deploy_resource(){
     echo "${KUBE_RESOURCE_DEPLOYMENT_CONFIG}" > "${DEPLOYMENT_TMP_FILE}"
 
     # deploy
-    DEPLOYMENT_ID=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" create -f "${DEPLOYMENT_TMP_FILE}" | sed -r 's/deployment "([a-zA-Z0-9\-]*)" created/\1/')
+    export KUBE_DEPLOYMENT_ID=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" create -f "${DEPLOYMENT_TMP_FILE}" | sed -r 's/deployment "([a-zA-Z0-9\-]*)" created/\1/')
     export DEPLOYMENT_STATUS=$?
 
     # cleanup
@@ -38,9 +40,7 @@ function deploy_resource(){
 
     exit_if_error
 
-    export DEPLOYMENT_ID
-
-    command="kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" get deployment ${DEPLOYMENT_ID} -o=jsonpath={.status.conditions[*].status}"
+    command="kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" get deployment ${KUBE_DEPLOYMENT_ID} -o=jsonpath={.status.conditions[*].status}"
 
     wait_until_done_or_exit "$command" 60
 }
@@ -88,5 +88,4 @@ function exit_if_error(){
 
 resolve_service_dependencies_variables
 deploy_resource
-exit 0
 

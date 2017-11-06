@@ -3,6 +3,10 @@
 # configuration
 KUBE_ADMIN_CONFIG_PATH=/etc/kubernetes/admin.conf
 
+# Provided variables:
+# KUBE_SERVICE_CONFIG: k8s deployment configuration in JSON format
+# KUBE_SERVICE_NAME: name of the service to start
+
 function deploy_service(){
     SERVICE_CONFIG_TMP_FILE=$(mktemp)
 
@@ -29,4 +33,3 @@ function deploy_service(){
 }
 
 deploy_service
-#exit 0

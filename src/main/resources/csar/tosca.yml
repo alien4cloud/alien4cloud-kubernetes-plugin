@@ -867,6 +867,8 @@ node_types:
           replace the key in the JSON with the found value.
 #    capabilities:
 #      scalable: tosca.capabilities.Scalable
+    attributes:
+      deployment_id: { get_operation_output: [SELF, Standard, create, KUBE_DEPLOYMENT_ID] }
     interfaces:
       Standard:
         create:
@@ -878,6 +880,10 @@ node_types:
             - filter variable in the artifact file
             - Deploy the deployment onto kubernets
             - Export some informations to expose it as attributes ?
+        delete:
+          inputs:
+            KUBE_DEPLOYMENT_ID: { get_attribute: [SELF, deployment_id] }
+          implementation: scripts/kubectl_deployment_wrapper_uninstall.sh
 
   org.alien4cloud.kubernetes.api.types.ServiceResource:
     derived_from: org.alien4cloud.kubernetes.api.types.BaseResource
@@ -898,6 +904,10 @@ node_types:
           description: |
             - Deploy the service onto kubernets
             - Export the service ip_address and port to expose it as attributes
+        delete:
+          inputs:
+            KUBE_SERVICE_NAME: { get_property: [SELF, service_name] }
+          implementation: scripts/kubectl_service_wrapper_uninstall.sh
 
 policy_types:
   org.alien4cloud.kubernetes.api.policies.AntiAffinityLabel:
