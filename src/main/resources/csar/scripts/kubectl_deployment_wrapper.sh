@@ -4,16 +4,22 @@
 PREFIX=K8S_
 KUBE_ADMIN_CONFIG_PATH=/etc/kubernetes/admin.conf
 
+function string_replace {
+  echo "$1" | sed -e "s/$2/$3/g"
+}
+
 function resolve_service_dependencies_variables(){
 	echo "resolving dependencies variables..."
 
 	for service_dependency in $(echo ${KUBE_SERVICE_DEPENDENCIES} | tr ',' ' ')
 	do
-        	var_name=$(echo $service_dependency | cut -d ':' -f 1)
-        	var_service_name=$(echo $service_dependency | cut -d ':' -f 2)
-        	var_value=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" get services "${var_service_name}" -o=jsonpath={.spec.clusterIP})
+        var_name=$(echo $service_dependency | cut -d ':' -f 1)
+        var_service_name=$(echo $service_dependency | cut -d ':' -f 2)
+        var_value=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" get services "${var_service_name}" -o=jsonpath={.spec.clusterIP})
 		echo "${var_name} : ${var_value}"
-        	eval "${var_name}=${var_value}"
+        eval "${var_name}=${var_value}"
+        # Update the configuration to inject the service dependency variable
+        KUBE_RESOURCE_DEPLOYMENT_CONFIG=$(string_replace "$KUBE_RESOURCE_DEPLOYMENT_CONFIG" "\"$var_name\"" "\"$var_value\"")
 	done
 }
 
