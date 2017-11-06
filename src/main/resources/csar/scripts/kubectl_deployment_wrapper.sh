@@ -19,7 +19,7 @@ function resolve_service_dependencies_variables(){
 		echo "${var_name} : ${var_value}"
         eval "${var_name}=${var_value}"
         # Update the configuration to inject the service dependency variable
-        KUBE_RESOURCE_DEPLOYMENT_CONFIG=$(string_replace "$KUBE_RESOURCE_DEPLOYMENT_CONFIG" "\"$var_name\"" "\"$var_value\"")
+        KUBE_RESOURCE_DEPLOYMENT_CONFIG=$(string_replace "$KUBE_RESOURCE_DEPLOYMENT_CONFIG" "\${$var_name}" "$var_value")
 	done
 }
 
