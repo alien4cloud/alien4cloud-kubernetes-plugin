@@ -1,0 +1,69 @@
+tosca_definitions_version: alien_dsl_2_0_0
+
+metadata:
+  template_name: XX-two-mongo-initial
+  template_version: 2.0.0-SNAPSHOT
+  template_author: alien4cloud
+
+
+description: |
+  A nodecellar topology template composing of:
+    - 2 mongo with a placement policy
+
+imports:
+  - docker-types:2.0.0-SNAPSHOT
+  - tosca-normative-types:1.0.0-SNAPSHOT
+  - docker-draft.sandbox.samples:2.0.0-SNAPSHOT
+  - alien-base-types:2.0.0-SNAPSHOT
+
+topology_template:
+  node_templates:
+    Mongo1_CR:
+      type: org.alien4cloud.extended.container.types.ContainerRuntime
+      requirements:
+        - hostedOnContainerDeploymentUnitHost:
+            type_requirement: host
+            node: Mongo1_DU
+            capability: tosca.capabilities.Container.Docker
+            relationship: tosca.relationships.HostedOn
+    Mongo1_DU:
+      type: org.alien4cloud.extended.container.types.ContainerDeploymentUnit
+    Mongo1:
+      type: org.alien4cloud.nodes.Application.Docker.Mongo
+      properties:
+        cpu_share: 1.0
+        mem_share: "128 MB"
+      requirements:
+        - hostedOnContainerRuntimeMongo1CrHost:
+            type_requirement: host
+            node: Mongo1_CR
+            capability: org.alien4cloud.extended.container.capabilities.ApplicationHost
+            relationship: org.alien4cloud.extended.container.relationships.HostedOnContainerRuntime
+      capabilities:
+        mongo_db:
+          properties:
+            port: 27017
+    Mongo2_CR:
+      type: org.alien4cloud.extended.container.types.ContainerRuntime
+    Mongo2:
+      type: org.alien4cloud.nodes.Application.Docker.Mongo
+      properties:
+        cpu_share: 1.0
+        mem_share: "128 MB"
+      requirements:
+        - hostedOnContainerRuntimeMongo2CrHost:
+            type_requirement: host
+            node: Mongo2_CR
+            capability: org.alien4cloud.extended.container.capabilities.ApplicationHost
+            relationship: org.alien4cloud.extended.container.relationships.HostedOnContainerRuntime
+      capabilities:
+        mongo_db:
+          properties:
+            port: 27017
+  policies:
+    - mongo_anti_affinity:
+        type: org.alien4cloud.policies.AntiAffinity
+        description: The anti affinity policy between node 1 and 2
+        targets: [Mongo1_DU, Mongo2_CR]
+        properties:
+          level: host
