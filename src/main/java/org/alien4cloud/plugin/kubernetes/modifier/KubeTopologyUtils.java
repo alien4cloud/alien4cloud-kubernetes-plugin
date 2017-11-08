@@ -37,7 +37,7 @@ public class KubeTopologyUtils {
     public static final String K8S_TYPES_SERVICE = "org.alien4cloud.kubernetes.api.types.Service";
     public static final String K8S_TYPES_SERVICE_RESOURCE = "org.alien4cloud.kubernetes.api.types.ServiceResource";
 
-    public static final String K8S_CSAR_VERSION = "2.0.0-SNAPSHOT";
+    public static final String K8S_CSAR_VERSION = "2.0.0-SM3";
 
     /**
      * Get the image name from the type implementation artifact file.
