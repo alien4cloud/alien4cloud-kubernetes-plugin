@@ -244,8 +244,8 @@ public class KubernetesFinalTopologyModifier extends TopologyModifierSupport {
 
         // TODO bug on node matching view since these nodes are the real matched ones
         // TODO then find a way to delete servicesNodes and deloymentNodes as they are not used
-        // serviceNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
-        // deploymentNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
+//         serviceNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
+//         deploymentNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
         Set<NodeTemplate> containers = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_APPLICATION_DOCKER_CONTAINER, true);
         safe(containers).forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
 

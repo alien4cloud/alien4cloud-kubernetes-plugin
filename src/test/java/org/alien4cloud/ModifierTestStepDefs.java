@@ -78,7 +78,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 
-import static org.alien4cloud.test.util.SPELUtils.evaluateAndAssertExpression;
+import static org.alien4cloud.test.util.SPELUtils.*;
 import static org.mockito.Mockito.*;
 
 @ContextConfiguration("classpath:org/alien4cloud/kubernetes/modifiers/application-context-test.xml")
@@ -112,6 +112,10 @@ public class ModifierTestStepDefs {
     private Exception thrownException;
 
     private Topology currentTopology;
+
+    private Map<String, Object> registry = Maps.newHashMap();
+
+    private StandardEvaluationContext spelContext;
 
     private List<Class> typesToClean = Lists.newArrayList();
     public static final Path CSAR_TARGET_PATH = Paths.get("target/csars");
@@ -260,4 +264,49 @@ public class ModifierTestStepDefs {
         TopologyModifierSupport.feedPropertyValue(policy.getProperties(), propertyName, scalarPropertyValue, false);
     }
 
+    @When("^I store the current topology in the SPEL context$")
+    public void i_store_the_current_topology_in_the_SPEL_context() throws Throwable {
+        spelContext = new StandardEvaluationContext(currentTopology);
+    }
+
+    @Then("^The SPEL expression \"([^\"]*)\" should return \"([^\"]*)\"$")
+    public void evaluateSpelExpressionUsingCurrentTopology(String spelExpression, String expected) {
+        evaluateAndAssertExpression(spelContext, spelExpression, expected);
+    }
+
+    @Then("^The SPEL expression \"([^\"]*)\" should return (true|false)$")
+    public void evaluateSpelExpressionUsingCurrentTopology(String spelExpression, Boolean expected) {
+        evaluateAndAssertExpression(spelContext, spelExpression, expected);
+    }
+
+    @Then("^The SPEL expression \"([^\"]*)\" should return (\\d+)$")
+    public void evaluateSpelExpressionUsingCurrentTopologyContext(String spelExpression, Integer expected) {
+        evaluateAndAssertExpression(spelContext, spelExpression, expected);
+    }
+
+    @Then("^The SPEL expression \"([^\"]*)\" should return (\\d+\\.\\d+)$")
+    public void evaluateSpelExpressionUsingCurrentTopologyContext(String spelExpression, Double expected) {
+        evaluateAndAssertExpression(spelContext, spelExpression, expected);
+    }
+
+    @Then("^register the SPEL expression \"(.*?)\" result as \"(.*?)\"$")
+    public void register_the_SPEL_expression_result_as(String spelExpression, String registryName) throws Throwable {
+        Object result = evaluateExpression(spelContext, spelExpression);
+        registry.put(registryName, result);
+    }
+
+    @Then("^The SPEL expression \"(.*?)\" result should equals the registered object \"(.*?)\"$")
+    public void the_SPEL_expression_should_equals_the_registered_object(String spelExpression, String registryName) throws Throwable {
+        Object actual = evaluateExpression(spelContext, spelExpression);
+        Object expected = registry.get(registryName);
+        Assert.assertEquals(expected, actual);
+    }
+
+    @Then("^I Parse as JSON the content of the registered object \"(.*?)\" and put it in the SPEL context$")
+    public void i_Parse_as_JSON_the_content_of_the_registered_object_and_put_it_in_the_SPEL_context(String registryName) throws Throwable {
+        Object registeredObject = registry.get(registryName);
+        Map<String, Object> parseResult = JsonUtil.toMap(registeredObject.toString());
+        spelContext = new StandardEvaluationContext(parseResult);
+    }
+    
 }

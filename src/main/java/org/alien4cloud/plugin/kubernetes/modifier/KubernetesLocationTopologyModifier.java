@@ -37,6 +37,13 @@ import lombok.extern.java.Log;
 /**
  * Transform an abstract topology containing <code>DockerContainer</code>s, <code>ContainerRuntime</code>s and <code>ContainerDeploymentUnit</code>s to an abstract K8S topology.
  *
+ * <p>This modifier:</p>
+ * <ul>
+ *     <li>Replace all occurences of <code>org.alien4cloud.extended.container.types.ContainerRuntime</code> by <code>org.alien4cloud.kubernetes.api.types.AbstractContainer</code> and fill k8s properties.</li>
+ *     <li>Replace all occurences of <code>org.alien4cloud.extended.container.types.ContainerDeploymentUnit</code> by <code>org.alien4cloud.kubernetes.api.types.AbstractDeployment</code> and fill k8s properties.</li>
+ *     <li>Wrap all orphan <code>org.alien4cloud.kubernetes.api.types.AbstractContainer</code> inside a <code>org.alien4cloud.kubernetes.api.types.AbstractDeployment</code>.</li>
+ *     <li>For each container endpoint, create a node of type <code>org.alien4cloud.kubernetes.api.types.AbstractService</code> that depends on the coresponding deployment.</li>
+ * </ul>
  * TODO: add logs using FlowExecutionContext
  *
  * alien4cloud-kubernetes-plugin:kubernetes-modifier:post-location-match
@@ -142,7 +149,7 @@ public class KubernetesLocationTopologyModifier extends TopologyModifierSupport 
                 AbstractPropertyValue port = containerNodeTemplate.getCapabilities().get(endpointName).getProperties().get("port");
                 ComplexPropertyValue portPropertyValue = new ComplexPropertyValue(Maps.newHashMap());
                 portPropertyValue.getValue().put("containerPort", port);
-                portPropertyValue.getValue().put("name", generateKubeName(endpointName));
+                portPropertyValue.getValue().put("name", new ScalarPropertyValue(generateKubeName(endpointName)));
                 appendNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.ports", portPropertyValue);
 //                setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.ports." + generateKubeName(endpointName), port);
 

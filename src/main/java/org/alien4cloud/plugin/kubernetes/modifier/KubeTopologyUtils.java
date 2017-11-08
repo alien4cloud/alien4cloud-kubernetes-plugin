@@ -37,6 +37,7 @@ public class KubeTopologyUtils {
     public static final String K8S_TYPES_SERVICE = "org.alien4cloud.kubernetes.api.types.Service";
     public static final String K8S_TYPES_SERVICE_RESOURCE = "org.alien4cloud.kubernetes.api.types.ServiceResource";
 
+    // TODO: should be parsed from src/main/resources/csar/tosca.yml or query ES to get the last version of this CSAR
     public static final String K8S_CSAR_VERSION = "2.0.0-SM3";
 
     /**

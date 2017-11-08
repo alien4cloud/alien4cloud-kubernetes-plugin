@@ -5,12 +5,13 @@ metadata:
   template_version: 2.0.0-SNAPSHOT
   template_author: alien4cloud
 
-description: ""
+description: |
+  A single deployment with an apache container with default_instance=2 on the deployment unit
 
 imports:
-  - docker-types:2.0.0-SNAPSHOT
-  - tosca-normative-types:1.0.0-SNAPSHOT
-  - docker-draft.sandbox.samples:2.0.0-SNAPSHOT
+  - docker-types:2.0.0-SM3
+  - tosca-normative-types:1.0.0-ALIEN20SM3
+  - docker-draft.sandbox.samples:2.0.0-SM3
 
 topology_template:
   node_templates:
@@ -53,5 +54,6 @@ topology_template:
         scalable:
           properties:
             min_instances: 1
-            max_instances: 1
-            default_instances: 1
+            max_instances: 2
+            # with default_instances: 2 the deployment will have 2 replicas
+            default_instances: 2

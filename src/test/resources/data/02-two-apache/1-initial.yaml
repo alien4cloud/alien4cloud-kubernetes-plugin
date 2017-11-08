@@ -5,12 +5,14 @@ metadata:
   template_version: 2.0.0-SNAPSHOT
   template_author: alien4cloud
 
-description: ""
+description: |
+  2 apache containers with an anti affinity policy, one is not wrapped inside a deployment unit.
 
 imports:
-  - docker-types:2.0.0-SNAPSHOT
-  - tosca-normative-types:1.0.0-SNAPSHOT
-  - docker-draft.sandbox.samples:2.0.0-SNAPSHOT
+  - alien-base-types:2.0.0-SM3
+  - docker-types:2.0.0-SM3
+  - tosca-normative-types:1.0.0-ALIEN20SM3
+  - docker-draft.sandbox.samples:2.0.0-SM3
 
 topology_template:
   node_templates:
@@ -84,5 +86,7 @@ topology_template:
       type: org.alien4cloud.extended.container.types.ContainerRuntime
   policies:
     - Placement:
-        type: tosca.policies.Placement
+        type: org.alien4cloud.policies.AntiAffinity
         targets: [ Apache2Container, Apache1Deployment ]
+        properties:
+          level: host

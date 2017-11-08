@@ -12,10 +12,10 @@ description: |
     - 2 Mongo containers with anti affinity policy.
 
 imports:
-  - alien-base-types:2.0.0-SNAPSHOT
-  - docker-types:2.0.0-SNAPSHOT
-  - tosca-normative-types:1.0.0-SNAPSHOT
-  - docker-draft.sandbox.samples:2.0.0-SNAPSHOT
+  - alien-base-types:2.0.0-SM3
+  - docker-types:2.0.0-SM3
+  - tosca-normative-types:1.0.0-ALIEN20SM3
+  - docker-draft.sandbox.samples:2.0.0-SM3
 
 topology_template:
   node_templates:
