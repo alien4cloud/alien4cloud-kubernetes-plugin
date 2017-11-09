@@ -1,4 +1,4 @@
-Feature: Kubernetes location topology modifier
+Feature: Kubernetes anti affinity location topology modifier
   # test the kubernetes-anti-affinity-modifier
 
   Background:

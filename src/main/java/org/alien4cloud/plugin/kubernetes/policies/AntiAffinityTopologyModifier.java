@@ -35,14 +35,14 @@ public class AntiAffinityTopologyModifier extends TopologyModifierSupport {
     private static final String PREFERRED_DURING_SCHE_IGNORED_DURING_EXEC_PATH = "spec.template.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution";
     private static final String K8S_POLICIES_ANTI_AFFINITY_LABEL = "org.alien4cloud.kubernetes.api.policies.AntiAffinityLabel";
 
-    private Map<String, String> levelToTopologyKey = Maps.newHashMap();
+    private static final Map<String, String> LEVEL_TO_TOPOLOGY_KEY = Maps.newHashMap();
 
-    @PostConstruct
-    public void init() {
-        levelToTopologyKey.put("host", "kubernetes.io/hostname");
-        levelToTopologyKey.put("zone", "failure-domain.beta.kubernetes.io/zone");
-        levelToTopologyKey.put("region", "failure-domain.beta.kubernetes.io/regon");
+    static {
+        LEVEL_TO_TOPOLOGY_KEY.put("host", "kubernetes.io/hostname");
+        LEVEL_TO_TOPOLOGY_KEY.put("zone", "failure-domain.beta.kubernetes.io/zone");
+        LEVEL_TO_TOPOLOGY_KEY.put("region", "failure-domain.beta.kubernetes.io/regon");
     }
+
     @Override
     @ToscaContextual
     public void process(Topology topology, FlowExecutionContext context) {
@@ -146,7 +146,7 @@ public class AntiAffinityTopologyModifier extends TopologyModifierSupport {
     }
 
     private String levelToTopologyKey(String level) {
-        return levelToTopologyKey.getOrDefault(level, level);
+        return LEVEL_TO_TOPOLOGY_KEY.getOrDefault(level, level);
     }
 
 }

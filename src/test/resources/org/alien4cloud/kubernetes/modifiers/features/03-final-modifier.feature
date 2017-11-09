@@ -1,4 +1,4 @@
-Feature: Kubernetes location topology modifier
+Feature: Kubernetes final location topology modifier
   # test the kubernetes-final-modifier
 
   Background:
@@ -23,6 +23,7 @@ Feature: Kubernetes location topology modifier
     And I execute the modifier "kubernetes-automatching-modifier" on the current topology
     And I execute the modifier "kubernetes-final-modifier" on the current topology
     And I store the current topology in the SPEL context
+    # FIXME: will fail since the old nodes are not deleted cf. org/alien4cloud/plugin/kubernetes/modifier/KubernetesFinalTopologyModifier.java:244
     Then The SPEL expression "nodeTemplates.size()" should return 4
     # we may have 2 DeploymentResource (1 for mongo 1 for nodecellar)
     And The SPEL expression "nodeTemplates['MongoContainerDeployment_Resource'].type" should return "org.alien4cloud.kubernetes.api.types.DeploymentResource"
