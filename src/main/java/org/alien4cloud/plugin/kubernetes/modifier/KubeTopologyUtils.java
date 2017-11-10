@@ -33,6 +33,7 @@ public class KubeTopologyUtils {
     public static final String K8S_TYPES_ABSTRACT_CONTAINER = "org.alien4cloud.kubernetes.api.types.AbstractContainer";
     public static final String K8S_TYPES_ABSTRACT_DEPLOYMENT = "org.alien4cloud.kubernetes.api.types.AbstractDeployment";
     public static final String K8S_TYPES_ABSTRACT_SERVICE = "org.alien4cloud.kubernetes.api.types.AbstractService";
+    public static final String K8S_TYPES_ABSTRACT_VOLUME_BASE = "org.alien4cloud.kubernetes.api.types.volume.AbstractVolumeBase";
     public static final String K8S_TYPES_VOLUME_BASE = "org.alien4cloud.kubernetes.api.types.volume.VolumeBase";
     // K8S concrete types
     public static final String K8S_TYPES_CONTAINER = "org.alien4cloud.kubernetes.api.types.Container";

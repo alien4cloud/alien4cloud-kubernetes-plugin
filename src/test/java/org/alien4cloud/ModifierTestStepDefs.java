@@ -46,9 +46,13 @@ import org.alien4cloud.tosca.editor.EditionContextManager;
 import org.alien4cloud.tosca.editor.EditorService;
 import org.alien4cloud.tosca.editor.operations.AbstractEditorOperation;
 import org.alien4cloud.tosca.editor.operations.UpdateFileOperation;
+import org.alien4cloud.tosca.editor.operations.nodetemplate.ReplaceNodeOperation;
+import org.alien4cloud.tosca.editor.processors.nodetemplate.ReplaceNodeProcessor;
 import org.alien4cloud.tosca.exporter.ArchiveExportService;
 import org.alien4cloud.tosca.model.Csar;
 import org.alien4cloud.tosca.model.definitions.ScalarPropertyValue;
+import org.alien4cloud.tosca.model.templates.AbstractTemplate;
+import org.alien4cloud.tosca.model.templates.NodeTemplate;
 import org.alien4cloud.tosca.model.templates.PolicyTemplate;
 import org.alien4cloud.tosca.model.templates.Topology;
 import org.alien4cloud.tosca.model.types.*;
@@ -108,6 +112,9 @@ public class ModifierTestStepDefs {
     private ApplicationService applicationService;
     @Inject
     private ApplicationContext applicationContext;
+
+    @Resource
+    protected ReplaceNodeProcessor replaceNodeProcessor;
 
     private Exception thrownException;
 
@@ -257,11 +264,42 @@ public class ModifierTestStepDefs {
         currentTopology.getPolicies().put(policyName, tempObject);
     }
 
+    @When("^I match the node named \"(.*?)\" to a node of type \"(.*?)\" version \"(.*?)\"$")
+    public void i_match_the_node_named_to_a_node_of_type(String nodeName, String nodeTypeName, String nodeVersion) throws Throwable {
+        ToscaContext.init(currentTopology.getDependencies());
+        ReplaceNodeOperation replaceNodeOperation = new ReplaceNodeOperation();
+        replaceNodeOperation.setNodeName(nodeName);
+        replaceNodeOperation.setNewTypeId(nodeTypeName + ":" + nodeVersion);
+        Csar csar = new Csar(currentTopology.getArchiveName(), currentTopology.getArchiveVersion());
+        replaceNodeProcessor.process(csar, currentTopology, replaceNodeOperation);
+        ToscaContext.destroy();
+
+//        NodeTemplate nodeTemplate = currentTopology.getNodeTemplates().get(nodeName);
+//        ToscaContext.init(currentTopology.getDependencies());
+//        NodeType nodeType = ToscaContext.get(NodeType.class, nodeTypeName);
+//        NodeTemplate newNodeTemplate = TemplateBuilder.buildNodeTemplate(nodeType, nodeTemplate);
+//        ToscaContext.destroy();
+//        currentTopology.getNodeTemplates().put(nodeName, newNodeTemplate);
+        String yaml = archiveExportService.getYaml(new Csar(currentTopology.getArchiveName(), currentTopology.getArchiveVersion()), currentTopology, false, ToscaParser.LATEST_DSL);
+        log.info(yaml);
+        System.out.println("yaml = " + yaml);
+    }
+
     @When("^I set the policy \"(.*?)\" property \"(.*?)\" to \"(.*?)\"$")
-    public void i_set_the_policy_property_to(String policyName, String propertyName, String propertyValue) throws Throwable {
+    public void i_set_the_policy_property_to(String policyName, String propertyPath, String propertyValue) throws Throwable {
         PolicyTemplate policy = currentTopology.getPolicies().get(policyName);
+        setTemplateProperty(policy, propertyPath, propertyValue);
+    }
+
+    @When("^I set the node \"(.*?)\" property \"(.*?)\" to \"(.*?)\"$")
+    public void i_set_the_node_property_to(String nodeName, String propertyPath, String propertyValue) throws Throwable {
+        NodeTemplate nodeTemplate = currentTopology.getNodeTemplates().get(nodeName);
+        setTemplateProperty(nodeTemplate, propertyPath, propertyValue);
+    }
+
+    private void setTemplateProperty(AbstractTemplate template, String propertyPath, String propertyValue) {
         ScalarPropertyValue scalarPropertyValue = new ScalarPropertyValue(propertyValue);
-        TopologyModifierSupport.feedPropertyValue(policy.getProperties(), propertyName, scalarPropertyValue, false);
+        TopologyModifierSupport.feedPropertyValue(template.getProperties(), propertyPath, scalarPropertyValue, false);
     }
 
     @When("^I store the current topology in the SPEL context$")

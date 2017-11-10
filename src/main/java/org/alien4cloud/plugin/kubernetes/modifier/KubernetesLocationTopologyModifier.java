@@ -81,8 +81,37 @@ public class KubernetesLocationTopologyModifier extends TopologyModifierSupport 
         volumeNodes.forEach(nodeTemplate -> manageVolumes(csar, topology, nodeTemplate));
     }
 
+    /**
+     * Replace a node of type <code>org.alien4cloud.nodes.DockerExtVolume</code> by a node if type <code>org.alien4cloud.kubernetes.api.types.volume.AbstractVolumeBase</code>.
+     */
     private void manageVolumes(Csar csar, Topology topology, NodeTemplate nodeTemplate) {
-        nodeTemplate = replaceNode(csar, topology, nodeTemplate, K8S_TYPES_VOLUME_BASE, K8S_CSAR_VERSION);
+        NodeTemplate volumeNodeTemplate = replaceNode(csar, topology, nodeTemplate, K8S_TYPES_ABSTRACT_VOLUME_BASE, K8S_CSAR_VERSION);
+        String name = generateKubeName(volumeNodeTemplate.getName());
+        setNodePropertyPathValue(csar, topology, volumeNodeTemplate, "name", new ScalarPropertyValue(name));
+
+        Set<RelationshipTemplate> relationships = TopologyNavigationUtil.getTargetRelationships(volumeNodeTemplate, "attachment");
+        relationships.forEach(relationshipTemplate -> manageVolumeAttachment(csar, topology, volumeNodeTemplate, relationshipTemplate));
+    }
+
+    /**
+     * For a given volume node template, and it's relationship to a target container, fill the property 'volumeMounts' of the corresponding container runtime.
+     */
+    private void manageVolumeAttachment(Csar csar, Topology topology, NodeTemplate volumeNodeTemplate, RelationshipTemplate relationshipTemplate) {
+        NodeTemplate targetNode = topology.getNodeTemplates().get(relationshipTemplate.getTarget());
+        // TODO: return if not a container
+        // TODO: return if not a org.alien4cloud.relationships.MountDockerVolume ?
+        NodeTemplate containerNode = TopologyNavigationUtil.getImmediateHostTemplate(topology, targetNode);
+        // get the container_path property from the relationship
+        AbstractPropertyValue mountPath = PropertyUtil.getPropertyValueFromPath(relationshipTemplate.getProperties(), "container_path");
+        // get the volume name
+        AbstractPropertyValue name = PropertyUtil.getPropertyValueFromPath(volumeNodeTemplate.getProperties(), "name");
+        if (mountPath != null && name != null) {
+            ComplexPropertyValue volumeMount = new ComplexPropertyValue();
+            volumeMount.setValue(Maps.newHashMap());
+            volumeMount.getValue().put("mountPath", mountPath);
+            volumeMount.getValue().put("name", name);
+            appendNodePropertyPathValue(csar, topology, containerNode, "container.volumeMounts", volumeMount);
+        }
     }
 
     /**

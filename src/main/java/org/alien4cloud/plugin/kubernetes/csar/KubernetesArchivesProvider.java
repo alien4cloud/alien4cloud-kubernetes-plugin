@@ -4,7 +4,7 @@ import org.springframework.stereotype.Component;
 
 import alien4cloud.plugin.archives.AbstractArchiveProviderPlugin;
 
-@Component("kubernete-archives-provider")
+//@Component("kubernete-archives-provider")
 public class KubernetesArchivesProvider extends AbstractArchiveProviderPlugin {
 
     @Override

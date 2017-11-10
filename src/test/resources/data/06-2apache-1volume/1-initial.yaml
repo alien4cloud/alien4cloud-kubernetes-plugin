@@ -39,14 +39,14 @@ topology_template:
             capability: org.alien4cloud.capabilities.DockerVolumeAttachment
             relationship: org.alien4cloud.relationships.MountDockerVolume
             properties:
-              container_path: "/var/www/html"
+              container_path: "/tmp/www1"
         - mountDockerVolumeApache2Attach:
             type_requirement: attachment
             node: Apache2
             capability: org.alien4cloud.capabilities.DockerVolumeAttachment
             relationship: org.alien4cloud.relationships.MountDockerVolume
             properties:
-              container_path: "/var/www/html"
+              container_path: "/tmp/www2"
     Apache2:
       type: org.alien4cloud.nodes.Application.Docker.Apache
       properties:

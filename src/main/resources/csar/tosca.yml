@@ -474,15 +474,26 @@ data_types:
         required: false
         description: |
           Whether this container should allocate a TTY for itself, also requires 'stdin' to be true. Default is false.
-      # volumeMounts:
-      #   type: VolumeMount
-      #   description: |
-      #     array Pod volumes to mount into the container's filesystem. Cannot be updated.
+      volumeMounts:
+        type: list
+        required: false
+        entry_schema:
+          type: org.alien4cloud.kubernetes.api.datatypes.VolumeMount
+        description: |
+          array Pod volumes to mount into the container's filesystem. Cannot be updated.
       workingDir:
         type: string
         required: false
         description: |
           Container's working directory. If not specified, the container runtime's default will be used, which might be configured in the container image. Cannot be updated.
+
+  org.alien4cloud.kubernetes.api.datatypes.VolumeMount:
+    derived_from: tosca.datatypes.Root
+    properties:
+      mountPath:
+        type: string
+      name:
+        type: string
 
   org.alien4cloud.kubernetes.api.datatypes.ResourceRequirements:
     derived_from: tosca.datatypes.Root
@@ -666,6 +677,67 @@ data_types:
 
   org.alien4cloud.kubernetes.api.datatypes.DeploymentResourceDefinition:
 
+  org.alien4cloud.kubernetes.api.datatypes.volumes.EmptyDirVolumeSpec:
+    derived_from: tosca.datatypes.Root
+    properties:
+      medium:
+        type: string
+        description: |
+          What type of storage medium should back this directory. The default is "" which means to use the node's default medium. Must be an empty string (default) or Memory. More info: https://kubernetes.io/docs/concepts/storage/volumes#emptydir
+        required: false
+        constraints:
+          - valid_values: [Memory]
+      sizeLimit:
+        type: string
+        description: |
+          Total amount of local storage required for this EmptyDir volume.
+          The size limit is also applicable for memory medium.
+          The maximum usage on memory medium EmptyDir would be the minimum value between the SizeLimit specified here and the sum of memory limits of all containers in a pod.
+          The default is nil which means that the limit is undefined.
+          More info: http://kubernetes.io/docs/user-guide/volumes#emptydir
+        required: false
+
+  org.alien4cloud.kubernetes.api.datatypes.volumes.HostPathVolumeSpec:
+    derived_from: tosca.datatypes.Root
+    properties:
+      path:
+        type: string
+        description: |
+          Path of the directory on the host. If the path is a symlink, it will follow the link to the real path. More info: https://kubernetes.io/docs/concepts/storage/volumes#hostpath
+# FIXME: type can't be used as a property name
+#      type:
+#        type: string
+#        required: false
+#        description: |
+#          Type for HostPath Volume Defaults to "" More info: https://kubernetes.io/docs/concepts/storage/volumes#hostpath
+#        required: false
+#        constraints:
+#          - valid_values: [DirectoryOrCreate, Directory, FileOrCreate, File, Socket, CharDevice, BlockDevice]
+
+  org.alien4cloud.kubernetes.api.datatypes.volumes.AWSElasticBlockStoreVolumeSpec:
+    derived_from: tosca.datatypes.Root
+    properties:
+      fsType:
+        type: string
+        required: false
+        description: |
+          Filesystem type of the volume that you want to mount. Tip: Ensure that the filesystem type is supported by the host operating system. Examples: "ext4", "xfs", "ntfs". Implicitly inferred to be "ext4" if unspecified. More info: http://kubernetes.io/docs/user-guide/volumes#awselasticblockstore
+      partition:
+        type: integer
+        required: false
+        description: |
+          The partition in the volume that you want to mount. If omitted, the default is to mount by volume name. Examples: For volume /dev/sda1, you specify the partition as "1". Similarly, the volume partition for /dev/sda is "0" (or you can leave the property empty).
+      readOnly:
+        type: boolean
+        required: false
+        description: |
+          Specify "true" to force and set the ReadOnly property in VolumeMounts to "true". If omitted, the default is "false". More info: http://kubernetes.io/docs/user-guide/volumes#awselasticblockstore
+        default: false
+      volumeID:
+        type: string
+        description: |
+          Unique ID of the persistent disk resource in AWS (Amazon EBS volume). More info: http://kubernetes.io/docs/user-guide/volumes#awselasticblockstore
+
 
 node_types:
 
@@ -694,7 +766,7 @@ node_types:
         entry_schema:
           type: string
 
-  org.alien4cloud.kubernetes.api.types.volume.VolumeBase:
+  org.alien4cloud.kubernetes.api.types.volume.AbstractVolumeBase:
     abstract: true
     derived_from: tosca.nodes.Root
     description: |
@@ -711,48 +783,77 @@ node_types:
     properties:
       name:
         type: string
+      size:
+        type: scalar-unit.size
+        description: >
+          The requested storage size (default unit is MB).
 
-  org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimVolumeSource:
-    derived_from: org.alien4cloud.kubernetes.api.types.volume.VolumeBase
+  org.alien4cloud.kubernetes.api.types.volume.VolumeBase:
+    abstract: true
+    derived_from: org.alien4cloud.kubernetes.api.types.volume.AbstractVolumeBase
     properties:
-      claimName:
+      volume_type:
         type: string
-        description: |
-          ClaimName is the name of a PersistentVolumeClaim in the same namespace as the pod using this volume. More info: http://kubernetes.io/docs/user-guide/persistent-volumes#persistentvolumeclaims
-      readOnly:
-        type: boolean
-        description: |
-          Will force the ReadOnly setting in VolumeMounts. Default false.
-        default: false
+        constraints:
+          - valid_values: [emptyDir, hostPath, awsElasticBlockStore]
+      spec:
+        type: tosca.datatypes.Root
+        description: may be overriden by concrete implementations
+        required: false
+
+#  org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimVolumeSource:
+#    derived_from: org.alien4cloud.kubernetes.api.types.volume.VolumeBase
+#    properties:
+#      claimName:
+#        type: string
+#        description: |
+#          ClaimName is the name of a PersistentVolumeClaim in the same namespace as the pod using this volume. More info: http://kubernetes.io/docs/user-guide/persistent-volumes#persistentvolumeclaims
+#      readOnly:
+#        type: boolean
+#        description: |
+#          Will force the ReadOnly setting in VolumeMounts. Default false.
+#        default: false
+
+  org.alien4cloud.kubernetes.api.types.volume.EmptyDirVolumeSource:
+    derived_from: org.alien4cloud.kubernetes.api.types.volume.VolumeBase
+    description: |
+      An emptyDir volume is first created when a Pod is assigned to a Node, and exists as long as that Pod is running on that node.
+      As the name says, it is initially empty.
+      Containers in the pod can all read and write the same files in the emptyDir volume, though that volume can be mounted at the same or different paths in each container.
+      When a Pod is removed from a node for any reason, the data in the emptyDir is deleted forever.
+    properties:
+      volume_type:
+        type: string
+        default: emptyDir
+        constraints:
+          - equal: emptyDir
+      spec:
+        type: org.alien4cloud.kubernetes.api.datatypes.volumes.EmptyDirVolumeSpec
+        required: false
 
   org.alien4cloud.kubernetes.api.types.volume.HostPathVolumeSource:
     derived_from: org.alien4cloud.kubernetes.api.types.volume.VolumeBase
     properties:
-      path:
+      volume_type:
         type: string
-        description: |
-          Path of the directory on the host. More info: http://kubernetes.io/docs/user-guide/volumes#hostpath
+        default: hostPath
+        constraints:
+          - equal: hostPath
+      spec:
+        type: org.alien4cloud.kubernetes.api.datatypes.volumes.HostPathVolumeSpec
+        required: false
 
   org.alien4cloud.kubernetes.api.types.volume.AWSElasticBlockStoreVolumeSource:
     derived_from: org.alien4cloud.kubernetes.api.types.volume.VolumeBase
     properties:
-      fsType:
+      volume_type:
         type: string
-        description: |
-          Filesystem type of the volume that you want to mount. Tip: Ensure that the filesystem type is supported by the host operating system. Examples: "ext4", "xfs", "ntfs". Implicitly inferred to be "ext4" if unspecified. More info: http://kubernetes.io/docs/user-guide/volumes#awselasticblockstore
-      partition:
-        type: integer
-        description: |
-          The partition in the volume that you want to mount. If omitted, the default is to mount by volume name. Examples: For volume /dev/sda1, you specify the partition as "1". Similarly, the volume partition for /dev/sda is "0" (or you can leave the property empty).
-      readOnly:
-        type: boolean
-        description: |
-          Specify "true" to force and set the ReadOnly property in VolumeMounts to "true". If omitted, the default is "false". More info: http://kubernetes.io/docs/user-guide/volumes#awselasticblockstore
-        default: false
-      volumeID:
-        type: string
-        description: |
-          Unique ID of the persistent disk resource in AWS (Amazon EBS volume). More info: http://kubernetes.io/docs/user-guide/volumes#awselasticblockstore
+        default: awsElasticBlockStore
+        constraints:
+          - equal: awsElasticBlockStore
+      spec:
+        type: org.alien4cloud.kubernetes.api.datatypes.volumes.AWSElasticBlockStoreVolumeSpec
+        required: false
 
   org.alien4cloud.kubernetes.api.types.Service:
     derived_from: org.alien4cloud.kubernetes.api.types.AbstractService
@@ -809,23 +910,23 @@ node_types:
       spec:
         type: org.alien4cloud.kubernetes.api.datatypes.DeploymentSpec
 
-  org.alien4cloud.kubernetes.api.types.HorizontalPodAutoscaler:
-    derived_from: org.alien4cloud.kubernetes.api.types.Base
-    description: >
-      A kubernetes HorizontalPodAutoscaler object
-    properties:
-      apiVersion:
-        type: string
-        default: autoscaling/v2alpha1
-        constraints:
-          - equal: autoscaling/v2alpha1
-      kind:
-        type: string
-        default: HorizontalPodAutoscaler
-        constraints:
-          - equal: HorizontalPodAutoscaler
-      spec:
-        type: org.alien4cloud.kubernetes.api.datatypes.autoscaler.HorizontalPodAutoscalerSpec
+#  org.alien4cloud.kubernetes.api.types.HorizontalPodAutoscaler:
+#    derived_from: org.alien4cloud.kubernetes.api.types.Base
+#    description: >
+#      A kubernetes HorizontalPodAutoscaler object
+#    properties:
+#      apiVersion:
+#        type: string
+#        default: autoscaling/v2alpha1
+#        constraints:
+#          - equal: autoscaling/v2alpha1
+#      kind:
+#        type: string
+#        default: HorizontalPodAutoscaler
+#        constraints:
+#          - equal: HorizontalPodAutoscaler
+#      spec:
+#        type: org.alien4cloud.kubernetes.api.datatypes.autoscaler.HorizontalPodAutoscalerSpec
 
   org.alien4cloud.kubernetes.api.types.Container:
     derived_from: org.alien4cloud.kubernetes.api.types.AbstractContainer
