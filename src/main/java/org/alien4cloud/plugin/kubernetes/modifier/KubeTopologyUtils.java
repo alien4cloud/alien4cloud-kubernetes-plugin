@@ -19,6 +19,8 @@ import org.elasticsearch.common.collect.Maps;
 
 import java.util.*;
 
+import static org.alien4cloud.tosca.utils.ToscaTypeUtils.isOfType;
+
 /**
  * A utility to browse Kube topologies (enhanced by Kube modifiers).
  */
@@ -119,7 +121,7 @@ public class KubeTopologyUtils {
                             // is this node a container ?
                             NodeType targetNodeType = ToscaContext.get(NodeType.class, targetNode.getType());
 
-                            if (WorkflowUtils.isOfType(targetNodeType, A4C_TYPES_APPLICATION_DOCKER_CONTAINER)) {
+                            if (isOfType(targetNodeType, A4C_TYPES_APPLICATION_DOCKER_CONTAINER)) {
                                 // ok the
                                 if (evaluatedFunction.getElementNameToFetch().equals(attributeName)) {
                                     return true;
@@ -159,7 +161,7 @@ public class KubeTopologyUtils {
                             // is this node a container ?
                             NodeTemplate targetNode = topology.getNodeTemplates().get(targetRelationship.getTarget());
                             NodeType targetNodeType = ToscaContext.get(NodeType.class, targetNode.getType());
-                            if (WorkflowUtils.isOfType(targetNodeType, A4C_TYPES_APPLICATION_DOCKER_CONTAINER)) {
+                            if (isOfType(targetNodeType, A4C_TYPES_APPLICATION_DOCKER_CONTAINER)) {
 
                                 Capability endpoint = targetNode.getCapabilities().get(targetRelationship.getTargetedCapabilityName());
                                 AbstractPropertyValue targetPropertyValue = PropertyUtil.getPropertyValueFromPath(endpoint.getProperties(), evaluatedFunction.getElementNameToFetch());
@@ -190,7 +192,7 @@ public class KubeTopologyUtils {
                         for (NodeTemplate targetNode : targetNodes) {
                             // is this node a container ?
                             NodeType targetNodeType = ToscaContext.get(NodeType.class, targetNode.getType());
-                            if (WorkflowUtils.isOfType(targetNodeType, A4C_TYPES_APPLICATION_DOCKER_CONTAINER)) {
+                            if (isOfType(targetNodeType, A4C_TYPES_APPLICATION_DOCKER_CONTAINER)) {
                                 // find the deployment that host this container
                                 NodeTemplate deploymentNode = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology,targetNode, K8S_TYPES_DEPLOYMENT);
                                 if (deploymentNode != null) {

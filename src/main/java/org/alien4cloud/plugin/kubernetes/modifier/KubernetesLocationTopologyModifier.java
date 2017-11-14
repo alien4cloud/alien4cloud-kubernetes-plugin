@@ -12,6 +12,7 @@ import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_T
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.generateKubeName;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.generateUniqueKubeName;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.getContainerImageName;
+import static org.alien4cloud.tosca.utils.ToscaTypeUtils.isOfType;
 
 import java.util.List;
 import java.util.Map;
@@ -38,7 +39,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
-import alien4cloud.paas.wf.util.WorkflowUtils;
 import alien4cloud.paas.wf.validation.WorkflowValidator;
 import alien4cloud.tosca.context.ToscaContext;
 import alien4cloud.tosca.context.ToscaContextual;
@@ -236,7 +236,7 @@ public class KubernetesLocationTopologyModifier extends TopologyModifierSupport 
         Set<String> endpointNames = Sets.newHashSet();
         for (Map.Entry<String, Capability> e : AlienUtils.safe(containerNodeTemplate.getCapabilities()).entrySet()) {
             CapabilityType capabilityType = ToscaContext.get(CapabilityType.class, e.getValue().getType());
-            if (WorkflowUtils.isOfType(capabilityType, NormativeCapabilityTypes.ENDPOINT)) {
+            if (isOfType(capabilityType, NormativeCapabilityTypes.ENDPOINT)) {
                 endpointNames.add(e.getKey());
             }
         }
