@@ -1,16 +1,7 @@
 package org.alien4cloud.plugin.kubernetes.modifier;
 
 import static alien4cloud.utils.AlienUtils.safe;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_APPLICATION_DOCKER_CONTAINER;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_CSAR_VERSION;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_CONTAINER;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_DEPLOYMENT;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_DEPLOYMENT_RESOURCE;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_RESOURCE;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SERVICE;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SERVICE_RESOURCE;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_VOLUME_BASE;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.getValue;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.*;
 
 import java.util.List;
 import java.util.Map;
@@ -152,6 +143,9 @@ public class KubernetesFinalTopologyModifier extends TopologyModifierSupport {
         NodeTemplate deploymentContainer = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology, targetContainer, K8S_TYPES_DEPLOYMENT);
         // get the deployment resource corresponding to this deployment
         NodeTemplate deploymentResourceNode = nodeReplacementMap.get(deploymentContainer.getName());
+
+        managePersistentVolumeClaim(csar, topology, volumeNode, resourceNodeYamlStructures, deploymentResourceNode);
+
         Map<String, AbstractPropertyValue> deploymentResourceNodeProperties = resourceNodeYamlStructures.get(deploymentResourceNode.getName());
         Map<String, Object> volumeEntry = Maps.newHashMap();
         AbstractPropertyValue name = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "name");
@@ -166,6 +160,43 @@ public class KubernetesFinalTopologyModifier extends TopologyModifierSupport {
         }
         volumeEntry.put(PropertyUtil.getScalarValue(volume_type), volumeSpecObject);
         feedPropertyValue(deploymentResourceNodeProperties, "resource_def.spec.template.spec.volumes", volumeEntry, true);
+    }
+
+    private void managePersistentVolumeClaim(Csar csar, Topology topology, NodeTemplate volumeNode, Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures, NodeTemplate deploymentResourceNode) {
+        // in case of empty claimName for a PersistentVolumeClaimSource then create a node of type PersistentVolumeClaim
+        if (volumeNode.getType().equals(KubeTopologyUtils.K8S_TYPES_VOLUMES_CLAIM)) {
+            AbstractPropertyValue claimNamePV = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "spec.claimName");
+            if (claimNamePV == null) {
+                NodeTemplate volumeClaimResource = addNodeTemplate(csar, topology, volumeNode.getName() + "_PVC", KubeTopologyUtils.K8S_TYPES_SIMPLE_RESOURCE, K8S_CSAR_VERSION);
+
+                Map<String, AbstractPropertyValue> volumeClaimResourceNodeProperties = Maps.newHashMap();
+                resourceNodeYamlStructures.put(volumeClaimResource.getName(), volumeClaimResourceNodeProperties);
+
+                String claimName = generateUniqueKubeName(volumeNode.getName());
+                // fill the node properties
+                feedPropertyValue(volumeClaimResource.getProperties(), "resource_type", new ScalarPropertyValue("pvc"), false);
+                feedPropertyValue(volumeClaimResource.getProperties(), "resource_id", new ScalarPropertyValue(claimName), false);
+                feedPropertyValue(volumeClaimResource.getProperties(), "json_path_expr", new ScalarPropertyValue(".items[0].status.phase"), false);
+                feedPropertyValue(volumeClaimResource.getProperties(), "json_path_value", new ScalarPropertyValue("Bound"), false);
+                // fill the future JSON spec
+                feedPropertyValue(volumeClaimResourceNodeProperties, "resource_def.kind", "PersistentVolumeClaim", false);
+                feedPropertyValue(volumeClaimResourceNodeProperties, "resource_def.apiVersion", "v1", false);
+                feedPropertyValue(volumeClaimResourceNodeProperties, "resource_def.metadata.name", claimName, false);
+                feedPropertyValue(volumeClaimResourceNodeProperties, "resource_def.metadata.labels.type", "amazonEBS", false);
+                feedPropertyValue(volumeClaimResourceNodeProperties, "resource_def.metadata.labels.a4c_id", claimName, false);
+                feedPropertyValue(volumeClaimResourceNodeProperties, "resource_def.spec.accessModes", "ReadWriteMany", true);
+                // get the size of the volume to define claim storage size
+                NodeType nodeType = ToscaContext.get(NodeType.class, volumeNode.getType());
+                AbstractPropertyValue size = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "size");
+                PropertyDefinition propertyDefinition = nodeType.getProperties().get("size");
+                Object transformedSize = getTransformedValue(size, propertyDefinition, "");
+                feedPropertyValue(volumeClaimResourceNodeProperties, "resource_def.spec.resources.requests.storage", transformedSize, false);
+                // finally set the claimName of the volume node
+                feedPropertyValue(volumeNode.getProperties(), "spec.claimName", claimName, false);
+                // add a relationship between the deployment and this claim
+                addRelationshipTemplate(csar, topology, deploymentResourceNode, volumeClaimResource.getName(), NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
+            }
+        }
     }
 
     private void manageContainer(Csar csar, Topology topology, NodeTemplate containerNode, Map<String, NodeTemplate> nodeReplacementMap,
