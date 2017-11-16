@@ -1,5 +1,60 @@
 package org.alien4cloud;
 
+import static org.alien4cloud.test.util.SPELUtils.evaluateAndAssertExpression;
+import static org.alien4cloud.test.util.SPELUtils.evaluateExpression;
+
+import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+
+import javax.annotation.Resource;
+import javax.inject.Inject;
+
+import org.alien4cloud.alm.deployment.configuration.flow.EnvironmentContext;
+import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
+import org.alien4cloud.alm.deployment.configuration.flow.ITopologyModifier;
+import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
+import org.alien4cloud.alm.deployment.configuration.services.DeploymentConfigurationDao;
+import org.alien4cloud.tosca.catalog.ArchiveUploadService;
+import org.alien4cloud.tosca.catalog.index.CsarService;
+import org.alien4cloud.tosca.catalog.index.ITopologyCatalogService;
+import org.alien4cloud.tosca.editor.EditionContextManager;
+import org.alien4cloud.tosca.editor.operations.nodetemplate.ReplaceNodeOperation;
+import org.alien4cloud.tosca.editor.processors.nodetemplate.ReplaceNodeProcessor;
+import org.alien4cloud.tosca.exporter.ArchiveExportService;
+import org.alien4cloud.tosca.model.Csar;
+import org.alien4cloud.tosca.model.definitions.ScalarPropertyValue;
+import org.alien4cloud.tosca.model.templates.AbstractTemplate;
+import org.alien4cloud.tosca.model.templates.NodeTemplate;
+import org.alien4cloud.tosca.model.templates.PolicyTemplate;
+import org.alien4cloud.tosca.model.templates.Topology;
+import org.alien4cloud.tosca.model.types.AbstractInstantiableToscaType;
+import org.alien4cloud.tosca.model.types.AbstractToscaType;
+import org.alien4cloud.tosca.model.types.ArtifactType;
+import org.alien4cloud.tosca.model.types.CapabilityType;
+import org.alien4cloud.tosca.model.types.DataType;
+import org.alien4cloud.tosca.model.types.NodeType;
+import org.alien4cloud.tosca.model.types.PolicyType;
+import org.alien4cloud.tosca.model.types.PrimitiveDataType;
+import org.alien4cloud.tosca.model.types.RelationshipType;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.junit.Assert;
+import org.springframework.context.ApplicationContext;
+import org.springframework.expression.spel.support.StandardEvaluationContext;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.context.ContextConfiguration;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+
 import alien4cloud.application.ApplicationService;
 import alien4cloud.csar.services.CsarGitRepositoryService;
 import alien4cloud.csar.services.CsarGitService;
@@ -13,77 +68,23 @@ import alien4cloud.model.application.ApplicationVersion;
 import alien4cloud.model.components.CSARSource;
 import alien4cloud.model.git.CsarGitCheckoutLocation;
 import alien4cloud.model.git.CsarGitRepository;
-import alien4cloud.repository.services.RepositoryService;
 import alien4cloud.rest.utils.JsonUtil;
 import alien4cloud.security.model.User;
-import alien4cloud.topology.TopologyDTO;
 import alien4cloud.tosca.context.ToscaContext;
-import alien4cloud.tosca.parser.*;
+import alien4cloud.tosca.parser.ParserTestUtil;
+import alien4cloud.tosca.parser.ParsingError;
+import alien4cloud.tosca.parser.ParsingErrorLevel;
+import alien4cloud.tosca.parser.ParsingResult;
+import alien4cloud.tosca.parser.ToscaParser;
 import alien4cloud.tosca.topology.TemplateBuilder;
 import alien4cloud.utils.AlienConstants;
 import alien4cloud.utils.FileUtil;
-import alien4cloud.utils.PropertyUtil;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import cucumber.api.DataTable;
-import cucumber.api.PendingException;
 import cucumber.api.java.Before;
 import cucumber.api.java.en.And;
 import cucumber.api.java.en.Given;
 import cucumber.api.java.en.Then;
 import cucumber.api.java.en.When;
-import gherkin.formatter.model.DataTableRow;
 import lombok.extern.slf4j.Slf4j;
-import org.alien4cloud.alm.deployment.configuration.flow.EnvironmentContext;
-import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
-import org.alien4cloud.alm.deployment.configuration.flow.ITopologyModifier;
-import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
-import org.alien4cloud.alm.deployment.configuration.services.DeploymentConfigurationDao;
-import org.alien4cloud.tosca.catalog.ArchiveUploadService;
-import org.alien4cloud.tosca.catalog.index.CsarService;
-import org.alien4cloud.tosca.catalog.index.ITopologyCatalogService;
-import org.alien4cloud.tosca.editor.EditionContextManager;
-import org.alien4cloud.tosca.editor.EditorService;
-import org.alien4cloud.tosca.editor.operations.AbstractEditorOperation;
-import org.alien4cloud.tosca.editor.operations.UpdateFileOperation;
-import org.alien4cloud.tosca.editor.operations.nodetemplate.ReplaceNodeOperation;
-import org.alien4cloud.tosca.editor.processors.nodetemplate.ReplaceNodeProcessor;
-import org.alien4cloud.tosca.exporter.ArchiveExportService;
-import org.alien4cloud.tosca.model.Csar;
-import org.alien4cloud.tosca.model.definitions.ScalarPropertyValue;
-import org.alien4cloud.tosca.model.templates.AbstractTemplate;
-import org.alien4cloud.tosca.model.templates.NodeTemplate;
-import org.alien4cloud.tosca.model.templates.PolicyTemplate;
-import org.alien4cloud.tosca.model.templates.Topology;
-import org.alien4cloud.tosca.model.types.*;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.junit.Assert;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
-import org.springframework.beans.BeanUtils;
-import org.springframework.beans.factory.BeanFactoryUtils;
-import org.springframework.context.ApplicationContext;
-import org.springframework.expression.EvaluationContext;
-import org.springframework.expression.spel.SpelParserConfiguration;
-import org.springframework.expression.spel.standard.SpelExpressionParser;
-import org.springframework.expression.spel.support.StandardEvaluationContext;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.test.context.ContextConfiguration;
-
-import javax.annotation.Resource;
-import javax.inject.Inject;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.*;
-
-import static org.alien4cloud.test.util.SPELUtils.*;
-import static org.mockito.Mockito.*;
 
 @ContextConfiguration("classpath:org/alien4cloud/kubernetes/modifiers/application-context-test.xml")
 @Slf4j
@@ -248,7 +249,7 @@ public class ModifierTestStepDefs {
         log.debug("Topology processed");
         String yaml = archiveExportService.getYaml(new Csar(topology.getArchiveName(), topology.getArchiveVersion()), topology, false, ToscaParser.LATEST_DSL);
         log.info(yaml);
-        System.out.println("yaml = " + yaml);
+        System.out.println("Processed by: " + beanName + ":\n" + yaml);
     }
 
     @When("^I match the policy named \"(.*?)\" to the concrete policy of type \"(.*?)\"$")
@@ -337,6 +338,16 @@ public class ModifierTestStepDefs {
     public void the_SPEL_expression_should_equals_the_registered_object(String spelExpression, String registryName) throws Throwable {
         Object actual = evaluateExpression(spelContext, spelExpression);
         Object expected = registry.get(registryName);
+        Assert.assertEquals(expected, actual);
+    }
+
+    @Then("^The SPEL expression \"(.*?)\" result should equals the registered object \"(.*?)\" SPEL expression \"(.*?)\" result$")
+    public void the_SPEL_expression_should_equals_the_registered_object_SPEL_expression_result(String spelExpression, String registryName,
+            String expectedResultSpelExp) throws Throwable {
+        Object actual = evaluateExpression(spelContext, spelExpression);
+        Object registered = registry.get(registryName);
+        StandardEvaluationContext expectedSpelContext = new StandardEvaluationContext(registered);
+        Object expected = evaluateExpression(expectedSpelContext, expectedResultSpelExp);
         Assert.assertEquals(expected, actual);
     }
 
