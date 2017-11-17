@@ -11,7 +11,7 @@ description: |
 
 imports:
   - tosca-normative-types:1.0.0-ALIEN20SM3
-  - docker-types:2.0.0-SM3
+  - docker-types:2.0.0-SNAPSHOT
   - alien-base-types:2.0.0-SNAPSHOT
 
 data_types:
