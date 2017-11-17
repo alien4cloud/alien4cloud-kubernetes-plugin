@@ -869,7 +869,7 @@ node_types:
         type: org.alien4cloud.kubernetes.api.datatypes.volumes.AWSElasticBlockStoreVolumeSpec
         required: false
 
-    org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimSource:
+  org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimSource:
     derived_from: org.alien4cloud.kubernetes.api.types.volume.VolumeBase
     properties:
       volume_type:
