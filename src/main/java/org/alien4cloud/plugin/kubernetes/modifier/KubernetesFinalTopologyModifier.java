@@ -19,11 +19,13 @@ import org.alien4cloud.tosca.model.definitions.Operation;
 import org.alien4cloud.tosca.model.definitions.PropertyDefinition;
 import org.alien4cloud.tosca.model.definitions.PropertyValue;
 import org.alien4cloud.tosca.model.definitions.ScalarPropertyValue;
+import org.alien4cloud.tosca.model.templates.Capability;
 import org.alien4cloud.tosca.model.templates.NodeTemplate;
 import org.alien4cloud.tosca.model.templates.RelationshipTemplate;
 import org.alien4cloud.tosca.model.templates.Topology;
 import org.alien4cloud.tosca.model.types.DataType;
 import org.alien4cloud.tosca.model.types.NodeType;
+import org.alien4cloud.tosca.normative.constants.AlienCapabilityTypes;
 import org.alien4cloud.tosca.normative.constants.NormativeRelationshipConstants;
 import org.alien4cloud.tosca.normative.primitives.Size;
 import org.alien4cloud.tosca.normative.primitives.SizeUnit;
@@ -31,6 +33,7 @@ import org.alien4cloud.tosca.normative.types.SizeType;
 import org.alien4cloud.tosca.normative.types.ToscaTypes;
 import org.alien4cloud.tosca.utils.FunctionEvaluator;
 import org.alien4cloud.tosca.utils.FunctionEvaluatorContext;
+import org.alien4cloud.tosca.utils.NodeTemplateUtils;
 import org.alien4cloud.tosca.utils.TopologyNavigationUtil;
 import org.springframework.stereotype.Component;
 
@@ -41,6 +44,7 @@ import alien4cloud.paas.plan.ToscaNodeLifecycleConstants;
 import alien4cloud.paas.wf.validation.WorkflowValidator;
 import alien4cloud.tosca.context.ToscaContext;
 import alien4cloud.tosca.context.ToscaContextual;
+import alien4cloud.utils.CloneUtil;
 import alien4cloud.utils.PropertyUtil;
 import lombok.extern.java.Log;
 
@@ -319,7 +323,14 @@ public class KubernetesFinalTopologyModifier extends TopologyModifierSupport {
         PropertyDefinition propertyDefinition = nodeType.getProperties().get("spec");
         Object transformedValue = getTransformedValue(propertyValue, propertyDefinition, "");
         feedPropertyValue(deploymentResourceNodeProperties, "resource_def.spec", transformedValue, false);
-        // copyAndTransformProperty(csar, topology, deploymentNode, "spec", deploymentResourceNodeProperties, "resource_def.spec");
+
+        // Copy scalable property of the deployment node into the cluster controller capability of the deployment node.
+        Capability scalableCapability = safe(deploymentNode.getCapabilities()).get("scalable");
+        if (scalableCapability != null) {
+            Capability clusterControllerCapability = new Capability(AlienCapabilityTypes.CLUSTER_CONTROLLER,
+                    CloneUtil.clone(scalableCapability.getProperties()));
+            NodeTemplateUtils.setCapability(deploymentResourceNode, "scalable", clusterControllerCapability);
+        }
 
         // find each node of type Service that targets this deployment
         Set<NodeTemplate> sourceCandidates = TopologyNavigationUtil.getSourceNodes(topology, deploymentNode, "feature");

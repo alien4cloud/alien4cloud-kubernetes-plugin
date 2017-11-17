@@ -2,7 +2,7 @@ tosca_definitions_version: alien_dsl_2_0_0
 
 metadata:
   template_name: org.alien4cloud.kubernetes.api
-  template_version: 2.0.0-SM3
+  template_version: 2.0.0-SNAPSHOT
   # if template_version is changed, we should also change org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_CSAR_VERSION
   template_author: alien4cloud
 
@@ -12,7 +12,7 @@ description: |
 imports:
   - tosca-normative-types:1.0.0-ALIEN20SM3
   - docker-types:2.0.0-SM3
-  - alien-base-types:2.0.0-SM3
+  - alien-base-types:2.0.0-SNAPSHOT
 
 data_types:
 
@@ -993,8 +993,9 @@ node_types:
           A CSV key:value pairs where key should be replaced by the interpretation of value in the JSON.
           The value is the Kube name of the service for which the scheduler will need to find the ClusterIP and
           replace the key in the JSON with the found value.
-#    capabilities:
-#      scalable: tosca.capabilities.Scalable
+    capabilities:
+      # Manage scalability of instances
+      scalable: org.alien4cloud.capabilities.ClusterController
     attributes:
       deployment_id: { get_operation_output: [SELF, Standard, create, KUBE_DEPLOYMENT_ID] }
     interfaces:
@@ -1003,7 +1004,7 @@ node_types:
           inputs:
             KUBE_SERVICE_DEPENDENCIES: { get_property: [SELF, service_dependency_lookups] }
             KUBE_RESOURCE_DEPLOYMENT_CONFIG: { get_property: [SELF, resource_spec] }
-          implementation: scripts/kubectl_deployment_wrapper.sh
+          implementation: scripts/kubectl_deployment_create.sh
           description: |
             - filter variable in the artifact file
             - Deploy the deployment onto kubernets
@@ -1011,7 +1012,16 @@ node_types:
         delete:
           inputs:
             KUBE_DEPLOYMENT_ID: { get_attribute: [SELF, deployment_id] }
-          implementation: scripts/kubectl_deployment_wrapper_uninstall.sh
+          implementation: scripts/kubectl_deployment_delete.sh
+      org.alien4cloud.management.ClusterControl:
+        scale:
+          inputs:
+            KUBE_DEPLOYMENT_ID: { get_attribute: [SELF, deployment_id] }
+            EXPECTED_INSTANCES:
+              type: integer
+            INSTANCES_DELTA:
+              type: integer
+          implementation: scripts/kubectl_deployment_scale.sh
 
   org.alien4cloud.kubernetes.api.types.ServiceResource:
     derived_from: org.alien4cloud.kubernetes.api.types.BaseResource

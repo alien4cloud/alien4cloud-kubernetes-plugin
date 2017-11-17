@@ -13,7 +13,7 @@ function undeploy_service(){
 
     if [ "$?" -ne 0 ]
     then
-        echo "Failed to deploy service"
+        echo "Failed to undeploy service"
         exit "${SERVICE_UNDEPLOY_STATUS}"
     fi
 
