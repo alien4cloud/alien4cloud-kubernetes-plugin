@@ -9,9 +9,9 @@ description: |
   A single deployment with an apache container with default_instance=2 on the deployment unit
 
 imports:
-  - docker-types:2.0.0-SM3
+  - docker-types:2.0.0-SNAPSHOT
   - tosca-normative-types:1.0.0-ALIEN20SM3
-  - docker-draft.sandbox.samples:2.0.0-SM3
+  - docker-draft.sandbox.samples:2.0.0-SNAPSHOT
 
 topology_template:
   node_templates:

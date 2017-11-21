@@ -1,5 +1,6 @@
 package org.alien4cloud.plugin.kubernetes.modifier;
 
+import static alien4cloud.utils.AlienUtils.safe;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_APPLICATION_DOCKER_CONTAINER;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_CONTAINER_DEPLOYMENT_UNIT;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_CONTAINER_RUNTIME;
@@ -32,6 +33,7 @@ import org.alien4cloud.tosca.model.templates.Topology;
 import org.alien4cloud.tosca.model.types.CapabilityType;
 import org.alien4cloud.tosca.normative.constants.NormativeCapabilityTypes;
 import org.alien4cloud.tosca.normative.constants.NormativeRelationshipConstants;
+import org.alien4cloud.tosca.utils.NodeTemplateUtils;
 import org.alien4cloud.tosca.utils.TopologyNavigationUtil;
 import org.springframework.stereotype.Component;
 
@@ -185,9 +187,13 @@ public class KubernetesLocationTopologyModifier extends TopologyModifierSupport 
         Set<NodeTemplate> hostedContainers = TopologyNavigationUtil.getSourceNodes(topology, nodeTemplate, "host");
         // we may have a single hosted container
         for (NodeTemplate containerNode : hostedContainers) {
-            AbstractPropertyValue defaultInstances = TopologyNavigationUtil.getNodeCapabilityPropertyValue(containerNode, "scalable", "default_instances");
-            // feed the replica property
-            setNodePropertyPathValue(csar, topology, hostNode, "spec.replicas", defaultInstances);
+            Capability scalableCapability = safe(containerNode.getCapabilities()).get("scalable");
+            if (scalableCapability != null) {
+                NodeTemplateUtils.setCapability(hostNode, "scalable", scalableCapability);
+                AbstractPropertyValue defaultInstances = PropertyUtil.getPropertyValueFromPath(safe(scalableCapability.getProperties()), "default_instances");
+                // feed the replica property
+                setNodePropertyPathValue(csar, topology, hostNode, "spec.replicas", defaultInstances);
+            }
         }
         // find the policies that target this CR node and target them to the new CU
         changePolicyTarget(topology, nodeTemplate, hostNode);
@@ -206,7 +212,7 @@ public class KubernetesLocationTopologyModifier extends TopologyModifierSupport 
         NodeTemplate deploymentNodeTemplate = TopologyNavigationUtil.getImmediateHostTemplate(topology, containerRuntimeNodeTemplate);
 
         // fill properties on the hosting K8S container
-        Map<String, AbstractPropertyValue> properties = AlienUtils.safe(containerNodeTemplate.getProperties());
+        Map<String, AbstractPropertyValue> properties = safe(containerNodeTemplate.getProperties());
         AbstractPropertyValue cpu_share = PropertyUtil.getPropertyValueFromPath(properties, "cpu_share");
         setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.resources.requests.cpu", cpu_share);
         setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.resources.limits.cpu", cpu_share);
@@ -234,7 +240,7 @@ public class KubernetesLocationTopologyModifier extends TopologyModifierSupport 
             NodeTemplate deploymentNodeTemplate, Set<NodeTemplate> allContainerNodes) {
         // find every endpoint
         Set<String> endpointNames = Sets.newHashSet();
-        for (Map.Entry<String, Capability> e : AlienUtils.safe(containerNodeTemplate.getCapabilities()).entrySet()) {
+        for (Map.Entry<String, Capability> e : safe(containerNodeTemplate.getCapabilities()).entrySet()) {
             CapabilityType capabilityType = ToscaContext.get(CapabilityType.class, e.getValue().getType());
             if (isOfType(capabilityType, NormativeCapabilityTypes.ENDPOINT)) {
                 endpointNames.add(e.getKey());
@@ -266,7 +272,7 @@ public class KubernetesLocationTopologyModifier extends TopologyModifierSupport 
         setNodePropertyPathValue(csar, topology, serviceNode, "metadata.name", new ScalarPropertyValue(generateUniqueKubeName(serviceNode.getName())));
         setNodePropertyPathValue(csar, topology, serviceNode, "spec.service_type", new ScalarPropertyValue("NodePort"));
         // get the "pod name"
-        AbstractPropertyValue podName = PropertyUtil.getPropertyValueFromPath(AlienUtils.safe(deploymentNodeTemplate.getProperties()), "metadata.name");
+        AbstractPropertyValue podName = PropertyUtil.getPropertyValueFromPath(safe(deploymentNodeTemplate.getProperties()), "metadata.name");
         setNodePropertyPathValue(csar, topology, serviceNode, "spec.selector.app", podName);
 
         // fill port list
@@ -290,7 +296,7 @@ public class KubernetesLocationTopologyModifier extends TopologyModifierSupport 
                 continue;
             }
 
-            for (RelationshipTemplate relationship : AlienUtils.safe(containerSourceCandidateNodeTemplate.getRelationships()).values()) {
+            for (RelationshipTemplate relationship : safe(containerSourceCandidateNodeTemplate.getRelationships()).values()) {
                 if (relationship.getTarget().equals(containerNodeTemplate.getName()) && relationship.getTargetedCapabilityName().equals(endpointName)) {
                     // we need to add a depends_on between the source deployment and the service (if not already exist)
                     NodeTemplate sourceDeploymentHost = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology, containerSourceCandidateNodeTemplate,

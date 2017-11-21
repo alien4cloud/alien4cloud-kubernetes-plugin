@@ -2,12 +2,12 @@ tosca_definitions_version: alien_dsl_1_4_0
 
 metadata:
   template_name: docker-draft.sandbox.samples
-  template_version: 2.0.0-SM3
+  template_version: 2.0.0-SNAPSHOT
   template_author: alien4cloud
 
 imports:
-  - docker-types:2.0.0-SM3
   - tosca-normative-types:1.0.0-ALIEN20SM3
+  - docker-types:2.0.0-SNAPSHOT
 
 repositories:
   docker:
@@ -63,7 +63,7 @@ node_types:
           occurrences: [1, 1]
     capabilities:
       nodecellar_app:
-        type: org.alien4cloud.capabilities.endpoint.docker.Nodecellar
+        type: org.alien4cloud.capabilities.endpoint.Nodecellar
     interfaces:
       Standard:
         create:
@@ -92,7 +92,6 @@ node_types:
             type: tosca.artifacts.Deployment.Image.Container.Docker
 
 capability_types:
-
   org.alien4cloud.capabilities.endpoint.docker.Mongo:
     derived_from: tosca.capabilities.Endpoint.Database
     description: >
@@ -110,8 +109,8 @@ capability_types:
         type: string
         default: v1
 
-  org.alien4cloud.capabilities.endpoint.docker.Nodecellar:
-    derived_from: org.alien4cloud.capabilities.endpoint.Docker
+  org.alien4cloud.capabilities.endpoint.Nodecellar:
+    derived_from: tosca.capabilities.Endpoint
     properties:
       docker_bridge_port_mapping:
         type: integer
@@ -122,8 +121,12 @@ capability_types:
         default: 3000
 
   org.alien4cloud.capabilities.endpoint.docker.Http:
-    derived_from: org.alien4cloud.capabilities.endpoint.Docker
+    derived_from: tosca.capabilities.Endpoint
     properties:
+      docker_bridge_port_mapping:
+        type: integer
+        description: Port used to bridge to the container's endpoint.
+        default: 0
       port:
         type: integer
         default: 80

@@ -2,7 +2,7 @@ tosca_definitions_version: alien_dsl_2_0_0
 
 metadata:
   template_name: org.alien4cloud.kubernetes.api
-  template_version: 2.0.0-SM3
+  template_version: 2.0.0-SNAPSHOT
   # if template_version is changed, we should also change org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_CSAR_VERSION
   template_author: alien4cloud
 
@@ -11,8 +11,8 @@ description: |
 
 imports:
   - tosca-normative-types:1.0.0-ALIEN20SM3
-  - docker-types:2.0.0-SM3
-  - alien-base-types:2.0.0-SM3
+  - docker-types:2.0.0-SNAPSHOT
+  - alien-base-types:2.0.0-SNAPSHOT
 
 data_types:
 
@@ -798,6 +798,20 @@ data_types:
         description: |
           Unique ID of the persistent disk resource in AWS (Amazon EBS volume). More info: http://kubernetes.io/docs/user-guide/volumes#awselasticblockstore
 
+  org.alien4cloud.kubernetes.api.datatypes.volumes.PersistentVolumeClaimSpec:
+    derived_from: tosca.datatypes.Root
+    properties:
+      claimName:
+        type: string
+        required: false
+        description: |
+          ClaimName is the name of a PersistentVolumeClaim in the same namespace as the pod using this volume. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims
+      readOnly:
+        type: boolean
+        required: false
+        description: |
+          Will force the ReadOnly setting in VolumeMounts. Default false.
+        default: false
 
 node_types:
 
@@ -855,7 +869,7 @@ node_types:
       volume_type:
         type: string
         constraints:
-          - valid_values: [emptyDir, hostPath, awsElasticBlockStore]
+          - valid_values: [emptyDir, hostPath, awsElasticBlockStore, persistentVolumeClaim]
       spec:
         type: tosca.datatypes.Root
         description: may be overriden by concrete implementations
@@ -913,6 +927,18 @@ node_types:
           - equal: awsElasticBlockStore
       spec:
         type: org.alien4cloud.kubernetes.api.datatypes.volumes.AWSElasticBlockStoreVolumeSpec
+        required: false
+
+  org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimSource:
+    derived_from: org.alien4cloud.kubernetes.api.types.volume.VolumeBase
+    properties:
+      volume_type:
+        type: string
+        default: persistentVolumeClaim
+        constraints:
+          - equal: persistentVolumeClaim
+      spec:
+        type: org.alien4cloud.kubernetes.api.datatypes.volumes.PersistentVolumeClaimSpec
         required: false
 
   org.alien4cloud.kubernetes.api.types.Service:
@@ -1027,8 +1053,9 @@ node_types:
           A CSV key:value pairs where key should be replaced by the interpretation of value in the JSON.
           The value is the Kube name of the service for which the scheduler will need to find the ClusterIP and
           replace the key in the JSON with the found value.
-#    capabilities:
-#      scalable: tosca.capabilities.Scalable
+    capabilities:
+      # Manage scalability of instances
+      scalable: org.alien4cloud.capabilities.ClusterController
     attributes:
       deployment_id: { get_operation_output: [SELF, Standard, create, KUBE_DEPLOYMENT_ID] }
     interfaces:
@@ -1037,7 +1064,7 @@ node_types:
           inputs:
             KUBE_SERVICE_DEPENDENCIES: { get_property: [SELF, service_dependency_lookups] }
             KUBE_RESOURCE_DEPLOYMENT_CONFIG: { get_property: [SELF, resource_spec] }
-          implementation: scripts/kubectl_deployment_wrapper.sh
+          implementation: scripts/kubectl_deployment_create.sh
           description: |
             - filter variable in the artifact file
             - Deploy the deployment onto kubernets
@@ -1045,7 +1072,16 @@ node_types:
         delete:
           inputs:
             KUBE_DEPLOYMENT_ID: { get_attribute: [SELF, deployment_id] }
-          implementation: scripts/kubectl_deployment_wrapper_uninstall.sh
+          implementation: scripts/kubectl_deployment_delete.sh
+      org.alien4cloud.management.ClusterControl:
+        scale:
+          inputs:
+            KUBE_DEPLOYMENT_ID: { get_attribute: [SELF, deployment_id] }
+            EXPECTED_INSTANCES:
+              type: integer
+            INSTANCES_DELTA:
+              type: integer
+          implementation: scripts/kubectl_deployment_scale.sh
 
   org.alien4cloud.kubernetes.api.types.ServiceResource:
     derived_from: org.alien4cloud.kubernetes.api.types.BaseResource
@@ -1070,6 +1106,49 @@ node_types:
           inputs:
             KUBE_SERVICE_NAME: { get_property: [SELF, service_name] }
           implementation: scripts/kubectl_service_wrapper_uninstall.sh
+
+  org.alien4cloud.kubernetes.api.types.SimpleResource:
+    derived_from: org.alien4cloud.kubernetes.api.types.BaseResource
+    description: |
+      a generic resource used to deploy any kind of resource on the kube cluster
+    properties:
+      resource_type:
+        type: string
+        description: |
+          The resource type known by K8S examples: pod,service,pv,pvc
+        constraints:
+          # for the moment the only kind of ressource of this type we manage are PersistenceVolumeClaim (pvc)
+          - valid_values: [pvc]
+      resource_id:
+        type: string
+        required: true
+        description: |
+          a unique id set by a4c to identify a resource. it should be added as a label named 'a4c_id'
+      json_path_expr:
+        type: string
+        required: true
+        description: |
+          the JSON path expression that will get the expected output to check resource avalaibility
+      json_path_value:
+        type: string
+        required: true
+        description: |
+          the value excpected to obtain using the JSON path expression to check resource avalaibility
+    interfaces:
+      Standard:
+        create:
+          input:
+            KUBE_RESOURCE_TYPE: { get_attribute: [SELF, resource_type] }
+            KUBE_RESOURCE_ID: { get_attribute: [SELF, resource_id] }
+            KUBE_RESOURCE_CONFIG: { get_property: [SELF, resource_spec] }
+            KUBE_JSON_PATH_EXPR: { get_property: [SELF, json_path_expr] }
+            KUBE_JSON_PATH_VALUE: { get_property: [SELF, json_path_value] }
+          implementation: scripts/kubectl_resource_wrapper.sh
+        delete:
+          inputs:
+            KUBE_RESOURCE_TYPE: { get_attribute: [SELF, resource_type] }
+            KUBE_RESOURCE_ID: { get_attribute: [SELF, resource_id] }
+          implementation: scripts/kubectl_resource_wrapper_uninstall.sh
 
 policy_types:
   org.alien4cloud.kubernetes.api.policies.AntiAffinityLabel:

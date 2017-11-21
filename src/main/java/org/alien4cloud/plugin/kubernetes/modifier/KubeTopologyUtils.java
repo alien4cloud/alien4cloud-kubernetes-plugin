@@ -41,13 +41,16 @@ public class KubeTopologyUtils {
     public static final String K8S_TYPES_CONTAINER = "org.alien4cloud.kubernetes.api.types.Container";
     public static final String K8S_TYPES_DEPLOYMENT = "org.alien4cloud.kubernetes.api.types.Deployment";
     public static final String K8S_TYPES_SERVICE = "org.alien4cloud.kubernetes.api.types.Service";
+    // K8S volume types
+    public static final String K8S_TYPES_VOLUMES_CLAIM = "org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimSource";
     // K8S resource types
     public static final String K8S_TYPES_DEPLOYMENT_RESOURCE = "org.alien4cloud.kubernetes.api.types.DeploymentResource";
     public static final String K8S_TYPES_RESOURCE = "org.alien4cloud.kubernetes.api.types.BaseResource";
     public static final String K8S_TYPES_SERVICE_RESOURCE = "org.alien4cloud.kubernetes.api.types.ServiceResource";
+    public static final String K8S_TYPES_SIMPLE_RESOURCE = "org.alien4cloud.kubernetes.api.types.SimpleResource";
 
     // TODO: should be parsed from src/main/resources/csar/tosca.yml or query ES to get the last version of this CSAR
-    public static final String K8S_CSAR_VERSION = "2.0.0-SM3";
+    public static final String K8S_CSAR_VERSION = "2.0.0-SNAPSHOT";
 
     /**
      * Get the image name from the type implementation artifact file.
