@@ -37,6 +37,9 @@ Feature: Kubernetes location topology modifier
     And The SPEL expression "nodeTemplates['ApacheDeployment'].type" should return "org.alien4cloud.kubernetes.api.types.AbstractDeployment"
     # the number of replicas comes from the default_instances property of the initial node
     And The SPEL expression "nodeTemplates['ApacheDeployment'].properties['spec'].value['replicas'].value" should return "2"
+    And The SPEL expression "nodeTemplates['ApacheDeployment'].capabilities['scalable'].properties['min_instances'].value" should return "1"
+    And The SPEL expression "nodeTemplates['ApacheDeployment'].capabilities['scalable'].properties['default_instances'].value" should return "2"
+    And The SPEL expression "nodeTemplates['ApacheDeployment'].capabilities['scalable'].properties['max_instances'].value" should return "2"
     # get the app label (used by the service to reference the deployment)
     And register the SPEL expression "nodeTemplates['ApacheDeployment'].properties['spec'].value['template']['metadata']['labels']['app'].value" result as "ApacheDeployment_app_label"
     # a service has been added to target the endpoint of the container image node
