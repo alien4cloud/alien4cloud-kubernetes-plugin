@@ -38,14 +38,6 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class NodeAffinityLabelTopologyModifier extends TopologyModifierSupport {
 
-    private static final Map<String, String> LEVEL_TO_TOPOLOGY_KEY = Maps.newHashMap();
-
-    static {
-        LEVEL_TO_TOPOLOGY_KEY.put("host", "kubernetes.io/hostname");
-        LEVEL_TO_TOPOLOGY_KEY.put("zone", "failure-domain.beta.kubernetes.io/zone");
-        LEVEL_TO_TOPOLOGY_KEY.put("region", "failure-domain.beta.kubernetes.io/regon");
-    }
-
     @Override
     @ToscaContextual
     public void process(Topology topology, FlowExecutionContext context) {
@@ -137,10 +129,6 @@ public class NodeAffinityLabelTopologyModifier extends TopologyModifierSupport {
             }
         }
         return targetedMembers;
-    }
-
-    private String levelToTopologyKey(String level) {
-        return LEVEL_TO_TOPOLOGY_KEY.getOrDefault(level, level);
     }
 
 }

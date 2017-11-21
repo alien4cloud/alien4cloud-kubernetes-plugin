@@ -24,8 +24,6 @@ Feature: Kubernetes label placement policy topology modifier
     And I execute the modifier "kubernetes-automatching-modifier" on the current topology
     And I match the policy named "Placement1" to the concrete policy of type "org.alien4cloud.kubernetes.api.policies.NodeAffinityLabel"
     And I match the policy named "Placement2" to the concrete policy of type "org.alien4cloud.kubernetes.api.policies.NodeAffinityLabel"
-    And I set the policy "Placement1" property "level" to "host"
-    And I set the policy "Placement2" property "level" to "host"
     # provide a value for matchExpressions for Placement2 matched policy
     Given I set the policy "Placement2" "list"'s property "matchExpressions" to "[{"key": "manualTag", "operator": "NotIn", "values": ["aTag"]}]"
     And I execute the modifier "kubernetes-anti-affinity-modifier" on the current topology
