@@ -815,19 +815,6 @@ node_types:
         description: may be overriden by concrete implementations
         required: false
 
-#  org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimVolumeSource:
-#    derived_from: org.alien4cloud.kubernetes.api.types.volume.VolumeBase
-#    properties:
-#      claimName:
-#        type: string
-#        description: |
-#          ClaimName is the name of a PersistentVolumeClaim in the same namespace as the pod using this volume. More info: http://kubernetes.io/docs/user-guide/persistent-volumes#persistentvolumeclaims
-#      readOnly:
-#        type: boolean
-#        description: |
-#          Will force the ReadOnly setting in VolumeMounts. Default false.
-#        default: false
-
   org.alien4cloud.kubernetes.api.types.volume.EmptyDirVolumeSource:
     derived_from: org.alien4cloud.kubernetes.api.types.volume.VolumeBase
     description: |
@@ -847,6 +834,11 @@ node_types:
 
   org.alien4cloud.kubernetes.api.types.volume.HostPathVolumeSource:
     derived_from: org.alien4cloud.kubernetes.api.types.volume.VolumeBase
+    description: |
+      HostPath represents a pre-existing file or directory on the host machine that is directly exposed to the container.
+      This is generally used for system agents or other privileged things that are allowed to see the host machine.
+      Most containers will NOT need this.
+      More info: https://kubernetes.io/docs/concepts/storage/volumes#hostpath
     properties:
       volume_type:
         type: string
@@ -859,6 +851,9 @@ node_types:
 
   org.alien4cloud.kubernetes.api.types.volume.AWSElasticBlockStoreVolumeSource:
     derived_from: org.alien4cloud.kubernetes.api.types.volume.VolumeBase
+    description: |
+      AWSElasticBlockStore represents an AWS Disk resource that is attached to a kubelet's host machine and then exposed to the pod.
+      More info: https://kubernetes.io/docs/concepts/storage/volumes#awselasticblockstore
     properties:
       volume_type:
         type: string
@@ -871,6 +866,9 @@ node_types:
 
   org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimSource:
     derived_from: org.alien4cloud.kubernetes.api.types.volume.VolumeBase
+    description: |
+      PersistentVolumeClaimVolumeSource represents a reference to a PersistentVolumeClaim in the same namespace.
+      More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims
     properties:
       volume_type:
         type: string
@@ -880,6 +878,25 @@ node_types:
       spec:
         type: org.alien4cloud.kubernetes.api.datatypes.volumes.PersistentVolumeClaimSpec
         required: false
+      accessModes:
+        description: |
+          AccessModes contains the desired access modes the volume should have.
+          More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1
+        type: string
+        default: ReadWriteOnce
+        constraints:
+          - valid_values: [ReadWriteOnce, ReadOnlyMany, ReadWriteMany]
+
+  org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimStorageClassSource:
+    derived_from: org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimSource
+    description: |
+      An extension of PersistentVolumeClaimSource that allows to specify a storageClass.
+      If no volume that match this claim is found in the PersistentVolume pool, a volume will be allocated in the IAAS.
+      When using this kind of volume, your Kube admin should ensure to have a storageClass defined in the cluster.
+    properties:
+      storageClassName:
+        type: string
+        default: default
 
   org.alien4cloud.kubernetes.api.types.Service:
     derived_from: org.alien4cloud.kubernetes.api.types.AbstractService
@@ -1050,7 +1067,7 @@ node_types:
   org.alien4cloud.kubernetes.api.types.SimpleResource:
     derived_from: org.alien4cloud.kubernetes.api.types.BaseResource
     description: |
-      a generic resource used to deploy any kind of resource on the kube cluster
+      A generic resource used to deploy any kind of resource on the kube cluster.
     properties:
       resource_type:
         type: string

@@ -36,7 +36,7 @@ function wait_until_done_or_exit {
   retries=0
   cmd_output=$(echo $command | sh)
   cmd_code=$?
-  while [ "${cmd_code}" -eq "0" ] && [ "${retries}" -lt "${max_retries}" ] && [ "${cmd_output}" -ne "${KUBE_JSON_PATH_VALUE}" ] ; do
+  while [ "${cmd_code}" -eq "0" ] && [ "${retries}" -lt "${max_retries}" ] && [ "${cmd_output}" != "${KUBE_JSON_PATH_VALUE}" ] ; do
     echo "Waiting for resource to be in the expected status ... (${retries}/${max_retries})"
     sleep 5
     retries=$((${retries}+1))

@@ -12,6 +12,7 @@ import org.junit.runner.RunWith;
 //        "src/test/resources/org/alien4cloud/kubernetes/modifiers/features/01-location-topology-modifier.feature"
 //        "src/test/resources/org/alien4cloud/kubernetes/modifiers/features/02-anti-affinity-modifier.feature"
 //        "src/test/resources/org/alien4cloud/kubernetes/modifiers/features/03-final-modifier.feature"
+//        "src/test/resources/org/alien4cloud/kubernetes/modifiers/features/04-volumes.feature"
 })
 public class ModifierTest {
 

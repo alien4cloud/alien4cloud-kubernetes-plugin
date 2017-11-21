@@ -35,6 +35,7 @@ import org.alien4cloud.tosca.utils.FunctionEvaluator;
 import org.alien4cloud.tosca.utils.FunctionEvaluatorContext;
 import org.alien4cloud.tosca.utils.NodeTemplateUtils;
 import org.alien4cloud.tosca.utils.TopologyNavigationUtil;
+import org.alien4cloud.tosca.utils.ToscaTypeUtils;
 import org.springframework.stereotype.Component;
 
 import com.google.common.collect.Lists;
@@ -168,7 +169,8 @@ public class KubernetesFinalTopologyModifier extends TopologyModifierSupport {
 
     private void managePersistentVolumeClaim(Csar csar, Topology topology, NodeTemplate volumeNode, Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures, NodeTemplate deploymentResourceNode) {
         // in case of empty claimName for a PersistentVolumeClaimSource then create a node of type PersistentVolumeClaim
-        if (volumeNode.getType().equals(KubeTopologyUtils.K8S_TYPES_VOLUMES_CLAIM)) {
+        NodeType volumeNodeType = ToscaContext.get(NodeType.class, volumeNode.getType());
+        if (ToscaTypeUtils.isOfType(volumeNodeType, KubeTopologyUtils.K8S_TYPES_VOLUMES_CLAIM)) {
             AbstractPropertyValue claimNamePV = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "spec.claimName");
             if (claimNamePV == null) {
                 NodeTemplate volumeClaimResource = addNodeTemplate(csar, topology, volumeNode.getName() + "_PVC", KubeTopologyUtils.K8S_TYPES_SIMPLE_RESOURCE, K8S_CSAR_VERSION);
@@ -186,15 +188,20 @@ public class KubernetesFinalTopologyModifier extends TopologyModifierSupport {
                 feedPropertyValue(volumeClaimResourceNodeProperties, "resource_def.kind", "PersistentVolumeClaim", false);
                 feedPropertyValue(volumeClaimResourceNodeProperties, "resource_def.apiVersion", "v1", false);
                 feedPropertyValue(volumeClaimResourceNodeProperties, "resource_def.metadata.name", claimName, false);
-                feedPropertyValue(volumeClaimResourceNodeProperties, "resource_def.metadata.labels.type", "amazonEBS", false);
                 feedPropertyValue(volumeClaimResourceNodeProperties, "resource_def.metadata.labels.a4c_id", claimName, false);
-                feedPropertyValue(volumeClaimResourceNodeProperties, "resource_def.spec.accessModes", "ReadWriteMany", true);
+                AbstractPropertyValue accessModesProperty = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "accessModes");
+                feedPropertyValue(volumeClaimResourceNodeProperties, "resource_def.spec.accessModes", accessModesProperty, true);
                 // get the size of the volume to define claim storage size
                 NodeType nodeType = ToscaContext.get(NodeType.class, volumeNode.getType());
                 AbstractPropertyValue size = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "size");
                 PropertyDefinition propertyDefinition = nodeType.getProperties().get("size");
                 Object transformedSize = getTransformedValue(size, propertyDefinition, "");
                 feedPropertyValue(volumeClaimResourceNodeProperties, "resource_def.spec.resources.requests.storage", transformedSize, false);
+                if (ToscaTypeUtils.isOfType(volumeNodeType, KubeTopologyUtils.K8S_TYPES_VOLUMES_CLAIM_SC)) {
+                    // add the storage class name to the claim
+                    AbstractPropertyValue storageClassNameProperty = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "storageClassName");
+                    feedPropertyValue(volumeClaimResourceNodeProperties, "resource_def.spec.storageClassName", storageClassNameProperty, false);
+                }
                 // finally set the claimName of the volume node
                 feedPropertyValue(volumeNode.getProperties(), "spec.claimName", claimName, false);
                 // add a relationship between the deployment and this claim
