@@ -9,10 +9,10 @@ description: |
   2 apache containers with two label placement policies. one container is not wrapped inside a deployment unit.
 
 imports:
-  - alien-base-types:2.0.0-SM3
-  - docker-types:2.0.0-SM3
+  - alien-base-types:2.0.0-SNAPSHOT
+  - docker-types:2.0.0-SNAPSHOT
   - tosca-normative-types:1.0.0-ALIEN20SM3
-  - docker-draft.sandbox.samples:2.0.0-SM3
+  - docker-draft.sandbox.samples:2.0.0-SNAPSHOT
 
 topology_template:
   node_templates:
@@ -87,18 +87,13 @@ topology_template:
   policies:
     - Placement1:
         type: org.alien4cloud.policies.LabelPlacement
-        targets: [ Apache2Container ]
-        properties:
-          labels:
-            flavor: small
-    - Placement2:
-        type: org.alien4cloud.policies.LabelPlacement
         targets: [ Apache1Deployment ]
         properties:
           labels:
             flavor: large
-    - AntiAffinity:
-        type: org.alien4cloud.policies.AntiAffinity
-        targets: [ Apache2Container, Apache1Deployment ]
+    - Placement2:
+        type: org.alien4cloud.policies.LabelPlacement
+        targets: [ Apache2Container ]
         properties:
-          level: host
+          labels:
+            flavor: small

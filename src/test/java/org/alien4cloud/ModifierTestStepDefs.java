@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import javax.annotation.Resource;
 import javax.inject.Inject;
@@ -27,6 +28,9 @@ import org.alien4cloud.tosca.editor.operations.nodetemplate.ReplaceNodeOperation
 import org.alien4cloud.tosca.editor.processors.nodetemplate.ReplaceNodeProcessor;
 import org.alien4cloud.tosca.exporter.ArchiveExportService;
 import org.alien4cloud.tosca.model.Csar;
+import org.alien4cloud.tosca.model.definitions.ComplexPropertyValue;
+import org.alien4cloud.tosca.model.definitions.ListPropertyValue;
+import org.alien4cloud.tosca.model.definitions.PropertyValue;
 import org.alien4cloud.tosca.model.definitions.ScalarPropertyValue;
 import org.alien4cloud.tosca.model.templates.AbstractTemplate;
 import org.alien4cloud.tosca.model.templates.NodeTemplate;
@@ -298,9 +302,25 @@ public class ModifierTestStepDefs {
         setTemplateProperty(nodeTemplate, propertyPath, propertyValue);
     }
 
+    @When("^I set the policy \"(.*?)\" \"(.*?)\"'s property \"(.*?)\" to \"(.*?)\"$")
+    public void i_set_the_policy_property_to(String policyName, String type, String propertyPath, String propertyValue) throws Throwable {
+        PropertyValue value = null;
+        if (Objects.equals("complex", type)) {
+            value = new ComplexPropertyValue(JsonUtil.toMap(propertyValue));
+        } else if (Objects.equals("list", type)) {
+            value = new ListPropertyValue(JsonUtil.toList(propertyValue, Object.class));
+        }
+        PolicyTemplate policy = currentTopology.getPolicies().get(policyName);
+        setTemplateProperty(policy, propertyPath, value);
+    }
+
     private void setTemplateProperty(AbstractTemplate template, String propertyPath, String propertyValue) {
         ScalarPropertyValue scalarPropertyValue = new ScalarPropertyValue(propertyValue);
         TopologyModifierSupport.feedPropertyValue(template.getProperties(), propertyPath, scalarPropertyValue, false);
+    }
+
+    private void setTemplateProperty(AbstractTemplate template, String propertyPath, PropertyValue propertyValue) {
+        TopologyModifierSupport.feedPropertyValue(template.getProperties(), propertyPath, propertyValue, false);
     }
 
     @When("^I store the current topology in the SPEL context$")
