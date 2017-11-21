@@ -36,7 +36,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Component("kubernetes-node-affinity-modifier")
 @Slf4j
-public class NodeAffinityLabelTopologyModifier extends TopologyModifierSupport {
+public class KubernetesNodeAffinityLabelTopologyModifier extends TopologyModifierSupport {
 
     @Override
     @ToscaContextual

@@ -36,7 +36,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Component("kubernetes-anti-affinity-modifier")
 @Slf4j
-public class AntiAffinityTopologyModifier extends TopologyModifierSupport {
+public class KubernetesAntiAffinityTopologyModifier extends TopologyModifierSupport {
 
     private static final Map<String, String> LEVEL_TO_TOPOLOGY_KEY = Maps.newHashMap();
 
@@ -83,6 +83,10 @@ public class AntiAffinityTopologyModifier extends TopologyModifierSupport {
         // template label value is the Kube name of the deployment
         String templateLabelValue = getDeploymentNodeName(nodeTemplate);
 
+        // TODO should we validate this? (null, value)
+        // TODO see https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#an-example-of-a-pod-that-uses-pod-affinity
+        String level = PropertyUtil.getScalarValue(safe(policyTemplate.getProperties()).get("level"));
+
         // label selector values are targets.
         // kubernetize them first
         Set<String> labelSelectorValues = targets.stream().map(target -> getDeploymentNodeName(target)).collect(Collectors.toSet());
@@ -93,7 +97,7 @@ public class AntiAffinityTopologyModifier extends TopologyModifierSupport {
         addTemplateLabel(topology, nodeTemplate, templateLabel, templateLabelValue);
 
         // add podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution section
-        addTemplateSpecAffinitySection(topology, nodeTemplate, templateLabel, labelSelectorValues);
+        addTemplateSpecAffinitySection(topology, nodeTemplate, templateLabel, level, labelSelectorValues);
 
         context.log().info("Anti-affinity policy <{}>: configured for node {}", policyTemplate.getName(), nodeTemplate.getName());
         log.debug("Anti-affinity policy <{}>: configured for node {}", policyTemplate.getName(), nodeTemplate.getName());
@@ -110,7 +114,7 @@ public class AntiAffinityTopologyModifier extends TopologyModifierSupport {
                 new ScalarPropertyValue(labelValue));
     }
 
-    private void addTemplateSpecAffinitySection(Topology topology, NodeTemplate nodeTemplate, String label, Set<String> labelSelectorValues) {
+    private void addTemplateSpecAffinitySection(Topology topology, NodeTemplate nodeTemplate, String label, String level, Set<String> labelSelectorValues) {
         Map<String, Object> antiAffinityEntry = Maps.newLinkedHashMap();
         antiAffinityEntry.put("weight", "100");
         Map<String, Object> podAffinityTerm = (Map<String, Object>) antiAffinityEntry.compute("podAffinityTerm",
@@ -124,8 +128,8 @@ public class AntiAffinityTopologyModifier extends TopologyModifierSupport {
         List<String> matchExpressionValues = (List<String>) matchExpression.compute("values", (s, o) -> Lists.<String> newArrayList());
         // TODO merge with the policy template "labels" property values provided by the user
         matchExpressionValues.addAll(labelSelectorValues);
-        // TODO topologyKey should take into account the value fed by the user on the policy template "level" property
-        podAffinityTerm.put("topologyKey", "kubernetes.io/hostname");
+
+        podAffinityTerm.put("topologyKey", levelToTopologyKey(level));
 
         // TODO strategy (preferredDuringSchedulingIgnoredDuringExecution) should be configurable by the user as a policy property
         appendNodePropertyPathValue(new Csar(topology.getArchiveName(), topology.getArchiveVersion()), topology, nodeTemplate,
