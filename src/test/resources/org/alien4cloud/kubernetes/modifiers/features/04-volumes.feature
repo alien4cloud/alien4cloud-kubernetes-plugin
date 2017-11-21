@@ -4,14 +4,14 @@ Feature: Kubernetes final location topology modifier
   Background:
     Given I am authenticated with "ADMIN" role
     Given I add and import a GIT repository with url "https://github.com/alien4cloud/tosca-normative-types.git" usr "" pwd "" stored "false" and locations
-      | branchId | subPath |
-      | 2.0.0-SM3   |         |
+      | branchId  | subPath |
+      | 2.0.0-SM3 |         |
     Given I add and import a GIT repository with url "https://github.com/alien4cloud/alien4cloud-extended-types.git" usr "" pwd "" stored "false" and locations
-      | branchId | subPath |
-      | 2.0.0-SM3 | alien-base-types |
+      | branchId    | subPath          |
+      | tests/2.0.0 | alien-base-types |
     Given I add and import a GIT repository with url "https://github.com/alien4cloud/docker-tosca-types.git" usr "" pwd "" stored "false" and locations
-      | branchId | subPath |
-      | 2.0.0-SM3 | docker-types |
+      | branchId        | subPath      |
+      | tests/2.0.0-alt | docker-types |
     Given I upload unzipped CSAR from path "src/test/resources/csar/docker-samples-types.yml"
     Given I upload unzipped CSAR from path "src/main/resources/csar"
 #
@@ -49,7 +49,7 @@ Feature: Kubernetes final location topology modifier
     And I get the topology related to the CSAR with name "initial" and version "2.0.0-SNAPSHOT"
     When I execute the modifier "kubernetes-modifier" on the current topology
     And I execute the modifier "kubernetes-automatching-modifier" on the current topology
-    And I match the node named "Volume" to a node of type "org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimSource" version "2.0.0-SM3"
+    And I match the node named "Volume" to a node of type "org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimSource" version "2.0.0-SNAPSHOT"
 #    And I set the node "Volume" property "spec.volumeID" to "#1234"
     And I execute the modifier "kubernetes-final-modifier" on the current topology
     And I store the current topology in the SPEL context

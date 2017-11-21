@@ -4,14 +4,14 @@ Feature: Kubernetes final location topology modifier
   Background:
     Given I am authenticated with "ADMIN" role
     Given I add and import a GIT repository with url "https://github.com/alien4cloud/tosca-normative-types.git" usr "" pwd "" stored "false" and locations
-      | branchId | subPath |
-      | 2.0.0-SM3   |         |
+      | branchId  | subPath |
+      | 2.0.0-SM3 |         |
     Given I add and import a GIT repository with url "https://github.com/alien4cloud/alien4cloud-extended-types.git" usr "" pwd "" stored "false" and locations
-      | branchId | subPath |
-      | 2.0.0-SM3 | alien-base-types |
+      | branchId    | subPath          |
+      | tests/2.0.0 | alien-base-types |
     Given I add and import a GIT repository with url "https://github.com/alien4cloud/docker-tosca-types.git" usr "" pwd "" stored "false" and locations
-      | branchId | subPath |
-      | 2.0.0-SM3 | docker-types |
+      | branchId        | subPath      |
+      | tests/2.0.0-alt | docker-types |
 #      | 2.0.0-SM3 | docker-draft-2.0.0/sandbox/samples |
     Given I upload unzipped CSAR from path "src/test/resources/csar/docker-samples-types.yml"
     Given I upload unzipped CSAR from path "src/main/resources/csar"

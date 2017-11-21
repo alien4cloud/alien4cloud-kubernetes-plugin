@@ -9,9 +9,9 @@ description: |
   1 apache container inside a deployment unit, and 1 volume
 
 imports:
-  - docker-types:2.0.0-SM3
+  - docker-types:2.0.0-SNAPSHOT
   - tosca-normative-types:1.0.0-ALIEN20SM3
-  - docker-draft.sandbox.samples:2.0.0-SM3
+  - docker-draft.sandbox.samples:2.0.0-SNAPSHOT
 
 topology_template:
   node_templates:

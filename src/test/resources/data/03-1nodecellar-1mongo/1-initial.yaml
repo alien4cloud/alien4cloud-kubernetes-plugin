@@ -13,9 +13,9 @@ description: |
     - 1 MongoDBs having a relationship with the Nodecellar node.
 
 imports:
-  - docker-types:2.0.0-SM3
+  - docker-types:2.0.0-SNAPSHOT
   - tosca-normative-types:1.0.0-ALIEN20SM3
-  - docker-draft.sandbox.samples:2.0.0-SM3
+  - docker-draft.sandbox.samples:2.0.0-SNAPSHOT
 
 topology_template:
   node_templates:
