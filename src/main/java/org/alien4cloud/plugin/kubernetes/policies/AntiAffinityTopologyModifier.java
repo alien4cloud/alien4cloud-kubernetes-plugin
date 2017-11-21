@@ -1,10 +1,18 @@
 package org.alien4cloud.plugin.kubernetes.policies;
 
-import alien4cloud.tosca.context.ToscaContextual;
-import alien4cloud.utils.PropertyUtil;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import lombok.extern.slf4j.Slf4j;
+import static alien4cloud.utils.AlienUtils.safe;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_DEPLOYMENT;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.generateKubeName;
+import static org.alien4cloud.plugin.kubernetes.policies.KubePoliciesConstants.K8S_POLICIES_ANTI_AFFINITY_LABEL;
+import static org.alien4cloud.plugin.kubernetes.policies.KubePoliciesConstants.POD_ANTI_AFFINITY_PREFERRED_DURING_SCHE_IGNORED_DURING_EXEC_PATH;
+
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
 import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
 import org.alien4cloud.tosca.model.Csar;
@@ -16,14 +24,12 @@ import org.alien4cloud.tosca.model.templates.Topology;
 import org.alien4cloud.tosca.utils.TopologyNavigationUtil;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.PostConstruct;
-import java.util.*;
-import java.util.stream.Collectors;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 
-import static alien4cloud.utils.AlienUtils.safe;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_DEPLOYMENT;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.generateKubeName;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.generateUniqueKubeName;
+import alien4cloud.tosca.context.ToscaContextual;
+import alien4cloud.utils.PropertyUtil;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * This topology modifiers is associated with the kubernetes anti-affinity policy.
@@ -31,9 +37,6 @@ import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.gener
 @Component("kubernetes-anti-affinity-modifier")
 @Slf4j
 public class AntiAffinityTopologyModifier extends TopologyModifierSupport {
-
-    private static final String PREFERRED_DURING_SCHE_IGNORED_DURING_EXEC_PATH = "spec.template.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution";
-    private static final String K8S_POLICIES_ANTI_AFFINITY_LABEL = "org.alien4cloud.kubernetes.api.policies.AntiAffinityLabel";
 
     private static final Map<String, String> LEVEL_TO_TOPOLOGY_KEY = Maps.newHashMap();
 
@@ -126,7 +129,7 @@ public class AntiAffinityTopologyModifier extends TopologyModifierSupport {
 
         // TODO strategy (preferredDuringSchedulingIgnoredDuringExecution) should be configurable by the user as a policy property
         appendNodePropertyPathValue(new Csar(topology.getArchiveName(), topology.getArchiveVersion()), topology, nodeTemplate,
-                PREFERRED_DURING_SCHE_IGNORED_DURING_EXEC_PATH, new ComplexPropertyValue(antiAffinityEntry));
+                POD_ANTI_AFFINITY_PREFERRED_DURING_SCHE_IGNORED_DURING_EXEC_PATH, new ComplexPropertyValue(antiAffinityEntry));
     }
 
     private Set<NodeTemplate> getValidTargets(PolicyTemplate policyTemplate, Topology topology, FlowExecutionContext context) {

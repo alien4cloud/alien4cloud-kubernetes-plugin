@@ -518,10 +518,10 @@ data_types:
   org.alien4cloud.kubernetes.api.datatypes.Affinity:
     derived_from: tosca.datatypes.Root
     properties:
-      # nodeAffinity:
-      #   type: NodeAffinity
-      #   description: |
-      #     Describes node affinity scheduling rules for the pod.
+      nodeAffinity:
+        type: org.alien4cloud.kubernetes.api.datatypes.NodeAffinity
+        description: |
+          Describes node affinity scheduling rules for the pod (e.g put this pod in any node matching a provided expression of labels / values couple).
       # podAffinity:
       #   type: PodAffinity
       #   description: |
@@ -530,6 +530,66 @@ data_types:
         type: org.alien4cloud.kubernetes.api.datatypes.PodAntiAffinity
         description: |
           Describes pod anti-affinity scheduling rules (e.g. avoid putting this pod in the same node, zone, etc. as some other pod(s)).
+
+  org.alien4cloud.kubernetes.api.datatypes.NodeAffinity:
+    derived_from: tosca.datatypes.Root
+    description: |
+      see https://v1-7.docs.kubernetes.io/docs/api-reference/v1.7/#nodeaffinity-v1-core
+    properties:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        required: false
+        type: list
+        entry_schema:
+          type: org.alien4cloud.kubernetes.api.datatypes.PreferredSchedulingTerm
+
+  org.alien4cloud.kubernetes.api.datatypes.PreferredSchedulingTerm:
+    derived_from: tosca.datatypes.Root
+    description: |
+      see https://v1-7.docs.kubernetes.io/docs/api-reference/v1.7/#preferredschedulingterm-v1-core
+    properties:
+      preference:
+        required: false
+        description: |
+          A node selector term, associated with the corresponding weight
+        type: org.alien4cloud.kubernetes.api.datatypes.NodeSelectorTerm
+      weight:
+        type: integer
+        required: false
+        description: |
+          Weight associated with matching the corresponding nodeSelectorTerm, in the range 1-100.
+
+  org.alien4cloud.kubernetes.api.datatypes.NodeSelectorTerm: ## actually the same as org.alien4cloud.kubernetes.api.datatypes.LabelSelector ?
+    derived_from: tosca.datatypes.Root
+    description: |
+      see https://v1-7.docs.kubernetes.io/docs/api-reference/v1.7/#nodeselectorterm-v1-core
+    properties:
+      matchExpressions:
+        type: list
+        description: |
+          matchExpressions is a list of node selector requirements. The requirements are ANDed.
+        entry_schema:
+          type: org.alien4cloud.kubernetes.api.datatypes.NodeSelectorRequirement  ## actually the same as org.alien4cloud.kubernetes.api.datatypes.LabelSelectorRequirement ?
+
+  org.alien4cloud.kubernetes.api.datatypes.NodeSelectorRequirement:
+    derived_from: tosca.datatypes.Root
+    properties:
+      key:
+        type: string
+        required: false
+        description: |
+          key is the label key that the selector applies to.
+      operator:
+        type: string
+        required: false
+        description: |
+          operator represents a key's relationship to a set of values. Valid operators ard In, NotIn, Exists and DoesNotExist.
+      values:
+        type: list
+        required: false
+        description: |
+          values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
+        entry_schema:
+          type: string
 
   org.alien4cloud.kubernetes.api.datatypes.PodAntiAffinity:
     derived_from: tosca.datatypes.Root
@@ -1163,3 +1223,21 @@ policy_types:
       spec:
         type: org.alien4cloud.kubernetes.api.datatypes.autoscaler.HorizontalPodAutoscalerSpec
 
+
+  org.alien4cloud.kubernetes.api.policies.NodeAffinityLabel:
+    derived_from: org.alien4cloud.policies.LabelPlacement
+    description: >
+      c.f. https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#node-affinity-beta-feature
+    metadata:
+      # pluginId:pluginBean:phase
+      a4c_policy_impl: alien4cloud-kubernetes-plugin:kubernetes-node-affinity-modifier:post-node-match
+    properties:
+      matchExpressions:
+        required: false
+        type: list
+        description: |
+          matchExpressions is a list of node selector requirements. The requirements are ANDed.
+          Note that the "labels" property value will be used mostly for matching the topology policy against this one.
+          The value filled in this property will be the actual one in the final kubernetes blueprint.
+        entry_schema:
+          type: org.alien4cloud.kubernetes.api.datatypes.NodeSelectorRequirement
