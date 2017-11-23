@@ -671,48 +671,62 @@ data_types:
 
   org.alien4cloud.kubernetes.api.datatypes.autoscaler.HorizontalPodAutoscalerScaleTargetRef:
     derived_from: tosca.datatypes.Root
+    description: |
+      see https://v1-7.docs.kubernetes.io/docs/api-reference/v1.7/#crossversionobjectreference-v2alpha1-autoscaling
     properties:
       apiVersion:
         type: string
       kind:
         type: string
+        description: |
+          see https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds
       name:
         type: string
 
-  org.alien4cloud.kubernetes.api.datatypes.autoscaler.Metric:
+  org.alien4cloud.kubernetes.api.datatypes.autoscaler.ResourceMetricSource:
     derived_from: tosca.datatypes.Root
-    properties:
-      # TODO initially 'type'
-      metric_type:
-        type: string
-        required: false
-        constraints:
-          - valid_values: [Resource, Pods, Object]
-
-  org.alien4cloud.kubernetes.api.datatypes.autoscaler.MetricResourceResource:
-    derived_from: tosca.datatypes.Root
+    description: |
+      see https://v1-7.docs.kubernetes.io/docs/api-reference/v1.7/#resourcemetricsource-v2alpha1-autoscaling
     properties:
       name:
         type: string
         required: false
       targetAverageUtilization:
         type: integer
+        description: |
+          Target average of the resource metric in term on percentage.
+          Required if targetAverageValue is not set.
+        required: false
+      targetAverageValue:
+        type: integer
+        description: |
+          Target average of the resource metric in term on raw value.
+          Required if targetAverageUtilization is not set.
+        required: false
 
-  org.alien4cloud.kubernetes.api.datatypes.autoscaler.MetricResource:
-    derived_from: org.alien4cloud.kubernetes.api.datatypes.autoscaler.Metric
+  org.alien4cloud.kubernetes.api.datatypes.autoscaler.MetricSpec:
+    derived_from: tosca.datatypes.Root
+    description: >
+      see https://v1-7.docs.kubernetes.io/docs/api-reference/v1.7/#metricspec-v2alpha1-autoscaling
     properties:
-      # TODO: initially 'type'
-      metric_resource_type:
+      type:
         type: string
+        description: type is the type of metric source. It should match one of the fields below.
         default: Resource
         required: false
         constraints:
-          - equal: Resource
+          - valid_values: [ Resource ]
       resource:
-        type: org.alien4cloud.kubernetes.api.datatypes.autoscaler.MetricResourceResource
+        type: org.alien4cloud.kubernetes.api.datatypes.autoscaler.ResourceMetricSource
+        description: |
+          resource refers to a resource metric (such as those specified in requests and limits) known to Kubernetes
+          describing each pod in the current scale target (e.g. CPU or memory).
+        required: false
 
   org.alien4cloud.kubernetes.api.datatypes.autoscaler.HorizontalPodAutoscalerSpec:
     derived_from: tosca.datatypes.Root
+    description: >
+      see https://v1-7.docs.kubernetes.io/docs/api-reference/v1.7/#horizontalpodautoscalerspec-v2alpha1-autoscaling
     properties:
       scaleTargetRef:
         type: org.alien4cloud.kubernetes.api.datatypes.autoscaler.HorizontalPodAutoscalerScaleTargetRef
@@ -723,19 +737,16 @@ data_types:
       maxReplicas:
         type: integer
         required: false
-      # since we don't manage polymorphism this is a suggestion to manage different kind of metrics
-      metrics_ressources:
+      metrics:
         type: list
         required: false
-        entry_schema:
-          type: org.alien4cloud.kubernetes.api.datatypes.autoscaler.MetricResource
-      # 'metrics_ressources' & 'metrics_pod' should finally be merged in a 'metrics' list
-      # metrics_pod:
-      #   type: list
-      #   entry_schema:
-      #     type: org.alien4cloud.kubernetes.api.datatypes.autoscaler.MetricPod
-
-  org.alien4cloud.kubernetes.api.datatypes.DeploymentResourceDefinition:
+        entry_schema: org.alien4cloud.kubernetes.api.datatypes.autoscaler.MetricSpec
+        description: |
+          metrics contains the specifications for which to use to calculate
+          the desired replica count (the maximum replica count across all metrics will be used).
+          The desired replica count is calculated multiplying the ratio between the target value and the current value by the current number of pods.
+          Ergo, metrics used must decrease as the pod count is increased, and vice-versa.
+          See the individual metric source types for more information about how each type of metric must respond
 
   org.alien4cloud.kubernetes.api.datatypes.volumes.EmptyDirVolumeSpec:
     derived_from: tosca.datatypes.Root
@@ -859,7 +870,7 @@ node_types:
         type: string
       size:
         type: scalar-unit.size
-        description: >
+        description: |
           The requested storage size (default unit is MB).
 
   org.alien4cloud.kubernetes.api.types.volume.VolumeBase:
@@ -964,7 +975,7 @@ node_types:
   org.alien4cloud.kubernetes.api.types.AbstractService:
     abstract: true
     derived_from: org.alien4cloud.kubernetes.api.types.Base
-    description: >
+    description: |
       Represent a kubernetes Service
     properties:
       apiVersion:
@@ -1013,23 +1024,24 @@ node_types:
       spec:
         type: org.alien4cloud.kubernetes.api.datatypes.DeploymentSpec
 
-#  org.alien4cloud.kubernetes.api.types.HorizontalPodAutoscaler:
-#    derived_from: org.alien4cloud.kubernetes.api.types.Base
-#    description: >
-#      A kubernetes HorizontalPodAutoscaler object
-#    properties:
-#      apiVersion:
-#        type: string
-#        default: autoscaling/v2alpha1
-#        constraints:
-#          - equal: autoscaling/v2alpha1
-#      kind:
-#        type: string
-#        default: HorizontalPodAutoscaler
-#        constraints:
-#          - equal: HorizontalPodAutoscaler
-#      spec:
-#        type: org.alien4cloud.kubernetes.api.datatypes.autoscaler.HorizontalPodAutoscalerSpec
+ org.alien4cloud.kubernetes.api.types.HorizontalPodAutoscaler:
+   derived_from: org.alien4cloud.kubernetes.api.types.Base
+   description: |
+     A kubernetes HorizontalPodAutoscaler object
+     see https://v1-7.docs.kubernetes.io/docs/api-reference/v1.7/#horizontalpodautoscaler-v2alpha1-autoscaling
+   properties:
+     apiVersion:
+       type: string
+       default: autoscaling/v2alpha1
+       constraints:
+         - equal: autoscaling/v2alpha1
+     kind:
+       type: string
+       default: HorizontalPodAutoscaler
+       constraints:
+         - equal: HorizontalPodAutoscaler
+     spec:
+       type: org.alien4cloud.kubernetes.api.datatypes.autoscaler.HorizontalPodAutoscalerSpec
 
   org.alien4cloud.kubernetes.api.types.Container:
     derived_from: org.alien4cloud.kubernetes.api.types.AbstractContainer
