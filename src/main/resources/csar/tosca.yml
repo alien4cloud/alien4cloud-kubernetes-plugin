@@ -10,7 +10,7 @@ description: |
   Kubernetes types that fit to K8S api, used by K8S topology modifiers and describe K8S matchable resources.
 
 imports:
-  - tosca-normative-types:1.0.0-ALIEN20SM3
+  - tosca-normative-types:1.0.0-SNAPSHOT
   - docker-types:2.0.0-SNAPSHOT
   - alien-base-types:2.0.0-SNAPSHOT
 
