@@ -6,7 +6,7 @@ Feature: Kubernetes label placement policy topology modifier
 
     Given I add and import a GIT repository with url "https://github.com/alien4cloud/tosca-normative-types.git" usr "" pwd "" stored "false" and locations
       | branchId  | subPath |
-      | 2.0.0-SM3 |         |
+      | tests/2.0.0 |         |
     Given I add and import a GIT repository with url "https://github.com/alien4cloud/alien4cloud-extended-types.git" usr "" pwd "" stored "false" and locations
       | branchId    | subPath          |
       | tests/2.0.0 | alien-base-types |
