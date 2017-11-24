@@ -20,7 +20,7 @@ Feature: Kubernetes Volumes
     And I get the topology related to the CSAR with name "initial" and version "2.0.0-SNAPSHOT"
     When I execute the modifier "kubernetes-modifier" on the current topology
     And I execute the modifier "kubernetes-automatching-modifier" on the current topology
-    And I match the node named "Volume" to a node of type "org.alien4cloud.kubernetes.api.types.volume.EmptyDirVolumeSource" version "2.0.0-SNAPSHOT"
+    And I match the node named "Volume" to a node of type "org.alien4cloud.kubernetes.api.types.volume.EmptyDirVolumeSource" version "#{T(org.alien4cloud.plugin.kubernetes.csar.Version).K8S_CSAR_VERSION}"
     And I execute the modifier "kubernetes-final-modifier" on the current topology
     And I store the current topology in the SPEL context
     Then The SPEL expression "nodeTemplates.containsKey('ContainerDeploymentUnit_Resource')" should return true
@@ -38,7 +38,7 @@ Feature: Kubernetes Volumes
     And I get the topology related to the CSAR with name "initial" and version "2.0.0-SNAPSHOT"
     When I execute the modifier "kubernetes-modifier" on the current topology
     And I execute the modifier "kubernetes-automatching-modifier" on the current topology
-    And I match the node named "Volume" to a node of type "org.alien4cloud.kubernetes.api.types.volume.HostPathVolumeSource" version "2.0.0-SNAPSHOT"
+    And I match the node named "Volume" to a node of type "org.alien4cloud.kubernetes.api.types.volume.HostPathVolumeSource" version "#{T(org.alien4cloud.plugin.kubernetes.csar.Version).K8S_CSAR_VERSION}"
     And I set the node "Volume" property "spec.path" to "/home/ec2-user"
     And I execute the modifier "kubernetes-final-modifier" on the current topology
     And I store the current topology in the SPEL context
@@ -58,7 +58,7 @@ Feature: Kubernetes Volumes
     And I get the topology related to the CSAR with name "initial" and version "2.0.0-SNAPSHOT"
     When I execute the modifier "kubernetes-modifier" on the current topology
     And I execute the modifier "kubernetes-automatching-modifier" on the current topology
-    And I match the node named "Volume" to a node of type "org.alien4cloud.kubernetes.api.types.volume.AWSElasticBlockStoreVolumeSource" version "2.0.0-SNAPSHOT"
+    And I match the node named "Volume" to a node of type "org.alien4cloud.kubernetes.api.types.volume.AWSElasticBlockStoreVolumeSource" version "#{T(org.alien4cloud.plugin.kubernetes.csar.Version).K8S_CSAR_VERSION}"
     And I set the node "Volume" property "spec.volumeID" to "#1234"
     And I execute the modifier "kubernetes-final-modifier" on the current topology
     And I store the current topology in the SPEL context
@@ -78,7 +78,7 @@ Feature: Kubernetes Volumes
     And I get the topology related to the CSAR with name "initial" and version "2.0.0-SNAPSHOT"
     When I execute the modifier "kubernetes-modifier" on the current topology
     And I execute the modifier "kubernetes-automatching-modifier" on the current topology
-    And I match the node named "Volume" to a node of type "org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimSource" version "2.0.0-SNAPSHOT"
+    And I match the node named "Volume" to a node of type "org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimSource" version "#{T(org.alien4cloud.plugin.kubernetes.csar.Version).K8S_CSAR_VERSION}"
     And I execute the modifier "kubernetes-final-modifier" on the current topology
     And I store the current topology in the SPEL context
     Then The SPEL expression "nodeTemplates.containsKey('ContainerDeploymentUnit_Resource')" should return true
@@ -112,7 +112,7 @@ Feature: Kubernetes Volumes
     And I get the topology related to the CSAR with name "initial" and version "2.0.0-SNAPSHOT"
     When I execute the modifier "kubernetes-modifier" on the current topology
     And I execute the modifier "kubernetes-automatching-modifier" on the current topology
-    And I match the node named "Volume" to a node of type "org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimSource" version "2.0.0-SNAPSHOT"
+    And I match the node named "Volume" to a node of type "org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimSource" version "#{T(org.alien4cloud.plugin.kubernetes.csar.Version).K8S_CSAR_VERSION}"
     And I set the node "Volume" property "spec.claimName" to "my_already_exist_claim"
     And I execute the modifier "kubernetes-final-modifier" on the current topology
     And I store the current topology in the SPEL context
@@ -136,7 +136,7 @@ Feature: Kubernetes Volumes
     And I get the topology related to the CSAR with name "initial" and version "2.0.0-SNAPSHOT"
     When I execute the modifier "kubernetes-modifier" on the current topology
     And I execute the modifier "kubernetes-automatching-modifier" on the current topology
-    And I match the node named "Volume" to a node of type "org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimStorageClassSource" version "2.0.0-SNAPSHOT"
+    And I match the node named "Volume" to a node of type "org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimStorageClassSource" version "#{T(org.alien4cloud.plugin.kubernetes.csar.Version).K8S_CSAR_VERSION}"
     And I execute the modifier "kubernetes-final-modifier" on the current topology
     And I store the current topology in the SPEL context
     # we should find a node for the PersistentVolumeClaim
@@ -155,7 +155,7 @@ Feature: Kubernetes Volumes
     And I get the topology related to the CSAR with name "initial" and version "2.0.0-SNAPSHOT"
     When I execute the modifier "kubernetes-modifier" on the current topology
     And I execute the modifier "kubernetes-automatching-modifier" on the current topology
-    And I match the node named "Volume" to a node of type "org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimStorageClassSource" version "2.0.0-SNAPSHOT"
+    And I match the node named "Volume" to a node of type "org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimStorageClassSource" version "#{T(org.alien4cloud.plugin.kubernetes.csar.Version).K8S_CSAR_VERSION}"
     And I set the node "Volume" property "storageClassName" to "my_custom_storage_class"
     And I execute the modifier "kubernetes-final-modifier" on the current topology
     And I store the current topology in the SPEL context

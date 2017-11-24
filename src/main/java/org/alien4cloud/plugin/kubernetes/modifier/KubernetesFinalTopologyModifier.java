@@ -2,6 +2,7 @@ package org.alien4cloud.plugin.kubernetes.modifier;
 
 import static alien4cloud.utils.AlienUtils.safe;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.*;
+import static org.alien4cloud.plugin.kubernetes.csar.Version.K8S_CSAR_VERSION;
 
 import java.util.List;
 import java.util.Map;
