@@ -5,7 +5,7 @@ Feature: Kubernetes final location topology modifier
     Given I am authenticated with "ADMIN" role
     Given I add and import a GIT repository with url "https://github.com/alien4cloud/tosca-normative-types.git" usr "" pwd "" stored "false" and locations
       | branchId  | subPath |
-      | 2.0.0-SM3 |         |
+      | tests/2.0.0 |         |
     Given I add and import a GIT repository with url "https://github.com/alien4cloud/alien4cloud-extended-types.git" usr "" pwd "" stored "false" and locations
       | branchId    | subPath          |
       | tests/2.0.0 | alien-base-types |
@@ -74,13 +74,13 @@ Feature: Kubernetes final location topology modifier
     Then The SPEL expression "#this['spec']['template']['spec']['containers'][0]['env'].?[#this['name'] == 'NODECELLAR_PORT'][0]['value']" should return "3000"
     Then The SPEL expression "#this['spec']['template']['spec']['containers'][0]['env'].?[#this['name'] == 'MONGO_HOST'][0]['value'].replaceAll('\{', '').replaceAll('\}', '').replaceAll('\$', '')" result should equals the registered object "NodecellarDeployment_Resource_service_dependency_lookups_key"
 
-  Scenario: Apply final modifier on a topology containing 1 scaled apache
-    Given I upload unzipped CSAR from path "src/test/resources/data/01-one-apache/1-initial.yaml"
-    And I get the topology related to the CSAR with name "initial" and version "2.0.0-SNAPSHOT"
-    When I execute the modifier "kubernetes-modifier" on the current topology
-    And I execute the modifier "kubernetes-automatching-modifier" on the current topology
-    And I execute the modifier "kubernetes-final-modifier" on the current topology
-    And I store the current topology in the SPEL context
-    And The SPEL expression "nodeTemplates['ApacheDeployment_Resource'].capabilities['scalable'].properties['min_instances'].value" should return "1"
-    And The SPEL expression "nodeTemplates['ApacheDeployment_Resource'].capabilities['scalable'].properties['default_instances'].value" should return "2"
-    And The SPEL expression "nodeTemplates['ApacheDeployment_Resource'].capabilities['scalable'].properties['max_instances'].value" should return "2"
+#  Scenario: Apply final modifier on a topology containing 1 scaled apache
+#    Given I upload unzipped CSAR from path "src/test/resources/data/01-one-apache/1-initial.yaml"
+#    And I get the topology related to the CSAR with name "initial" and version "2.0.0-SNAPSHOT"
+#    When I execute the modifier "kubernetes-modifier" on the current topology
+#    And I execute the modifier "kubernetes-automatching-modifier" on the current topology
+#    And I execute the modifier "kubernetes-final-modifier" on the current topology
+#    And I store the current topology in the SPEL context
+#    And The SPEL expression "nodeTemplates['ApacheDeployment_Resource'].capabilities['scalable'].properties['min_instances'].value" should return "1"
+#    And The SPEL expression "nodeTemplates['ApacheDeployment_Resource'].capabilities['scalable'].properties['default_instances'].value" should return "2"
+#    And The SPEL expression "nodeTemplates['ApacheDeployment_Resource'].capabilities['scalable'].properties['max_instances'].value" should return "2"

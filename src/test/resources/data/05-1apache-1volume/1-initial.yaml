@@ -10,7 +10,7 @@ description: |
 
 imports:
   - docker-types:2.0.0-SNAPSHOT
-  - tosca-normative-types:1.0.0-ALIEN20SM3
+  - tosca-normative-types:1.0.0-SNAPSHOT
   - docker-draft.sandbox.samples:2.0.0-SNAPSHOT
 
 topology_template:
