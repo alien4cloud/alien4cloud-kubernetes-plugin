@@ -11,6 +11,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.annotation.Resource;
 import javax.inject.Inject;
@@ -243,6 +245,18 @@ public class ModifierTestStepDefs {
         }
     }
 
+    private String manageSpelInside(String expression) {
+        // TODO: manage concatenation
+        Pattern pattern = Pattern.compile("#\\{(.*)\\}");
+        Matcher matcher = pattern.matcher(expression);
+        if (matcher.matches()) {
+            StandardEvaluationContext sec = new StandardEvaluationContext();
+            Object actual = evaluateExpression(sec, matcher.group(1));
+            return actual.toString();
+        }
+        return expression;
+    }
+
     @When("^I execute the modifier \"(.*?)\" on the current topology$")
     public void i_execute_the_modifier_on_the_current_topology(String beanName) throws Throwable {
         Topology topology = currentTopology;
@@ -271,6 +285,8 @@ public class ModifierTestStepDefs {
 
     @When("^I match the node named \"(.*?)\" to a node of type \"(.*?)\" version \"(.*?)\"$")
     public void i_match_the_node_named_to_a_node_of_type(String nodeName, String nodeTypeName, String nodeVersion) throws Throwable {
+        nodeVersion = manageSpelInside(nodeVersion);
+
         ToscaContext.init(currentTopology.getDependencies());
         ReplaceNodeOperation replaceNodeOperation = new ReplaceNodeOperation();
         replaceNodeOperation.setNodeName(nodeName);

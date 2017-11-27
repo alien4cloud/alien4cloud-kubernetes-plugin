@@ -1,6 +1,7 @@
 package org.alien4cloud.plugin.kubernetes.modifier;
 
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.*;
+import static org.alien4cloud.plugin.kubernetes.csar.Version.K8S_CSAR_VERSION;
 
 import alien4cloud.tosca.context.ToscaContextual;
 import lombok.extern.java.Log;

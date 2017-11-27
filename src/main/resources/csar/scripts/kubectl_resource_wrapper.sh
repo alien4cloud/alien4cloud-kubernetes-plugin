@@ -24,9 +24,11 @@ function deploy_resource(){
 
     exit_if_error
 
-    command="kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" get ${KUBE_RESOURCE_TYPE} -l a4c_id=${KUBE_RESOURCE_ID} -o=jsonpath={${KUBE_JSON_PATH_EXPR}}"
+    if [ -n "$KUBE_JSON_PATH_EXPR" ]; then
+        command="kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" get ${KUBE_RESOURCE_TYPE} -l a4c_id=${KUBE_RESOURCE_ID} -o=jsonpath={${KUBE_JSON_PATH_EXPR}}"
+        wait_until_done_or_exit "$command" 60
+    fi
 
-    wait_until_done_or_exit "$command" 60
 }
 
 function wait_until_done_or_exit {

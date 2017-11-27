@@ -5,7 +5,7 @@ import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_T
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_CONTAINER_DEPLOYMENT_UNIT;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_CONTAINER_RUNTIME;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_DOCKER_VOLUME;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_CSAR_VERSION;
+import static org.alien4cloud.plugin.kubernetes.csar.Version.K8S_CSAR_VERSION;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ABSTRACT_CONTAINER;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ABSTRACT_DEPLOYMENT;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ABSTRACT_SERVICE;
