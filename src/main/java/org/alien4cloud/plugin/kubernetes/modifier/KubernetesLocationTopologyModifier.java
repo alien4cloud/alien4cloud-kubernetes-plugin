@@ -20,7 +20,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
-import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
+import org.alien4cloud.plugin.kubernetes.AbstractKubernetesModifier;
 import org.alien4cloud.tosca.model.Csar;
 import org.alien4cloud.tosca.model.definitions.AbstractPropertyValue;
 import org.alien4cloud.tosca.model.definitions.ComplexPropertyValue;
@@ -44,7 +44,6 @@ import com.google.common.collect.Sets;
 import alien4cloud.paas.wf.validation.WorkflowValidator;
 import alien4cloud.tosca.context.ToscaContext;
 import alien4cloud.tosca.context.ToscaContextual;
-import alien4cloud.utils.AlienUtils;
 import alien4cloud.utils.PropertyUtil;
 import lombok.extern.java.Log;
 
@@ -71,7 +70,7 @@ import lombok.extern.java.Log;
  */
 @Log
 @Component(value = "kubernetes-modifier")
-public class KubernetesLocationTopologyModifier extends TopologyModifierSupport {
+public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifier {
 
     public static final String A4C_KUBERNETES_MODIFIER_TAG = "a4c_kubernetes-modifier";
     public static final String A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT = A4C_KUBERNETES_MODIFIER_TAG + "_service_endpoint";

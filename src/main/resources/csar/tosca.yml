@@ -728,9 +728,9 @@ data_types:
     description: >
       see https://v1-7.docs.kubernetes.io/docs/api-reference/v1.7/#horizontalpodautoscalerspec-v2alpha1-autoscaling
     properties:
-      scaleTargetRef:
-        type: org.alien4cloud.kubernetes.api.datatypes.autoscaler.HorizontalPodAutoscalerScaleTargetRef
-        required: false
+      # scaleTargetRef:
+      #   type: org.alien4cloud.kubernetes.api.datatypes.autoscaler.HorizontalPodAutoscalerScaleTargetRef
+      #   required: false
       minReplicas:
         type: integer
         required: false
@@ -740,7 +740,8 @@ data_types:
       metrics:
         type: list
         required: false
-        entry_schema: org.alien4cloud.kubernetes.api.datatypes.autoscaler.MetricSpec
+        entry_schema:
+          type: org.alien4cloud.kubernetes.api.datatypes.autoscaler.MetricSpec
         description: |
           metrics contains the specifications for which to use to calculate
           the desired replica count (the maximum replica count across all metrics will be used).
@@ -1024,24 +1025,24 @@ node_types:
       spec:
         type: org.alien4cloud.kubernetes.api.datatypes.DeploymentSpec
 
- org.alien4cloud.kubernetes.api.types.HorizontalPodAutoscaler:
-   derived_from: org.alien4cloud.kubernetes.api.types.Base
-   description: |
-     A kubernetes HorizontalPodAutoscaler object
-     see https://v1-7.docs.kubernetes.io/docs/api-reference/v1.7/#horizontalpodautoscaler-v2alpha1-autoscaling
-   properties:
-     apiVersion:
-       type: string
-       default: autoscaling/v2alpha1
-       constraints:
-         - equal: autoscaling/v2alpha1
-     kind:
-       type: string
-       default: HorizontalPodAutoscaler
-       constraints:
+  org.alien4cloud.kubernetes.api.types.HorizontalPodAutoscaler:
+    derived_from: org.alien4cloud.kubernetes.api.types.Base
+    description: |
+      A kubernetes HorizontalPodAutoscaler object
+      see https://v1-7.docs.kubernetes.io/docs/api-reference/v1.7/#horizontalpodautoscaler-v2alpha1-autoscaling
+    properties:
+      apiVersion:
+        type: string
+        default: autoscaling/v2alpha1
+        constraints:
+          - equal: autoscaling/v2alpha1
+      kind:
+        type: string
+        default: HorizontalPodAutoscaler
+        constraints:
          - equal: HorizontalPodAutoscaler
-     spec:
-       type: org.alien4cloud.kubernetes.api.datatypes.autoscaler.HorizontalPodAutoscalerSpec
+      spec:
+        type: org.alien4cloud.kubernetes.api.datatypes.autoscaler.HorizontalPodAutoscalerSpec
 
   org.alien4cloud.kubernetes.api.types.Container:
     derived_from: org.alien4cloud.kubernetes.api.types.AbstractContainer
@@ -1146,8 +1147,8 @@ node_types:
         description: |
           The resource type known by K8S examples: pod,service,pv,pvc
         constraints:
-          # for the moment the only kind of ressource of this type we manage are PersistenceVolumeClaim (pvc)
-          - valid_values: [pvc]
+          # for the moment managed types are: PersistenceVolumeClaim (pvc), HorizontalPodAutoscaler (hpa)
+          - valid_values: [pvc, hpa]
       resource_id:
         type: string
         required: true

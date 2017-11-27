@@ -4,7 +4,6 @@ import static alien4cloud.utils.AlienUtils.safe;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_DEPLOYMENT;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.generateKubeName;
 
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -13,7 +12,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
-import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
+import org.alien4cloud.plugin.kubernetes.AbstractKubernetesModifier;
 import org.alien4cloud.tosca.model.Csar;
 import org.alien4cloud.tosca.model.definitions.AbstractPropertyValue;
 import org.alien4cloud.tosca.model.definitions.ComplexPropertyValue;
@@ -21,7 +20,6 @@ import org.alien4cloud.tosca.model.definitions.ListPropertyValue;
 import org.alien4cloud.tosca.model.templates.NodeTemplate;
 import org.alien4cloud.tosca.model.templates.PolicyTemplate;
 import org.alien4cloud.tosca.model.templates.Topology;
-import org.alien4cloud.tosca.utils.TopologyNavigationUtil;
 import org.springframework.stereotype.Component;
 
 import com.google.common.collect.Lists;
@@ -36,7 +34,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Component("kubernetes-node-affinity-modifier")
 @Slf4j
-public class KubernetesNodeAffinityLabelTopologyModifier extends TopologyModifierSupport {
+public class KubernetesNodeAffinityLabelTopologyModifier extends AbstractKubernetesModifier {
 
     @Override
     @ToscaContextual
@@ -85,7 +83,8 @@ public class KubernetesNodeAffinityLabelTopologyModifier extends TopologyModifie
     }
 
     private void apply(PolicyTemplate policy, Topology topology, FlowExecutionContext context, Supplier<List<Object>> matchExpressionsSupplier) {
-        Set<NodeTemplate> validTargets = getValidTargets(policy, topology, context);
+        Set<NodeTemplate> validTargets = getValidTargets(policy, topology, invalidName -> context.log()
+                .warn("Placement policy <{}>: will ignore target <{}> as it IS NOT an instance of <{}>.", policy.getName(), invalidName, K8S_TYPES_DEPLOYMENT));
         safe(validTargets).forEach(nodeTemplate -> {
             // add nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution section
             addTemplateSpecAffinitySection(topology, nodeTemplate, matchExpressionsSupplier.get());
@@ -113,22 +112,6 @@ public class KubernetesNodeAffinityLabelTopologyModifier extends TopologyModifie
         matchExpression.put("operator", "In");
         List<String> matchExpressionValues = (List<String>) matchExpression.compute("values", (s, o) -> Lists.<String> newArrayList());
         matchExpressionValues.addAll(Sets.newHashSet(labelSelectorValues));
-    }
-
-    private Set<NodeTemplate> getValidTargets(PolicyTemplate policyTemplate, Topology topology, FlowExecutionContext context) {
-        Set<NodeTemplate> targetedMembers = TopologyNavigationUtil.getTargetedMembers(topology, policyTemplate);
-        Iterator<NodeTemplate> iter = safe(targetedMembers).iterator();
-        while (iter.hasNext()) {
-            NodeTemplate nodeTemplate = iter.next();
-            // TODO ALIEN-2583 ALIEN-2592 maybe better to consider type hierarchy and check if the node is from
-            // org.alien4cloud.kubernetes.api.types.AbstractDeployment
-            if (!Objects.equals(K8S_TYPES_DEPLOYMENT, nodeTemplate.getType())) {
-                context.log().warn("Placement policy <{}>: will ignore target <{}> as it IS NOT an instance of <{}>.", policyTemplate.getName(),
-                        nodeTemplate.getName(), K8S_TYPES_DEPLOYMENT);
-                iter.remove();
-            }
-        }
-        return targetedMembers;
     }
 
 }

@@ -8,4 +8,5 @@ public class KubePoliciesConstants {
 
     public static final String K8S_POLICIES_ANTI_AFFINITY_LABEL = "org.alien4cloud.kubernetes.api.policies.AntiAffinityLabel";
     public static final String K8S_POLICIES_NODE_AFFINITY_LABEL = "org.alien4cloud.kubernetes.api.policies.NodeAffinityLabel";
+    public static final String K8S_POLICIES_AUTO_SCALING = "org.alien4cloud.kubernetes.api.policies.AutoscalingPolicy";
 }

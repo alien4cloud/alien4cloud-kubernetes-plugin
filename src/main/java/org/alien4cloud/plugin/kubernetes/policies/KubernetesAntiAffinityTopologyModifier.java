@@ -6,7 +6,6 @@ import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.gener
 import static org.alien4cloud.plugin.kubernetes.policies.KubePoliciesConstants.K8S_POLICIES_ANTI_AFFINITY_LABEL;
 import static org.alien4cloud.plugin.kubernetes.policies.KubePoliciesConstants.POD_ANTI_AFFINITY_PREFERRED_DURING_SCHE_IGNORED_DURING_EXEC_PATH;
 
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -14,14 +13,13 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
-import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
+import org.alien4cloud.plugin.kubernetes.AbstractKubernetesModifier;
 import org.alien4cloud.tosca.model.Csar;
 import org.alien4cloud.tosca.model.definitions.ComplexPropertyValue;
 import org.alien4cloud.tosca.model.definitions.ScalarPropertyValue;
 import org.alien4cloud.tosca.model.templates.NodeTemplate;
 import org.alien4cloud.tosca.model.templates.PolicyTemplate;
 import org.alien4cloud.tosca.model.templates.Topology;
-import org.alien4cloud.tosca.utils.TopologyNavigationUtil;
 import org.springframework.stereotype.Component;
 
 import com.google.common.collect.Lists;
@@ -36,7 +34,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Component("kubernetes-anti-affinity-modifier")
 @Slf4j
-public class KubernetesAntiAffinityTopologyModifier extends TopologyModifierSupport {
+public class KubernetesAntiAffinityTopologyModifier extends AbstractKubernetesModifier {
 
     private static final Map<String, String> LEVEL_TO_TOPOLOGY_KEY = Maps.newHashMap();
 
@@ -70,8 +68,9 @@ public class KubernetesAntiAffinityTopologyModifier extends TopologyModifierSupp
             context.log().warn("Anti-affinity policy <{}> is not correctly configured, at least 2 targets are required. It will be ignored.", policy.getName());
             return;
         }
-        Set<NodeTemplate> validTargets = getValidTargets(policy, topology, context);
-
+        Set<NodeTemplate> validTargets = getValidTargets(policy, topology,
+                invalidName -> context.log().warn("Anti-affinity policy <{}>: will ignore target <{}> as it IS NOT an instance of <{}>.", policy.getName(),
+                        invalidName, K8S_TYPES_DEPLOYMENT));
         safe(validTargets).forEach(nodeTemplate -> apply(nodeTemplate, topology, validTargets, policy, context));
     }
 
@@ -134,22 +133,6 @@ public class KubernetesAntiAffinityTopologyModifier extends TopologyModifierSupp
         // TODO strategy (preferredDuringSchedulingIgnoredDuringExecution) should be configurable by the user as a policy property
         appendNodePropertyPathValue(new Csar(topology.getArchiveName(), topology.getArchiveVersion()), topology, nodeTemplate,
                 POD_ANTI_AFFINITY_PREFERRED_DURING_SCHE_IGNORED_DURING_EXEC_PATH, new ComplexPropertyValue(antiAffinityEntry));
-    }
-
-    private Set<NodeTemplate> getValidTargets(PolicyTemplate policyTemplate, Topology topology, FlowExecutionContext context) {
-        Set<NodeTemplate> targetedMembers = TopologyNavigationUtil.getTargetedMembers(topology, policyTemplate);
-        Iterator<NodeTemplate> iter = safe(targetedMembers).iterator();
-        while (iter.hasNext()) {
-            NodeTemplate nodeTemplate = iter.next();
-            // TODO ALIEN-2583 ALIEN-2592 maybe better to consider type hierarchy and check if the node is from
-            // org.alien4cloud.kubernetes.api.types.AbstractDeployment
-            if (!Objects.equals(K8S_TYPES_DEPLOYMENT, nodeTemplate.getType())) {
-                context.log().warn("Anti-affinity policy <{}>: will ignore target <{}> as it IS NOT an instance of <{}>.", policyTemplate.getName(),
-                        nodeTemplate.getName(), K8S_TYPES_DEPLOYMENT);
-                iter.remove();
-            }
-        }
-        return targetedMembers;
     }
 
     private String levelToTopologyKey(String level) {

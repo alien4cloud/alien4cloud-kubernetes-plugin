@@ -354,6 +354,12 @@ public class ModifierTestStepDefs {
         registry.put(registryName, result);
     }
 
+    @Then("^register the SPEL expression \"(.*?)\" result as a map \"(.*?)\"$")
+    public void register_the_SPEL_expression_result_as_a_map(String spelExpression, String registryName) throws Throwable {
+        Object result = evaluateExpression(spelContext, spelExpression);
+        registry.put(registryName, JsonUtil.toMap(result.toString()));
+    }
+
     @Then("^The SPEL expression \"(.*?)\" result should equals the registered object \"(.*?)\"$")
     public void the_SPEL_expression_should_equals_the_registered_object(String spelExpression, String registryName) throws Throwable {
         Object actual = evaluateExpression(spelContext, spelExpression);
@@ -361,7 +367,7 @@ public class ModifierTestStepDefs {
         Assert.assertEquals(expected, actual);
     }
 
-    @Then("^The SPEL expression \"(.*?)\" result should equals the registered object \"(.*?)\" SPEL expression \"(.*?)\" result$")
+    @Then("^The SPEL expression \"(.*?)\" result should equals the registered \"(.*?)\"'s SPEL expression \"(.*?)\" result$")
     public void the_SPEL_expression_should_equals_the_registered_object_SPEL_expression_result(String spelExpression, String registryName,
             String expectedResultSpelExp) throws Throwable {
         Object actual = evaluateExpression(spelContext, spelExpression);
