@@ -117,7 +117,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
 
         // A function evaluator context will be usefull
         // FIXME: use topology inputs ?
-        Map<String, PropertyValue> inputValues = Maps.newHashMap();
+        Map<String, AbstractPropertyValue> inputValues = Maps.newHashMap();
         FunctionEvaluatorContext functionEvaluatorContext = new FunctionEvaluatorContext(topology, inputValues);
 
         Map<String, List<String>> serviceIpAddressesPerDeploymentResource = Maps.newHashMap();
