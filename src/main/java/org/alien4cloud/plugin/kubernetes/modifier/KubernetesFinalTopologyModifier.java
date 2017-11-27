@@ -1,8 +1,17 @@
 package org.alien4cloud.plugin.kubernetes.modifier;
 
 import static alien4cloud.utils.AlienUtils.safe;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.*;
 import static org.alien4cloud.plugin.kubernetes.csar.Version.K8S_CSAR_VERSION;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_APPLICATION_DOCKER_CONTAINER;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_CONTAINER;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_DEPLOYMENT;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_DEPLOYMENT_RESOURCE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_RESOURCE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SERVICE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SERVICE_RESOURCE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_VOLUME_BASE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.generateUniqueKubeName;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.getValue;
 
 import java.util.List;
 import java.util.Map;
@@ -168,13 +177,15 @@ public class KubernetesFinalTopologyModifier extends TopologyModifierSupport {
         feedPropertyValue(deploymentResourceNodeProperties, "resource_def.spec.template.spec.volumes", volumeEntry, true);
     }
 
-    private void managePersistentVolumeClaim(Csar csar, Topology topology, NodeTemplate volumeNode, Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures, NodeTemplate deploymentResourceNode) {
+    private void managePersistentVolumeClaim(Csar csar, Topology topology, NodeTemplate volumeNode,
+            Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures, NodeTemplate deploymentResourceNode) {
         // in case of empty claimName for a PersistentVolumeClaimSource then create a node of type PersistentVolumeClaim
         NodeType volumeNodeType = ToscaContext.get(NodeType.class, volumeNode.getType());
         if (ToscaTypeUtils.isOfType(volumeNodeType, KubeTopologyUtils.K8S_TYPES_VOLUMES_CLAIM)) {
             AbstractPropertyValue claimNamePV = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "spec.claimName");
             if (claimNamePV == null) {
-                NodeTemplate volumeClaimResource = addNodeTemplate(csar, topology, volumeNode.getName() + "_PVC", KubeTopologyUtils.K8S_TYPES_SIMPLE_RESOURCE, K8S_CSAR_VERSION);
+                NodeTemplate volumeClaimResource = addNodeTemplate(csar, topology, volumeNode.getName() + "_PVC", KubeTopologyUtils.K8S_TYPES_SIMPLE_RESOURCE,
+                        K8S_CSAR_VERSION);
 
                 Map<String, AbstractPropertyValue> volumeClaimResourceNodeProperties = Maps.newHashMap();
                 resourceNodeYamlStructures.put(volumeClaimResource.getName(), volumeClaimResourceNodeProperties);
@@ -206,7 +217,8 @@ public class KubernetesFinalTopologyModifier extends TopologyModifierSupport {
                 // finally set the claimName of the volume node
                 feedPropertyValue(volumeNode.getProperties(), "spec.claimName", claimName, false);
                 // add a relationship between the deployment and this claim
-                addRelationshipTemplate(csar, topology, deploymentResourceNode, volumeClaimResource.getName(), NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
+                addRelationshipTemplate(csar, topology, deploymentResourceNode, volumeClaimResource.getName(), NormativeRelationshipConstants.DEPENDS_ON,
+                        "dependency", "feature");
             }
         }
     }
@@ -263,14 +275,18 @@ public class KubernetesFinalTopologyModifier extends TopologyModifierSupport {
                                     }
                                 } else {
                                     try {
-                                        PropertyValue propertyValue = FunctionEvaluator.resolveValue(functionEvaluatorContext, nodeTemplate,
+                                        AbstractPropertyValue propertyValue = FunctionEvaluator.tryResolveValue(functionEvaluatorContext, nodeTemplate,
                                                 nodeTemplate.getProperties(), (AbstractPropertyValue) iValue);
                                         if (propertyValue != null) {
-                                            ComplexPropertyValue envEntry = new ComplexPropertyValue();
-                                            envEntry.setValue(Maps.newHashMap());
-                                            envEntry.getValue().put("name", envKey);
-                                            envEntry.getValue().put("value", propertyValue);
-                                            appendNodePropertyPathValue(csar, topology, containerNode, "container.env", envEntry);
+                                            if (propertyValue instanceof PropertyValue) {
+                                                ComplexPropertyValue envEntry = new ComplexPropertyValue();
+                                                envEntry.setValue(Maps.newHashMap());
+                                                envEntry.getValue().put("name", envKey);
+                                                envEntry.getValue().put("value", propertyValue);
+                                                appendNodePropertyPathValue(csar, topology, containerNode, "container.env", envEntry);
+                                            } else {
+                                                log.severe("Property is not PropertyValue but " + propertyValue.getClass());
+                                            }
                                         }
                                     } catch (IllegalArgumentException iae) {
                                         log.severe(iae.getMessage());
