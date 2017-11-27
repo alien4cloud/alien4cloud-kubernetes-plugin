@@ -258,8 +258,8 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         Map<String, AbstractPropertyValue> targetDeploymentResourceNodeProps = resourceNodeYamlStructures.get(targetDeploymentResourceNode.getName());
         String podAutoScalerName = generateUniqueKubeName(resourceBaseName);
 
-        feedPropertyValue(podAutoScalerResourceNodeProperties, "resource_type", new ScalarPropertyValue("hpa"), false);
-        feedPropertyValue(podAutoScalerResourceNodeProperties, "resource_id", new ScalarPropertyValue(podAutoScalerName), false);
+        feedPropertyValue(podAutoScalerResourceNode.getProperties(), "resource_type", new ScalarPropertyValue("hpa"), false);
+        feedPropertyValue(podAutoScalerResourceNode.getProperties(), "resource_id", new ScalarPropertyValue(podAutoScalerName), false);
 
         // fill the future JSON spec
         feedPropertyValue(podAutoScalerResourceNodeProperties, "resource_def.kind", "HorizontalPodAutoscaler", false);
