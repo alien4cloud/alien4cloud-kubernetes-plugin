@@ -258,8 +258,8 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         Map<String, AbstractPropertyValue> targetDeploymentResourceNodeProps = resourceNodeYamlStructures.get(targetDeploymentResourceNode.getName());
         String podAutoScalerName = generateUniqueKubeName(resourceBaseName);
 
-        feedPropertyValue(podAutoScalerResourceNodeProperties, "resource_type", "hpa", false);
-        feedPropertyValue(podAutoScalerResourceNodeProperties, "resource_id", podAutoScalerName, false);
+        feedPropertyValue(podAutoScalerResourceNodeProperties, "resource_type", new ScalarPropertyValue("hpa"), false);
+        feedPropertyValue(podAutoScalerResourceNodeProperties, "resource_id", new ScalarPropertyValue(podAutoScalerName), false);
 
         // fill the future JSON spec
         feedPropertyValue(podAutoScalerResourceNodeProperties, "resource_def.kind", "HorizontalPodAutoscaler", false);
@@ -271,7 +271,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         ComplexPropertyValue spec = CloneUtil.clone((ComplexPropertyValue) policyTemplate.getProperties().get("spec"));
         PolicyType policyType = ToscaContext.get(PolicyType.class, policyTemplate.getType());
         PropertyDefinition propertyDefinition = policyType.getProperties().get("spec");
-        Map<String, Object> transformed = (Map<String, Object>) getTransformedValue(spec, propertyDefinition, "");
+        Map<String, Object> transformed = safe((Map<String, Object>) getTransformedValue(spec, propertyDefinition, ""));
 
         // get targeted resource identification properties
         AbstractPropertyValue apiVersionProperty = PropertyUtil.getPropertyValueFromPath(targetDeploymentResourceNodeProps, "resource_def.apiVersion");
