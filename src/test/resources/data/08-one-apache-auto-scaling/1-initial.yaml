@@ -6,16 +6,17 @@ metadata:
   template_author: alien4cloud
 
 description: |
-  A single deployment with an apache container with default_instance=2 on the deployment unit
+  2 apache containers with an auto-scaing policy, one is not wrapped inside a deployment unit.
 
 imports:
+  - alien-base-types:2.0.0-SNAPSHOT
   - docker-types:2.0.0-SNAPSHOT
-  - tosca-normative-types:1.0.0-SNAPSHOT
+  - tosca-normative-types:1.0.0-ALIEN20SM3
   - docker-draft.sandbox.samples:2.0.0-SNAPSHOT
 
 topology_template:
   node_templates:
-    Apache:
+    Apache1:
       type: org.alien4cloud.nodes.Application.Docker.Apache
       properties:
         cpu_share: 0.2
@@ -23,7 +24,7 @@ topology_template:
       requirements:
         - hostedOnContainerRuntimeContainerRuntimeHost:
             type_requirement: host
-            node: ApacheContainer
+            node: Apache1Container
             capability: org.alien4cloud.extended.container.capabilities.ApplicationHost
             relationship: org.alien4cloud.extended.container.relationships.HostedOnContainerRuntime
       capabilities:
@@ -40,20 +41,23 @@ topology_template:
             min_instances: 1
             max_instances: 1
             default_instances: 1
-    ApacheContainer:
+    Apache1Container:
       type: org.alien4cloud.extended.container.types.ContainerRuntime
       requirements:
         - hostedOnContainerDeploymentUnitHost:
             type_requirement: host
-            node: ApacheDeployment
+            node: Apache1Deployment
             capability: tosca.capabilities.Container.Docker
             relationship: tosca.relationships.HostedOn
-    ApacheDeployment:
+    Apache1Deployment:
       type: org.alien4cloud.extended.container.types.ContainerDeploymentUnit
       capabilities:
         scalable:
           properties:
             min_instances: 1
-            max_instances: 2
-            # with default_instances: 2 the deployment will have 2 replicas
-            default_instances: 2
+            max_instances: 1
+            default_instances: 1
+  policies:
+    - Scaling:
+        type: tosca.policies.Scaling
+        targets: [ Apache1Deployment ]

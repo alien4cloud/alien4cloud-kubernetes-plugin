@@ -75,5 +75,6 @@
     <bean id="resourcePermissionService" class="alien4cloud.authorization.ResourcePermissionService"/>
     <mockito:mock id="group-dao" class="alien4cloud.security.groups.IAlienGroupDao"/>
     <mockito:mock id="user-dao" class="alien4cloud.security.users.IAlienUserDao"/>
+    <mockito:mock id="SecretProviderService" class="org.alien4cloud.secret.services.SecretProviderService"/>
     <bean class="org.alien4cloud.RepositoryServiceFactory" />
 </beans>

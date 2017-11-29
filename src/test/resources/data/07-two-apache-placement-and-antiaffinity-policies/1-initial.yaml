@@ -6,7 +6,7 @@ metadata:
   template_author: alien4cloud
 
 description: |
-  2 apache containers with an anti affinity policy, one is not wrapped inside a deployment unit.
+  2 apache containers with two label placement policies. one container is not wrapped inside a deployment unit.
 
 imports:
   - alien-base-types:2.0.0-SNAPSHOT
@@ -85,8 +85,20 @@ topology_template:
     Apache2Container:
       type: org.alien4cloud.extended.container.types.ContainerRuntime
   policies:
-    - Placement:
+    - Placement1:
+        type: org.alien4cloud.policies.LabelPlacement
+        targets: [ Apache1Deployment ]
+        properties:
+          labels:
+            flavor: large
+    - Placement2:
+        type: org.alien4cloud.policies.LabelPlacement
+        targets: [ Apache2Container ]
+        properties:
+          labels:
+            flavor: small
+    - AntiAffinity:
         type: org.alien4cloud.policies.AntiAffinity
-        targets: [ Apache2Container, Apache1Deployment ]
+        targets: [ Apache1Deployment, Apache2Container ]
         properties:
           level: host

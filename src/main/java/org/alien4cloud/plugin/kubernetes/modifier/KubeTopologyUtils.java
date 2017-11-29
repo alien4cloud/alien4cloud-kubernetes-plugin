@@ -19,25 +19,36 @@ import org.elasticsearch.common.collect.Maps;
 
 import java.util.*;
 
+import static org.alien4cloud.tosca.utils.ToscaTypeUtils.isOfType;
+
 /**
  * A utility to browse Kube topologies (enhanced by Kube modifiers).
  */
 public class KubeTopologyUtils {
 
+    // A4C & normatives types
     public static final String A4C_TYPES_CONTAINER_RUNTIME = "org.alien4cloud.extended.container.types.ContainerRuntime";
     public static final String A4C_TYPES_CONTAINER_DEPLOYMENT_UNIT = "org.alien4cloud.extended.container.types.ContainerDeploymentUnit";
     public static final String A4C_TYPES_APPLICATION_DOCKER_CONTAINER = "tosca.nodes.Container.Application.DockerContainer";
+    public static final String A4C_TYPES_DOCKER_VOLUME = "org.alien4cloud.nodes.DockerExtVolume";
+    // K8S abstract types
     public static final String K8S_TYPES_ABSTRACT_CONTAINER = "org.alien4cloud.kubernetes.api.types.AbstractContainer";
     public static final String K8S_TYPES_ABSTRACT_DEPLOYMENT = "org.alien4cloud.kubernetes.api.types.AbstractDeployment";
     public static final String K8S_TYPES_ABSTRACT_SERVICE = "org.alien4cloud.kubernetes.api.types.AbstractService";
+    public static final String K8S_TYPES_ABSTRACT_VOLUME_BASE = "org.alien4cloud.kubernetes.api.types.volume.AbstractVolumeBase";
+    public static final String K8S_TYPES_VOLUME_BASE = "org.alien4cloud.kubernetes.api.types.volume.VolumeBase";
+    // K8S concrete types
     public static final String K8S_TYPES_CONTAINER = "org.alien4cloud.kubernetes.api.types.Container";
     public static final String K8S_TYPES_DEPLOYMENT = "org.alien4cloud.kubernetes.api.types.Deployment";
+    public static final String K8S_TYPES_SERVICE = "org.alien4cloud.kubernetes.api.types.Service";
+    // K8S volume types
+    public static final String K8S_TYPES_VOLUMES_CLAIM = "org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimSource";
+    public static final String K8S_TYPES_VOLUMES_CLAIM_SC = "org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimStorageClassSource";
+    // K8S resource types
     public static final String K8S_TYPES_DEPLOYMENT_RESOURCE = "org.alien4cloud.kubernetes.api.types.DeploymentResource";
     public static final String K8S_TYPES_RESOURCE = "org.alien4cloud.kubernetes.api.types.BaseResource";
-    public static final String K8S_TYPES_SERVICE = "org.alien4cloud.kubernetes.api.types.Service";
     public static final String K8S_TYPES_SERVICE_RESOURCE = "org.alien4cloud.kubernetes.api.types.ServiceResource";
-
-    public static final String K8S_CSAR_VERSION = "2.0.0-SNAPSHOT";
+    public static final String K8S_TYPES_SIMPLE_RESOURCE = "org.alien4cloud.kubernetes.api.types.SimpleResource";
 
     /**
      * Get the image name from the type implementation artifact file.
@@ -111,7 +122,7 @@ public class KubeTopologyUtils {
                             // is this node a container ?
                             NodeType targetNodeType = ToscaContext.get(NodeType.class, targetNode.getType());
 
-                            if (WorkflowUtils.isOfType(targetNodeType, A4C_TYPES_APPLICATION_DOCKER_CONTAINER)) {
+                            if (isOfType(targetNodeType, A4C_TYPES_APPLICATION_DOCKER_CONTAINER)) {
                                 // ok the
                                 if (evaluatedFunction.getElementNameToFetch().equals(attributeName)) {
                                     return true;
@@ -151,7 +162,7 @@ public class KubeTopologyUtils {
                             // is this node a container ?
                             NodeTemplate targetNode = topology.getNodeTemplates().get(targetRelationship.getTarget());
                             NodeType targetNodeType = ToscaContext.get(NodeType.class, targetNode.getType());
-                            if (WorkflowUtils.isOfType(targetNodeType, A4C_TYPES_APPLICATION_DOCKER_CONTAINER)) {
+                            if (isOfType(targetNodeType, A4C_TYPES_APPLICATION_DOCKER_CONTAINER)) {
 
                                 Capability endpoint = targetNode.getCapabilities().get(targetRelationship.getTargetedCapabilityName());
                                 AbstractPropertyValue targetPropertyValue = PropertyUtil.getPropertyValueFromPath(endpoint.getProperties(), evaluatedFunction.getElementNameToFetch());
@@ -182,7 +193,7 @@ public class KubeTopologyUtils {
                         for (NodeTemplate targetNode : targetNodes) {
                             // is this node a container ?
                             NodeType targetNodeType = ToscaContext.get(NodeType.class, targetNode.getType());
-                            if (WorkflowUtils.isOfType(targetNodeType, A4C_TYPES_APPLICATION_DOCKER_CONTAINER)) {
+                            if (isOfType(targetNodeType, A4C_TYPES_APPLICATION_DOCKER_CONTAINER)) {
                                 // find the deployment that host this container
                                 NodeTemplate deploymentNode = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology,targetNode, K8S_TYPES_DEPLOYMENT);
                                 if (deploymentNode != null) {

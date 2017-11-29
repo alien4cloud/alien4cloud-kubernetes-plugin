@@ -3,10 +3,10 @@
   <parent>
     <groupId>alien4cloud</groupId>
     <artifactId>alien4cloud-parent</artifactId>
-    <version>2.0.0-SM3</version>
+    <version>2.0.0-SM4</version>
   </parent>
   <artifactId>alien4cloud-kubernetes-plugin</artifactId>
-  <version>2.0.0-SM3</version>
+  <version>2.0.0-SM4</version>
   <name>Alien 4 Cloud K8S plugin</name>
   <description>This plugin is used to manage transformation of containers in a topology into specific kubernetes nodes.</description>
 
@@ -345,7 +345,44 @@
           </execution>
         </executions>
       </plugin>
+      <plugin>
+        <groupId>com.google.code.maven-replacer-plugin</groupId>
+        <artifactId>maven-replacer-plugin</artifactId>
+        <version>1.4.0</version>
+        <executions>
+          <execution>
+            <phase>process-sources</phase>
+            <goals>
+              <goal>replace</goal>
+            </goals>
+          </execution>
+        </executions>
+        <configuration>
+          <file>src/main/resources/csar/tosca.yml</file>
+          <outputFile>${project.build.directory}/classes/csar/tosca.yml</outputFile>
+          <replacements>
+            <replacement>
+              <token>template_version: .+</token>
+              <value>template_version: ${project.version}</value>
+            </replacement>
+          </replacements>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>templating-maven-plugin</artifactId>
+        <version>1.0-alpha-3</version> <!-- Be sure to use the last version. Check on the website's plugin -->
+        <executions>
+          <execution>
+            <id>filter-src</id>
+            <goals>
+              <goal>filter-sources</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
+
   </build>
 
 

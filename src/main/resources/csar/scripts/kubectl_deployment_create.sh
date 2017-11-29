@@ -45,6 +45,10 @@ function deploy_resource(){
     wait_until_done_or_exit "$command" 60
 }
 
+function scale_resource() {
+  echo "scale resource $KUBE_DEPLOYMENT_ID"
+}
+
 function wait_until_done_or_exit {
   command=$1
   max_retries=$2
@@ -88,4 +92,3 @@ function exit_if_error(){
 
 resolve_service_dependencies_variables
 deploy_resource
-

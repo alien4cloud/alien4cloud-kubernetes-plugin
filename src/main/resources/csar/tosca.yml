@@ -2,16 +2,17 @@ tosca_definitions_version: alien_dsl_2_0_0
 
 metadata:
   template_name: org.alien4cloud.kubernetes.api
-  template_version: 2.0.0-SM3
+  template_version: 2.0.0-SM4
+  # this version will be changed at build time (see maven-replacer-plugin in pom.xml)
   template_author: alien4cloud
 
 description: |
   Kubernetes types that fit to K8S api, used by K8S topology modifiers and describe K8S matchable resources.
 
 imports:
-  - tosca-normative-types:1.0.0-ALIEN20SM3
-  - docker-types:2.0.0-SM3
-  - alien-base-types:2.0.0-SM3
+  - tosca-normative-types:1.0.0-ALIEN20SM4
+  - docker-types:2.0.0-SM4
+  - alien-base-types:2.0.0-SM4
 
 data_types:
 
@@ -473,15 +474,26 @@ data_types:
         required: false
         description: |
           Whether this container should allocate a TTY for itself, also requires 'stdin' to be true. Default is false.
-      # volumeMounts:
-      #   type: VolumeMount
-      #   description: |
-      #     array Pod volumes to mount into the container's filesystem. Cannot be updated.
+      volumeMounts:
+        type: list
+        required: false
+        entry_schema:
+          type: org.alien4cloud.kubernetes.api.datatypes.VolumeMount
+        description: |
+          array Pod volumes to mount into the container's filesystem. Cannot be updated.
       workingDir:
         type: string
         required: false
         description: |
           Container's working directory. If not specified, the container runtime's default will be used, which might be configured in the container image. Cannot be updated.
+
+  org.alien4cloud.kubernetes.api.datatypes.VolumeMount:
+    derived_from: tosca.datatypes.Root
+    properties:
+      mountPath:
+        type: string
+      name:
+        type: string
 
   org.alien4cloud.kubernetes.api.datatypes.ResourceRequirements:
     derived_from: tosca.datatypes.Root
@@ -506,10 +518,10 @@ data_types:
   org.alien4cloud.kubernetes.api.datatypes.Affinity:
     derived_from: tosca.datatypes.Root
     properties:
-      # nodeAffinity:
-      #   type: NodeAffinity
-      #   description: |
-      #     Describes node affinity scheduling rules for the pod.
+      nodeAffinity:
+        type: org.alien4cloud.kubernetes.api.datatypes.NodeAffinity
+        description: |
+          Describes node affinity scheduling rules for the pod (e.g put this pod in any node matching a provided expression of labels / values couple).
       # podAffinity:
       #   type: PodAffinity
       #   description: |
@@ -518,6 +530,66 @@ data_types:
         type: org.alien4cloud.kubernetes.api.datatypes.PodAntiAffinity
         description: |
           Describes pod anti-affinity scheduling rules (e.g. avoid putting this pod in the same node, zone, etc. as some other pod(s)).
+
+  org.alien4cloud.kubernetes.api.datatypes.NodeAffinity:
+    derived_from: tosca.datatypes.Root
+    description: |
+      see https://v1-7.docs.kubernetes.io/docs/api-reference/v1.7/#nodeaffinity-v1-core
+    properties:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        required: false
+        type: list
+        entry_schema:
+          type: org.alien4cloud.kubernetes.api.datatypes.PreferredSchedulingTerm
+
+  org.alien4cloud.kubernetes.api.datatypes.PreferredSchedulingTerm:
+    derived_from: tosca.datatypes.Root
+    description: |
+      see https://v1-7.docs.kubernetes.io/docs/api-reference/v1.7/#preferredschedulingterm-v1-core
+    properties:
+      preference:
+        required: false
+        description: |
+          A node selector term, associated with the corresponding weight
+        type: org.alien4cloud.kubernetes.api.datatypes.NodeSelectorTerm
+      weight:
+        type: integer
+        required: false
+        description: |
+          Weight associated with matching the corresponding nodeSelectorTerm, in the range 1-100.
+
+  org.alien4cloud.kubernetes.api.datatypes.NodeSelectorTerm: ## actually the same as org.alien4cloud.kubernetes.api.datatypes.LabelSelector ?
+    derived_from: tosca.datatypes.Root
+    description: |
+      see https://v1-7.docs.kubernetes.io/docs/api-reference/v1.7/#nodeselectorterm-v1-core
+    properties:
+      matchExpressions:
+        type: list
+        description: |
+          matchExpressions is a list of node selector requirements. The requirements are ANDed.
+        entry_schema:
+          type: org.alien4cloud.kubernetes.api.datatypes.NodeSelectorRequirement  ## actually the same as org.alien4cloud.kubernetes.api.datatypes.LabelSelectorRequirement ?
+
+  org.alien4cloud.kubernetes.api.datatypes.NodeSelectorRequirement:
+    derived_from: tosca.datatypes.Root
+    properties:
+      key:
+        type: string
+        required: false
+        description: |
+          key is the label key that the selector applies to.
+      operator:
+        type: string
+        required: false
+        description: |
+          operator represents a key's relationship to a set of values. Valid operators ard In, NotIn, Exists and DoesNotExist.
+      values:
+        type: list
+        required: false
+        description: |
+          values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
+        entry_schema:
+          type: string
 
   org.alien4cloud.kubernetes.api.datatypes.PodAntiAffinity:
     derived_from: tosca.datatypes.Root
@@ -599,72 +671,159 @@ data_types:
 
   org.alien4cloud.kubernetes.api.datatypes.autoscaler.HorizontalPodAutoscalerScaleTargetRef:
     derived_from: tosca.datatypes.Root
+    description: |
+      see https://v1-7.docs.kubernetes.io/docs/api-reference/v1.7/#crossversionobjectreference-v2alpha1-autoscaling
     properties:
       apiVersion:
         type: string
       kind:
         type: string
+        description: |
+          see https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds
       name:
         type: string
 
-  org.alien4cloud.kubernetes.api.datatypes.autoscaler.Metric:
+  org.alien4cloud.kubernetes.api.datatypes.autoscaler.ResourceMetricSource:
     derived_from: tosca.datatypes.Root
-    properties:
-      # TODO initially 'type'
-      metric_type:
-        type: string
-        required: false
-        constraints:
-          - valid_values: [Resource, Pods, Object]
-
-  org.alien4cloud.kubernetes.api.datatypes.autoscaler.MetricResourceResource:
-    derived_from: tosca.datatypes.Root
+    description: |
+      see https://v1-7.docs.kubernetes.io/docs/api-reference/v1.7/#resourcemetricsource-v2alpha1-autoscaling
     properties:
       name:
         type: string
         required: false
       targetAverageUtilization:
         type: integer
+        description: |
+          Target average of the resource metric in term on percentage.
+          Required if targetAverageValue is not set.
+        required: false
+      targetAverageValue:
+        type: integer
+        description: |
+          Target average of the resource metric in term on raw value.
+          Required if targetAverageUtilization is not set.
+        required: false
 
-  org.alien4cloud.kubernetes.api.datatypes.autoscaler.MetricResource:
-    derived_from: org.alien4cloud.kubernetes.api.datatypes.autoscaler.Metric
+  org.alien4cloud.kubernetes.api.datatypes.autoscaler.MetricSpec:
+    derived_from: tosca.datatypes.Root
+    description: >
+      see https://v1-7.docs.kubernetes.io/docs/api-reference/v1.7/#metricspec-v2alpha1-autoscaling
     properties:
-      # TODO: initially 'type'
-      metric_resource_type:
+      type:
         type: string
+        description: type is the type of metric source. It should match one of the fields below.
         default: Resource
         required: false
         constraints:
-          - equal: Resource
+          - valid_values: [ Resource ]
       resource:
-        type: org.alien4cloud.kubernetes.api.datatypes.autoscaler.MetricResourceResource
+        type: org.alien4cloud.kubernetes.api.datatypes.autoscaler.ResourceMetricSource
+        description: |
+          resource refers to a resource metric (such as those specified in requests and limits) known to Kubernetes
+          describing each pod in the current scale target (e.g. CPU or memory).
+        required: false
 
   org.alien4cloud.kubernetes.api.datatypes.autoscaler.HorizontalPodAutoscalerSpec:
     derived_from: tosca.datatypes.Root
+    description: >
+      see https://v1-7.docs.kubernetes.io/docs/api-reference/v1.7/#horizontalpodautoscalerspec-v2alpha1-autoscaling
     properties:
-      scaleTargetRef:
-        type: org.alien4cloud.kubernetes.api.datatypes.autoscaler.HorizontalPodAutoscalerScaleTargetRef
-        required: false
+      # scaleTargetRef:
+      #   type: org.alien4cloud.kubernetes.api.datatypes.autoscaler.HorizontalPodAutoscalerScaleTargetRef
+      #   required: false
       minReplicas:
         type: integer
         required: false
       maxReplicas:
         type: integer
         required: false
-      # since we don't manage polymorphism this is a suggestion to manage different kind of metrics
-      metrics_ressources:
+      metrics:
         type: list
         required: false
         entry_schema:
-          type: org.alien4cloud.kubernetes.api.datatypes.autoscaler.MetricResource
-      # 'metrics_ressources' & 'metrics_pod' should finally be merged in a 'metrics' list
-      # metrics_pod:
-      #   type: list
-      #   entry_schema:
-      #     type: org.alien4cloud.kubernetes.api.datatypes.autoscaler.MetricPod
+          type: org.alien4cloud.kubernetes.api.datatypes.autoscaler.MetricSpec
+        description: |
+          metrics contains the specifications for which to use to calculate
+          the desired replica count (the maximum replica count across all metrics will be used).
+          The desired replica count is calculated multiplying the ratio between the target value and the current value by the current number of pods.
+          Ergo, metrics used must decrease as the pod count is increased, and vice-versa.
+          See the individual metric source types for more information about how each type of metric must respond
 
-  org.alien4cloud.kubernetes.api.datatypes.DeploymentResourceDefinition:
+  org.alien4cloud.kubernetes.api.datatypes.volumes.EmptyDirVolumeSpec:
+    derived_from: tosca.datatypes.Root
+    properties:
+      medium:
+        type: string
+        description: |
+          What type of storage medium should back this directory. The default is "" which means to use the node's default medium. Must be an empty string (default) or Memory. More info: https://kubernetes.io/docs/concepts/storage/volumes#emptydir
+        required: false
+        constraints:
+          - valid_values: [Memory]
+      sizeLimit:
+        type: string
+        description: |
+          Total amount of local storage required for this EmptyDir volume.
+          The size limit is also applicable for memory medium.
+          The maximum usage on memory medium EmptyDir would be the minimum value between the SizeLimit specified here and the sum of memory limits of all containers in a pod.
+          The default is nil which means that the limit is undefined.
+          More info: http://kubernetes.io/docs/user-guide/volumes#emptydir
+        required: false
 
+  org.alien4cloud.kubernetes.api.datatypes.volumes.HostPathVolumeSpec:
+    derived_from: tosca.datatypes.Root
+    properties:
+      path:
+        type: string
+        description: |
+          Path of the directory on the host. If the path is a symlink, it will follow the link to the real path. More info: https://kubernetes.io/docs/concepts/storage/volumes#hostpath
+# FIXME: type can't be used as a property name
+#      type:
+#        type: string
+#        required: false
+#        description: |
+#          Type for HostPath Volume Defaults to "" More info: https://kubernetes.io/docs/concepts/storage/volumes#hostpath
+#        required: false
+#        constraints:
+#          - valid_values: [DirectoryOrCreate, Directory, FileOrCreate, File, Socket, CharDevice, BlockDevice]
+
+  org.alien4cloud.kubernetes.api.datatypes.volumes.AWSElasticBlockStoreVolumeSpec:
+    derived_from: tosca.datatypes.Root
+    properties:
+      fsType:
+        type: string
+        required: false
+        description: |
+          Filesystem type of the volume that you want to mount. Tip: Ensure that the filesystem type is supported by the host operating system. Examples: "ext4", "xfs", "ntfs". Implicitly inferred to be "ext4" if unspecified. More info: http://kubernetes.io/docs/user-guide/volumes#awselasticblockstore
+      partition:
+        type: integer
+        required: false
+        description: |
+          The partition in the volume that you want to mount. If omitted, the default is to mount by volume name. Examples: For volume /dev/sda1, you specify the partition as "1". Similarly, the volume partition for /dev/sda is "0" (or you can leave the property empty).
+      readOnly:
+        type: boolean
+        required: false
+        description: |
+          Specify "true" to force and set the ReadOnly property in VolumeMounts to "true". If omitted, the default is "false". More info: http://kubernetes.io/docs/user-guide/volumes#awselasticblockstore
+        default: false
+      volumeID:
+        type: string
+        description: |
+          Unique ID of the persistent disk resource in AWS (Amazon EBS volume). More info: http://kubernetes.io/docs/user-guide/volumes#awselasticblockstore
+
+  org.alien4cloud.kubernetes.api.datatypes.volumes.PersistentVolumeClaimSpec:
+    derived_from: tosca.datatypes.Root
+    properties:
+      claimName:
+        type: string
+        required: false
+        description: |
+          ClaimName is the name of a PersistentVolumeClaim in the same namespace as the pod using this volume. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims
+      readOnly:
+        type: boolean
+        required: false
+        description: |
+          Will force the ReadOnly setting in VolumeMounts. Default false.
+        default: false
 
 node_types:
 
@@ -693,7 +852,7 @@ node_types:
         entry_schema:
           type: string
 
-  org.alien4cloud.kubernetes.api.types.volume.VolumeBase:
+  org.alien4cloud.kubernetes.api.types.volume.AbstractVolumeBase:
     abstract: true
     derived_from: tosca.nodes.Root
     description: |
@@ -706,52 +865,110 @@ node_types:
       - host:
           capability: tosca.capabilities.Container
           relationship: tosca.relationships.HostedOn
-          occurrences: [0, 1]
+          occurrences: [1, 1]
     properties:
       name:
         type: string
+      size:
+        type: scalar-unit.size
+        description: |
+          The requested storage size (default unit is MB).
 
-  org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimVolumeSource:
-    derived_from: org.alien4cloud.kubernetes.api.types.volume.VolumeBase
+  org.alien4cloud.kubernetes.api.types.volume.VolumeBase:
+    abstract: true
+    derived_from: org.alien4cloud.kubernetes.api.types.volume.AbstractVolumeBase
     properties:
-      claimName:
+      volume_type:
         type: string
-        description: |
-          ClaimName is the name of a PersistentVolumeClaim in the same namespace as the pod using this volume. More info: http://kubernetes.io/docs/user-guide/persistent-volumes#persistentvolumeclaims
-      readOnly:
-        type: boolean
-        description: |
-          Will force the ReadOnly setting in VolumeMounts. Default false.
-        default: false
+        constraints:
+          - valid_values: [emptyDir, hostPath, awsElasticBlockStore, persistentVolumeClaim]
+      spec:
+        type: tosca.datatypes.Root
+        description: may be overriden by concrete implementations
+        required: false
+
+  org.alien4cloud.kubernetes.api.types.volume.EmptyDirVolumeSource:
+    derived_from: org.alien4cloud.kubernetes.api.types.volume.VolumeBase
+    description: |
+      An emptyDir volume is first created when a Pod is assigned to a Node, and exists as long as that Pod is running on that node.
+      As the name says, it is initially empty.
+      Containers in the pod can all read and write the same files in the emptyDir volume, though that volume can be mounted at the same or different paths in each container.
+      When a Pod is removed from a node for any reason, the data in the emptyDir is deleted forever.
+    properties:
+      volume_type:
+        type: string
+        default: emptyDir
+        constraints:
+          - equal: emptyDir
+      spec:
+        type: org.alien4cloud.kubernetes.api.datatypes.volumes.EmptyDirVolumeSpec
+        required: false
 
   org.alien4cloud.kubernetes.api.types.volume.HostPathVolumeSource:
     derived_from: org.alien4cloud.kubernetes.api.types.volume.VolumeBase
+    description: |
+      HostPath represents a pre-existing file or directory on the host machine that is directly exposed to the container.
+      This is generally used for system agents or other privileged things that are allowed to see the host machine.
+      Most containers will NOT need this.
+      More info: https://kubernetes.io/docs/concepts/storage/volumes#hostpath
     properties:
-      path:
+      volume_type:
         type: string
-        description: |
-          Path of the directory on the host. More info: http://kubernetes.io/docs/user-guide/volumes#hostpath
+        default: hostPath
+        constraints:
+          - equal: hostPath
+      spec:
+        type: org.alien4cloud.kubernetes.api.datatypes.volumes.HostPathVolumeSpec
+        required: false
 
   org.alien4cloud.kubernetes.api.types.volume.AWSElasticBlockStoreVolumeSource:
     derived_from: org.alien4cloud.kubernetes.api.types.volume.VolumeBase
+    description: |
+      AWSElasticBlockStore represents an AWS Disk resource that is attached to a kubelet's host machine and then exposed to the pod.
+      More info: https://kubernetes.io/docs/concepts/storage/volumes#awselasticblockstore
     properties:
-      fsType:
+      volume_type:
         type: string
-        description: |
-          Filesystem type of the volume that you want to mount. Tip: Ensure that the filesystem type is supported by the host operating system. Examples: "ext4", "xfs", "ntfs". Implicitly inferred to be "ext4" if unspecified. More info: http://kubernetes.io/docs/user-guide/volumes#awselasticblockstore
-      partition:
-        type: integer
-        description: |
-          The partition in the volume that you want to mount. If omitted, the default is to mount by volume name. Examples: For volume /dev/sda1, you specify the partition as "1". Similarly, the volume partition for /dev/sda is "0" (or you can leave the property empty).
-      readOnly:
-        type: boolean
-        description: |
-          Specify "true" to force and set the ReadOnly property in VolumeMounts to "true". If omitted, the default is "false". More info: http://kubernetes.io/docs/user-guide/volumes#awselasticblockstore
-        default: false
-      volumeID:
+        default: awsElasticBlockStore
+        constraints:
+          - equal: awsElasticBlockStore
+      spec:
+        type: org.alien4cloud.kubernetes.api.datatypes.volumes.AWSElasticBlockStoreVolumeSpec
+        required: false
+
+  org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimSource:
+    derived_from: org.alien4cloud.kubernetes.api.types.volume.VolumeBase
+    description: |
+      PersistentVolumeClaimVolumeSource represents a reference to a PersistentVolumeClaim in the same namespace.
+      More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims
+    properties:
+      volume_type:
         type: string
+        default: persistentVolumeClaim
+        constraints:
+          - equal: persistentVolumeClaim
+      spec:
+        type: org.alien4cloud.kubernetes.api.datatypes.volumes.PersistentVolumeClaimSpec
+        required: false
+      accessModes:
         description: |
-          Unique ID of the persistent disk resource in AWS (Amazon EBS volume). More info: http://kubernetes.io/docs/user-guide/volumes#awselasticblockstore
+          AccessModes contains the desired access modes the volume should have.
+          More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1
+        type: string
+        default: ReadWriteOnce
+        constraints:
+          - valid_values: [ReadWriteOnce, ReadOnlyMany, ReadWriteMany]
+
+  org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimStorageClassSource:
+    derived_from: org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimSource
+    description: |
+      An extension of PersistentVolumeClaimSource that allows to specify a storageClass.
+      If no volume that match this claim is found in the PersistentVolume pool, a volume will be allocated in the IAAS.
+      When using this kind of volume, your Kube admin should ensure to have a storageClass defined in the cluster.
+    properties:
+      storageClassName:
+        type: string
+        default: default
 
   org.alien4cloud.kubernetes.api.types.Service:
     derived_from: org.alien4cloud.kubernetes.api.types.AbstractService
@@ -759,7 +976,7 @@ node_types:
   org.alien4cloud.kubernetes.api.types.AbstractService:
     abstract: true
     derived_from: org.alien4cloud.kubernetes.api.types.Base
-    description: >
+    description: |
       Represent a kubernetes Service
     properties:
       apiVersion:
@@ -810,8 +1027,9 @@ node_types:
 
   org.alien4cloud.kubernetes.api.types.HorizontalPodAutoscaler:
     derived_from: org.alien4cloud.kubernetes.api.types.Base
-    description: >
+    description: |
       A kubernetes HorizontalPodAutoscaler object
+      see https://v1-7.docs.kubernetes.io/docs/api-reference/v1.7/#horizontalpodautoscaler-v2alpha1-autoscaling
     properties:
       apiVersion:
         type: string
@@ -822,7 +1040,7 @@ node_types:
         type: string
         default: HorizontalPodAutoscaler
         constraints:
-          - equal: HorizontalPodAutoscaler
+         - equal: HorizontalPodAutoscaler
       spec:
         type: org.alien4cloud.kubernetes.api.datatypes.autoscaler.HorizontalPodAutoscalerSpec
 
@@ -865,8 +1083,9 @@ node_types:
           A CSV key:value pairs where key should be replaced by the interpretation of value in the JSON.
           The value is the Kube name of the service for which the scheduler will need to find the ClusterIP and
           replace the key in the JSON with the found value.
-#    capabilities:
-#      scalable: tosca.capabilities.Scalable
+    capabilities:
+      # Manage scalability of instances
+      scalable: org.alien4cloud.capabilities.ClusterController
     attributes:
       deployment_id: { get_operation_output: [SELF, Standard, create, KUBE_DEPLOYMENT_ID] }
     interfaces:
@@ -875,7 +1094,7 @@ node_types:
           inputs:
             KUBE_SERVICE_DEPENDENCIES: { get_property: [SELF, service_dependency_lookups] }
             KUBE_RESOURCE_DEPLOYMENT_CONFIG: { get_property: [SELF, resource_spec] }
-          implementation: scripts/kubectl_deployment_wrapper.sh
+          implementation: scripts/kubectl_deployment_create.sh
           description: |
             - filter variable in the artifact file
             - Deploy the deployment onto kubernets
@@ -883,7 +1102,16 @@ node_types:
         delete:
           inputs:
             KUBE_DEPLOYMENT_ID: { get_attribute: [SELF, deployment_id] }
-          implementation: scripts/kubectl_deployment_wrapper_uninstall.sh
+          implementation: scripts/kubectl_deployment_delete.sh
+      org.alien4cloud.management.ClusterControl:
+        scale:
+          inputs:
+            KUBE_DEPLOYMENT_ID: { get_attribute: [SELF, deployment_id] }
+            EXPECTED_INSTANCES:
+              type: integer
+            INSTANCES_DELTA:
+              type: integer
+          implementation: scripts/kubectl_deployment_scale.sh
 
   org.alien4cloud.kubernetes.api.types.ServiceResource:
     derived_from: org.alien4cloud.kubernetes.api.types.BaseResource
@@ -908,6 +1136,49 @@ node_types:
           inputs:
             KUBE_SERVICE_NAME: { get_property: [SELF, service_name] }
           implementation: scripts/kubectl_service_wrapper_uninstall.sh
+
+  org.alien4cloud.kubernetes.api.types.SimpleResource:
+    derived_from: org.alien4cloud.kubernetes.api.types.BaseResource
+    description: |
+      A generic resource used to deploy any kind of resource on the kube cluster.
+    properties:
+      resource_type:
+        type: string
+        description: |
+          The resource type known by K8S examples: pod,service,pv,pvc
+        constraints:
+          # for the moment managed types are: PersistenceVolumeClaim (pvc), HorizontalPodAutoscaler (hpa)
+          - valid_values: [pvc, hpa]
+      resource_id:
+        type: string
+        required: true
+        description: |
+          a unique id set by a4c to identify a resource. it should be added as a label named 'a4c_id'
+      json_path_expr:
+        type: string
+        required: false
+        description: |
+          the JSON path expression that will get the expected output to check resource avalaibility
+      json_path_value:
+        type: string
+        required: false
+        description: |
+          the value excpected to obtain using the JSON path expression to check resource avalaibility
+    interfaces:
+      Standard:
+        create:
+          input:
+            KUBE_RESOURCE_TYPE: { get_attribute: [SELF, resource_type] }
+            KUBE_RESOURCE_ID: { get_attribute: [SELF, resource_id] }
+            KUBE_RESOURCE_CONFIG: { get_property: [SELF, resource_spec] }
+            KUBE_JSON_PATH_EXPR: { get_property: [SELF, json_path_expr] }
+            KUBE_JSON_PATH_VALUE: { get_property: [SELF, json_path_value] }
+          implementation: scripts/kubectl_resource_wrapper.sh
+        delete:
+          inputs:
+            KUBE_RESOURCE_TYPE: { get_attribute: [SELF, resource_type] }
+            KUBE_RESOURCE_ID: { get_attribute: [SELF, resource_id] }
+          implementation: scripts/kubectl_resource_wrapper_uninstall.sh
 
 policy_types:
   org.alien4cloud.kubernetes.api.policies.AntiAffinityLabel:
@@ -965,3 +1236,21 @@ policy_types:
       spec:
         type: org.alien4cloud.kubernetes.api.datatypes.autoscaler.HorizontalPodAutoscalerSpec
 
+
+  org.alien4cloud.kubernetes.api.policies.NodeAffinityLabel:
+    derived_from: org.alien4cloud.policies.LabelPlacement
+    description: >
+      c.f. https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#node-affinity-beta-feature
+    metadata:
+      # pluginId:pluginBean:phase
+      a4c_policy_impl: alien4cloud-kubernetes-plugin:kubernetes-node-affinity-modifier:post-node-match
+    properties:
+      matchExpressions:
+        required: false
+        type: list
+        description: |
+          matchExpressions is a list of node selector requirements. The requirements are ANDed.
+          Note that the "labels" property value will be used mostly for matching the topology policy against this one.
+          The value filled in this property will be the actual one in the final kubernetes blueprint.
+        entry_schema:
+          type: org.alien4cloud.kubernetes.api.datatypes.NodeSelectorRequirement

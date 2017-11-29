@@ -6,7 +6,7 @@ metadata:
   template_author: alien4cloud
 
 description: |
-  A single deployment with an apache container with default_instance=2 on the deployment unit
+  1 apache container inside a deployment unit, and 1 volume
 
 imports:
   - docker-types:2.0.0-SNAPSHOT
@@ -15,15 +15,31 @@ imports:
 
 topology_template:
   node_templates:
+    ContainerDeploymentUnit:
+      type: org.alien4cloud.extended.container.types.ContainerDeploymentUnit
+      capabilities:
+        scalable:
+          properties:
+            min_instances: 1
+            max_instances: 1
+            default_instances: 1
+    ContainerRuntime:
+      type: org.alien4cloud.extended.container.types.ContainerRuntime
+      requirements:
+        - hostedOnContainerDeploymentUnitHost:
+            type_requirement: host
+            node: ContainerDeploymentUnit
+            capability: tosca.capabilities.Container.Docker
+            relationship: tosca.relationships.HostedOn
     Apache:
       type: org.alien4cloud.nodes.Application.Docker.Apache
       properties:
-        cpu_share: 0.2
+        cpu_share: 1.0
         mem_share: "128 MB"
       requirements:
         - hostedOnContainerRuntimeContainerRuntimeHost:
             type_requirement: host
-            node: ApacheContainer
+            node: ContainerRuntime
             capability: org.alien4cloud.extended.container.capabilities.ApplicationHost
             relationship: org.alien4cloud.extended.container.relationships.HostedOnContainerRuntime
       capabilities:
@@ -40,20 +56,20 @@ topology_template:
             min_instances: 1
             max_instances: 1
             default_instances: 1
-    ApacheContainer:
-      type: org.alien4cloud.extended.container.types.ContainerRuntime
+    Volume:
+      type: org.alien4cloud.nodes.DockerExtVolume
+      properties:
+        size: "200 MB"
       requirements:
         - hostedOnContainerDeploymentUnitHost:
             type_requirement: host
-            node: ApacheDeployment
+            node: ContainerDeploymentUnit
             capability: tosca.capabilities.Container.Docker
             relationship: tosca.relationships.HostedOn
-    ApacheDeployment:
-      type: org.alien4cloud.extended.container.types.ContainerDeploymentUnit
-      capabilities:
-        scalable:
-          properties:
-            min_instances: 1
-            max_instances: 2
-            # with default_instances: 2 the deployment will have 2 replicas
-            default_instances: 2
+        - mountDockerVolumeApacheAttach:
+            type_requirement: attachment
+            node: Apache
+            capability: org.alien4cloud.capabilities.DockerVolumeAttachment
+            relationship: org.alien4cloud.relationships.MountDockerVolume
+            properties:
+              container_path: "/var/www/html"
