@@ -359,6 +359,7 @@
         </executions>
         <configuration>
           <file>src/main/resources/csar/tosca.yml</file>
+          <outputFile>${project.build.directory}/classes/csar/tosca.yml</outputFile>
           <replacements>
             <replacement>
               <token>template_version: .+</token>
