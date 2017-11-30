@@ -50,6 +50,7 @@ import org.alien4cloud.tosca.utils.FunctionEvaluatorContext;
 import org.alien4cloud.tosca.utils.NodeTemplateUtils;
 import org.alien4cloud.tosca.utils.TopologyNavigationUtil;
 import org.alien4cloud.tosca.utils.ToscaTypeUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
@@ -235,19 +236,32 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
 
     private void manageAutoScaling(Csar csar, Topology topology, PolicyTemplate policyTemplate, Map<String, NodeTemplate> nodeReplacementMap,
             Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures, FlowExecutionContext context) {
+
+        if (CollectionUtils.isEmpty(policyTemplate.getTargets())) {
+            context.log().warn("Auto-scaling policy <{}> is not correctly configured, at least 1 targets is required. It will be ignored.",
+                    policyTemplate.getName());
+            return;
+        }
+
+        if (safe(policyTemplate.getProperties()).get("spec") == null) {
+            context.log().warn("Auto-scaling policy <{}> is not correctly configured, property \"spec\" is required. It will be ignored.",
+                    policyTemplate.getName());
+
+            return;
+        }
+
         Set<NodeTemplate> validTargets = getValidTargets(policyTemplate, topology,
                 invalidName -> context.log().warn("Auto-scaling policy <{}>: will ignore target <{}> as it IS NOT an instance of <{}>.",
                         policyTemplate.getName(), invalidName, K8S_TYPES_DEPLOYMENT));
 
         // for each target, add a SimpleResource for HorizontaPodAutoScaler, targeting the related DeploymentResource
         validTargets.forEach(nodeTemplate -> addHorizontalPodAutoScalingResource(csar, topology, policyTemplate, nodeTemplate, nodeReplacementMap,
-                resourceNodeYamlStructures, context));
+                resourceNodeYamlStructures));
 
     }
 
     private void addHorizontalPodAutoScalingResource(Csar csar, Topology topology, PolicyTemplate policyTemplate, NodeTemplate target,
-            Map<String, NodeTemplate> nodeReplacementMap, Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures,
-            FlowExecutionContext context) {
+            Map<String, NodeTemplate> nodeReplacementMap, Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures) {
         String resourceBaseName = target.getName() + "_" + policyTemplate.getName();
         NodeTemplate podAutoScalerResourceNode = addNodeTemplate(csar, topology, resourceBaseName + "_Resource", K8S_TYPES_SIMPLE_RESOURCE, K8S_CSAR_VERSION);
 
