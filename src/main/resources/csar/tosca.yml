@@ -2,7 +2,7 @@ tosca_definitions_version: alien_dsl_2_0_0
 
 metadata:
   template_name: org.alien4cloud.kubernetes.api
-  template_version: 2.0.0-SM4
+  template_version: 2.0.0-SM5
   # this version will be changed at build time (see maven-replacer-plugin in pom.xml)
   template_author: alien4cloud
 
@@ -10,9 +10,9 @@ description: |
   Kubernetes types that fit to K8S api, used by K8S topology modifiers and describe K8S matchable resources.
 
 imports:
-  - tosca-normative-types:1.0.0-ALIEN20SM4
-  - docker-types:2.0.0-SM4
-  - alien-base-types:2.0.0-SM4
+  - tosca-normative-types:1.0.0-ALIEN20SM5
+  - docker-types:2.0.0-SM5
+  - alien-base-types:2.0.0-SM5
 
 data_types:
 
@@ -1148,6 +1148,7 @@ node_types:
           The resource type known by K8S examples: pod,service,pv,pvc
         constraints:
           # for the moment managed types are: PersistenceVolumeClaim (pvc), HorizontalPodAutoscaler (hpa)
+          # Cf. https://kubernetes.io/docs/reference/kubectl/overview/ section 'Resource types'
           - valid_values: [pvc, hpa]
       resource_id:
         type: string
