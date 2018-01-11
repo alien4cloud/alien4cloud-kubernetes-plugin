@@ -2,7 +2,7 @@ tosca_definitions_version: alien_dsl_2_0_0
 
 metadata:
   template_name: org.alien4cloud.kubernetes.api
-  template_version: 2.0.0-SM5
+  template_version: 2.0.0-SNAPSHOT
   # this version will be changed at build time (see maven-replacer-plugin in pom.xml)
   template_author: alien4cloud
 
@@ -10,9 +10,9 @@ description: |
   Kubernetes types that fit to K8S api, used by K8S topology modifiers and describe K8S matchable resources.
 
 imports:
-  - tosca-normative-types:1.0.0-ALIEN20SM5
-  - docker-types:2.0.0-SM5
-  - alien-base-types:2.0.0-SM5
+  - tosca-normative-types:1.0.0-SNAPSHOT
+  - docker-types:2.0.0-SNAPSHOT
+  - alien-base-types:2.0.0-SNAPSHOT
 
 data_types:
 
@@ -64,13 +64,50 @@ data_types:
         type: string
         description: |
           The IP protocol for this port. Supports "TCP" and "UDP". Default is TCP.
-        required: false
+        default: TCP
+        constraints:
+          valid_values: [ 'TCP', 'UDP' ]
       targetPort:
         type: string
         description: |
           Perhaps more interesting is that targetPort can be a string, referring to the name of a port in the backend Pods.
         required: false
 
+  org.alien4cloud.kubernetes.api.datatypes.EndpointSubsets:
+    derived_from: tosca.datatypes.Root
+    properties:
+      addresses:
+        type: list
+        entry_schema:
+          type: org.alien4cloud.kubernetes.api.datatypes.IP
+      ports:
+        type: list
+        entry_schema:
+          type: org.alien4cloud.kubernetes.api.datatypes.Port
+
+  org.alien4cloud.kubernetes.api.datatypes.IP:
+    derived_from: tosca.datatypes.Root
+    properties:
+      ip:
+        type: string
+
+  org.alien4cloud.kubernetes.api.datatypes.Port:
+    derived_from: tosca.datatypes.Root
+    properties:
+#      name:
+#        type: string
+      port:
+        type: integer
+        constraints:
+          - greater_or_equal: 1
+          - less_or_equal: 65535
+      protocol:
+        type: string
+        default: TCP
+        description: |
+          Protocol for port. Must be UDP or TCP. Defaults to "TCP".
+        constraints:
+          - valid_values: [TCP, UDP]
 
   org.alien4cloud.kubernetes.api.datatypes.ServiceSpec:
     derived_from: tosca.datatypes.Root
@@ -1113,6 +1150,43 @@ node_types:
               type: integer
           implementation: scripts/kubectl_deployment_scale.sh
 
+  org.alien4cloud.kubernetes.api.types.EndpointResource:
+    derived_from: org.alien4cloud.kubernetes.api.types.BaseResource
+    properties:
+      resource_id:
+        type: string
+        required: true
+        description: |
+          a unique id set by a4c to identify a resource. it should be added as a label named 'a4c_id'
+      subsets:
+        type: list
+        required: true
+        entry_schema:
+          type: org.alien4cloud.kubernetes.api.datatypes.EndpointSubsets
+    attributes:
+      spec_path: { get_operation_output: [SELF, Standard, create, KUBE_SPEC_PATH] }
+    requirements:
+      - endpoint:
+          capability: tosca.capabilities.Endpoint
+          relationship: org.alien4cloud.kubernetes.api.relationships.K8SEndpointConnectToEndpoint
+          occurrences: [1, 1]
+    interfaces:
+      Standard:
+        create:
+          inputs:
+            KUBE_RESOURCE_CONFIG: { get_property: [SELF, resource_spec] }
+          implementation: scripts/kubectl_endpoint_create.sh
+        start:
+          inputs:
+            KUBE_RESOURCE_ID: { get_property: [SELF, resource_id] }
+            KUBE_SPEC_PATH: { get_attribute: [SELF, spec_path] }
+          implementation: scripts/kubectl_endpoint_start.sh
+        delete:
+          inputs:
+            KUBE_RESOURCE_TYPE: endpoints
+            KUBE_RESOURCE_ID: { get_attribute: [SELF, resource_id] }
+          implementation: scripts/kubectl_resource_wrapper_uninstall.sh
+
   org.alien4cloud.kubernetes.api.types.ServiceResource:
     derived_from: org.alien4cloud.kubernetes.api.types.BaseResource
     properties:
@@ -1180,6 +1254,19 @@ node_types:
             KUBE_RESOURCE_TYPE: { get_attribute: [SELF, resource_type] }
             KUBE_RESOURCE_ID: { get_attribute: [SELF, resource_id] }
           implementation: scripts/kubectl_resource_wrapper_uninstall.sh
+
+relationship_types:
+  org.alien4cloud.kubernetes.api.relationships.K8SEndpointConnectToEndpoint:
+    derived_from: tosca.relationships.ConnectsTo
+    description: This type represents relationship between a K8S endpoint and an external endpoint.
+    valid_target_types: [ tosca.capabilities.Endpoint ]
+    interfaces:
+      configure:
+        pre_configure_source:
+          implementation: scripts/kubectl_endpoint_join.sh
+          inputs:
+            KUBE_SPEC_PATH: { get_attribute: [SOURCE, spec_path] }
+            TARGET_IP_ADDRESS: { get_attribute: [TARGET, ip_address] }
 
 policy_types:
   org.alien4cloud.kubernetes.api.policies.AntiAffinityLabel:

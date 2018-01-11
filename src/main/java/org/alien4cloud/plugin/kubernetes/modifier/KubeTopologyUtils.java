@@ -49,6 +49,9 @@ public class KubeTopologyUtils {
     public static final String K8S_TYPES_RESOURCE = "org.alien4cloud.kubernetes.api.types.BaseResource";
     public static final String K8S_TYPES_SERVICE_RESOURCE = "org.alien4cloud.kubernetes.api.types.ServiceResource";
     public static final String K8S_TYPES_SIMPLE_RESOURCE = "org.alien4cloud.kubernetes.api.types.SimpleResource";
+    public static final String K8S_TYPES_ENDPOINT_RESOURCE = "org.alien4cloud.kubernetes.api.types.EndpointResource";
+    // K8S relationships
+    public static final String K8S_TYPES_RSENDPOINT = "org.alien4cloud.kubernetes.api.relationships.K8SEndpointConnectToEndpoint";
 
     /**
      * Get the image name from the type implementation artifact file.
@@ -122,12 +125,12 @@ public class KubeTopologyUtils {
                             // is this node a container ?
                             NodeType targetNodeType = ToscaContext.get(NodeType.class, targetNode.getType());
 
-                            if (isOfType(targetNodeType, A4C_TYPES_APPLICATION_DOCKER_CONTAINER)) {
+//                            if (isOfType(targetNodeType, A4C_TYPES_APPLICATION_DOCKER_CONTAINER)) {
                                 // ok the
                                 if (evaluatedFunction.getElementNameToFetch().equals(attributeName)) {
                                     return true;
                                 }
-                            }
+//                            }
                         }
                     }
                 }
@@ -162,14 +165,14 @@ public class KubeTopologyUtils {
                             // is this node a container ?
                             NodeTemplate targetNode = topology.getNodeTemplates().get(targetRelationship.getTarget());
                             NodeType targetNodeType = ToscaContext.get(NodeType.class, targetNode.getType());
-                            if (isOfType(targetNodeType, A4C_TYPES_APPLICATION_DOCKER_CONTAINER)) {
+//                            if (isOfType(targetNodeType, A4C_TYPES_APPLICATION_DOCKER_CONTAINER)) {
 
                                 Capability endpoint = targetNode.getCapabilities().get(targetRelationship.getTargetedCapabilityName());
                                 AbstractPropertyValue targetPropertyValue = PropertyUtil.getPropertyValueFromPath(endpoint.getProperties(), evaluatedFunction.getElementNameToFetch());
                                 if (targetPropertyValue != null) {
                                     return targetPropertyValue;
                                 }
-                            }
+//                            }
                         }
                     }
                 }
@@ -199,6 +202,12 @@ public class KubeTopologyUtils {
                                 if (deploymentNode != null) {
                                     return getServiceRelatedToDeployment(topology, deploymentNode, requirement);
                                 }
+                            } else {
+                                // the target is not a container, so we should find a service that proxy the endpoint
+                                Set<NodeTemplate> endpoints = TopologyNavigationUtil.getSourceNodesByRelationshipType(topology, targetNode, K8S_TYPES_RSENDPOINT);
+                                NodeTemplate endpointNode = endpoints.iterator().next();
+                                Set<NodeTemplate> services = TopologyNavigationUtil.getSourceNodes(topology, endpointNode, "feature");
+                                return services.stream().filter(nodeTemplate -> nodeTemplate.getType().equals(K8S_TYPES_SERVICE)).findFirst().get();
                             }
                         }
                     }
