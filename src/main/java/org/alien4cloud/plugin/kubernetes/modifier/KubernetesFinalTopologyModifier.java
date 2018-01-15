@@ -2,17 +2,7 @@ package org.alien4cloud.plugin.kubernetes.modifier;
 
 import static alien4cloud.utils.AlienUtils.safe;
 import static org.alien4cloud.plugin.kubernetes.csar.Version.K8S_CSAR_VERSION;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_APPLICATION_DOCKER_CONTAINER;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_CONTAINER;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_DEPLOYMENT;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_DEPLOYMENT_RESOURCE;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_RESOURCE;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SERVICE;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SERVICE_RESOURCE;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SIMPLE_RESOURCE;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_VOLUME_BASE;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.generateUniqueKubeName;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.getValue;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.*;
 import static org.alien4cloud.plugin.kubernetes.policies.KubePoliciesConstants.K8S_POLICIES_AUTO_SCALING;
 
 import java.util.List;
@@ -78,11 +68,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
 
     public static final String A4C_KUBERNETES_MODIFIER_TAG = "a4c_kubernetes-final-modifier";
 
-    private static Map<String, Parser> k8sParsers = Maps.newHashMap();
 
-    static {
-        k8sParsers.put(ToscaTypes.SIZE, new SizeParser(ToscaTypes.SIZE));
-    }
 
     @Override
     @ToscaContextual
@@ -505,6 +491,14 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         // rename entry service_type to type
         renameProperty(transformedValue, "service_type", "type");
         feedPropertyValue(serviceResourceNodeProperties, "resource_def.spec", transformedValue, false);
+
+        // copy all dependency relationships between services and endpoints (hybrid connection)
+        Set<NodeTemplate> dependencyTargets = TopologyNavigationUtil.getTargetNodes(topology, serviceNode, "dependency");
+        for (NodeTemplate dependencyTarget : dependencyTargets) {
+            if (dependencyTarget.getType().equals(K8S_TYPES_ENDPOINT_RESOURCE)) {
+                addRelationshipTemplate(csar, topology, serviceResourceNode, dependencyTarget.getName(), NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
+            }
+        }
     }
 
     private void renameProperty(Object propertyValue, String propertyPath, String newName) {
@@ -522,89 +516,6 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         feedPropertyValue(propertyValues, targetPath, propertyValue, false);
     }
 
-    /**
-     * Transform the object by replacing eventual PropertyValue found by it's value.
-     */
-    private Object getTransformedValue(Object value, PropertyDefinition propertyDefinition, String path) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof PropertyValue) {
-            return getTransformedValue(((PropertyValue) value).getValue(), propertyDefinition, path);
-        } else if (value instanceof Map<?, ?>) {
-            Map<String, Object> newMap = Maps.newHashMap();
-            if (!ToscaTypes.isPrimitive(propertyDefinition.getType())) {
-                DataType dataType = ToscaContext.get(DataType.class, propertyDefinition.getType());
-                for (Map.Entry<String, Object> entry : ((Map<String, Object>) value).entrySet()) {
-                    PropertyDefinition pd = dataType.getProperties().get(entry.getKey());
-                    String innerPath = (path.equals("")) ? entry.getKey() : path + "." + entry.getKey();
-                    Object entryValue = getTransformedValue(entry.getValue(), pd, innerPath);
-                    newMap.put(entry.getKey(), entryValue);
-                }
-            } else if (ToscaTypes.MAP.equals(propertyDefinition.getType())) {
-                PropertyDefinition pd = propertyDefinition.getEntrySchema();
-                for (Map.Entry<String, Object> entry : ((Map<String, Object>) value).entrySet()) {
-                    String innerPath = (path.equals("")) ? entry.getKey() : path + "." + entry.getKey();
-                    Object entryValue = getTransformedValue(entry.getValue(), pd, innerPath);
-                    newMap.put(entry.getKey(), entryValue);
-                }
-            }
-            return newMap;
-        } else if (value instanceof List<?>) {
-            PropertyDefinition pd = propertyDefinition.getEntrySchema();
-            List<Object> newList = Lists.newArrayList();
-            for (Object entry : (List<Object>) value) {
-                Object entryValue = getTransformedValue(entry, pd, path);
-                newList.add(entryValue);
-            }
-            return newList;
-        } else {
-            if (ToscaTypes.isSimple(propertyDefinition.getType())) {
-                String valueAsString = value.toString();
-                if (k8sParsers.containsKey(propertyDefinition.getType())) {
-                    return k8sParsers.get(propertyDefinition.getType()).parseValue(valueAsString);
-                } else {
-                    switch (propertyDefinition.getType()) {
-                    case ToscaTypes.INTEGER:
-                        return Integer.parseInt(valueAsString);
-                    case ToscaTypes.FLOAT:
-                        return Float.parseFloat(valueAsString);
-                    case ToscaTypes.BOOLEAN:
-                        return Boolean.parseBoolean(valueAsString);
-                    default:
-                        return valueAsString;
-                    }
-                }
-            } else {
-                return value;
-            }
-        }
-    }
 
-    private static abstract class Parser {
-        private String type;
 
-        public Parser(String type) {
-            this.type = type;
-        }
-
-        public abstract Object parseValue(String value);
-    }
-
-    private static class SizeParser extends Parser {
-        public SizeParser(String type) {
-            super(type);
-        }
-
-        @Override
-        public Object parseValue(String value) {
-            SizeType sizeType = new SizeType();
-            try {
-                Size size = sizeType.parse(value);
-                Double d = size.convert(SizeUnit.B.toString());
-                return d.longValue();
-            } catch (InvalidPropertyValueException e) {
-                return value;
-            }
-        }
-    }
 }
