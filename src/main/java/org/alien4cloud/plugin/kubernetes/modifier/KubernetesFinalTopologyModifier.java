@@ -67,8 +67,6 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
 
     public static final String A4C_KUBERNETES_MODIFIER_TAG = "a4c_kubernetes-final-modifier";
 
-
-
     @Override
     @ToscaContextual
     public void process(Topology topology, FlowExecutionContext context) {
@@ -381,12 +379,18 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
 
             // add an entry in the deployment resource
             AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(safe(containerNode.getProperties()), "container");
+            // if a repository is defined concat the repo to the image
+            AbstractPropertyValue repositoryPropertyValue = PropertyUtil.getPropertyValueFromPath(safe(containerNode.getProperties()), "repository");
+            if (repositoryPropertyValue instanceof ScalarPropertyValue && propertyValue instanceof ComplexPropertyValue) {
+                ScalarPropertyValue imagePropValue = (ScalarPropertyValue) ((ComplexPropertyValue) propertyValue).getValue().get("image");
+                String image = ((ScalarPropertyValue) repositoryPropertyValue).getValue() + "/" + imagePropValue.getValue();
+                imagePropValue.setValue(image);
+            }
             // transform data
             NodeType nodeType = ToscaContext.get(NodeType.class, containerNode.getType());
             PropertyDefinition propertyDefinition = nodeType.getProperties().get("container");
             Object transformedValue = getTransformedValue(propertyValue, propertyDefinition, "");
             feedPropertyValue(deploymentResourceNodeProperties, "resource_def.spec.template.spec.containers", transformedValue, true);
-
         }
     }
 
@@ -482,7 +486,8 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         Set<NodeTemplate> dependencyTargets = TopologyNavigationUtil.getTargetNodes(topology, serviceNode, "dependency");
         for (NodeTemplate dependencyTarget : dependencyTargets) {
             if (dependencyTarget.getType().equals(K8S_TYPES_ENDPOINT_RESOURCE)) {
-                addRelationshipTemplate(csar, topology, serviceResourceNode, dependencyTarget.getName(), NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
+                addRelationshipTemplate(csar, topology, serviceResourceNode, dependencyTarget.getName(), NormativeRelationshipConstants.DEPENDS_ON,
+                        "dependency", "feature");
             }
         }
     }
@@ -501,7 +506,5 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(safe(sourceTemplate.getProperties()), sourcePath);
         feedPropertyValue(propertyValues, targetPath, propertyValue, false);
     }
-
-
 
 }
