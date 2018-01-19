@@ -12,7 +12,7 @@ import java.util.UUID;
 import org.alien4cloud.tosca.model.definitions.AbstractPropertyValue;
 import org.alien4cloud.tosca.model.definitions.FunctionPropertyValue;
 import org.alien4cloud.tosca.model.definitions.IValue;
-import org.alien4cloud.tosca.model.definitions.ImplementationArtifact;
+import org.alien4cloud.tosca.model.definitions.Operation;
 import org.alien4cloud.tosca.model.definitions.PropertyValue;
 import org.alien4cloud.tosca.model.templates.Capability;
 import org.alien4cloud.tosca.model.templates.NodeTemplate;
@@ -24,8 +24,6 @@ import org.alien4cloud.tosca.utils.InterfaceUtils;
 import org.alien4cloud.tosca.utils.TopologyNavigationUtil;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Maps;
-
-import com.google.common.base.Strings;
 
 import alien4cloud.model.common.Tag;
 import alien4cloud.paas.plan.ToscaNodeLifecycleConstants;
@@ -66,22 +64,26 @@ public class KubeTopologyUtils {
 
     /**
      * Get the image name from the type implementation artifact file.
-     * TODO: make error prone
      */
     public static String getContainerImageName(NodeTemplate nodeTemplate) {
-        // try to fetch from the template
-        ImplementationArtifact createArtifact = InterfaceUtils.getArtifact(nodeTemplate.getInterfaces(), ToscaNodeLifecycleConstants.STANDARD,
+        Operation imageOperation = getContainerImageOperation(nodeTemplate);
+        if (imageOperation == null) {
+            return null;
+        }
+        return imageOperation.getImplementationArtifact().getArtifactRef();
+    }
+
+    public static Operation getContainerImageOperation(NodeTemplate nodeTemplate) {
+        Operation imageOperation = InterfaceUtils.getOperationIfArtifactDefined(nodeTemplate.getInterfaces(), ToscaNodeLifecycleConstants.STANDARD,
                 ToscaNodeLifecycleConstants.CREATE);
-        if (createArtifact != null && !Strings.isNullOrEmpty(createArtifact.getArtifactRef())) {
-            return createArtifact.getArtifactRef();
+        if (imageOperation != null) {
+            return imageOperation;
         }
         // if not overriden in the template, fetch from the type.
         NodeType nodeType = ToscaContext.get(NodeType.class, nodeTemplate.getType());
-        createArtifact = InterfaceUtils.getArtifact(nodeType.getInterfaces(), ToscaNodeLifecycleConstants.STANDARD, ToscaNodeLifecycleConstants.CREATE);
-        if (createArtifact == null) {
-            return null;
-        }
-        return createArtifact.getArtifactRef();
+        imageOperation = InterfaceUtils.getOperationIfArtifactDefined(nodeType.getInterfaces(), ToscaNodeLifecycleConstants.STANDARD,
+                ToscaNodeLifecycleConstants.CREATE);
+        return imageOperation;
     }
 
     /**

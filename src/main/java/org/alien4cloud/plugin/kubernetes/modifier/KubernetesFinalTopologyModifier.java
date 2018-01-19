@@ -2,7 +2,18 @@ package org.alien4cloud.plugin.kubernetes.modifier;
 
 import static alien4cloud.utils.AlienUtils.safe;
 import static org.alien4cloud.plugin.kubernetes.csar.Version.K8S_CSAR_VERSION;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.*;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_APPLICATION_DOCKER_CONTAINER;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_CONTAINER;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_DEPLOYMENT;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_DEPLOYMENT_RESOURCE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ENDPOINT_RESOURCE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_RESOURCE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SERVICE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SERVICE_RESOURCE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SIMPLE_RESOURCE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_VOLUME_BASE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.generateUniqueKubeName;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.getValue;
 import static org.alien4cloud.plugin.kubernetes.policies.KubePoliciesConstants.K8S_POLICIES_AUTO_SCALING;
 
 import java.util.List;
@@ -12,11 +23,9 @@ import java.util.Set;
 
 import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
 import org.alien4cloud.plugin.kubernetes.AbstractKubernetesModifier;
-import org.alien4cloud.tosca.exceptions.InvalidPropertyValueException;
 import org.alien4cloud.tosca.model.Csar;
 import org.alien4cloud.tosca.model.definitions.AbstractPropertyValue;
 import org.alien4cloud.tosca.model.definitions.ComplexPropertyValue;
-import org.alien4cloud.tosca.model.definitions.Interface;
 import org.alien4cloud.tosca.model.definitions.Operation;
 import org.alien4cloud.tosca.model.definitions.PropertyDefinition;
 import org.alien4cloud.tosca.model.definitions.PropertyValue;
@@ -26,15 +35,10 @@ import org.alien4cloud.tosca.model.templates.NodeTemplate;
 import org.alien4cloud.tosca.model.templates.PolicyTemplate;
 import org.alien4cloud.tosca.model.templates.RelationshipTemplate;
 import org.alien4cloud.tosca.model.templates.Topology;
-import org.alien4cloud.tosca.model.types.DataType;
 import org.alien4cloud.tosca.model.types.NodeType;
 import org.alien4cloud.tosca.model.types.PolicyType;
 import org.alien4cloud.tosca.normative.constants.AlienCapabilityTypes;
 import org.alien4cloud.tosca.normative.constants.NormativeRelationshipConstants;
-import org.alien4cloud.tosca.normative.primitives.Size;
-import org.alien4cloud.tosca.normative.primitives.SizeUnit;
-import org.alien4cloud.tosca.normative.types.SizeType;
-import org.alien4cloud.tosca.normative.types.ToscaTypes;
 import org.alien4cloud.tosca.utils.FunctionEvaluator;
 import org.alien4cloud.tosca.utils.FunctionEvaluatorContext;
 import org.alien4cloud.tosca.utils.NodeTemplateUtils;
@@ -46,7 +50,6 @@ import org.springframework.stereotype.Component;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
-import alien4cloud.paas.plan.ToscaNodeLifecycleConstants;
 import alien4cloud.paas.wf.validation.WorkflowValidator;
 import alien4cloud.tosca.context.ToscaContext;
 import alien4cloud.tosca.context.ToscaContextual;
@@ -301,64 +304,60 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
             Set<NodeTemplate> hostedContainers = TopologyNavigationUtil.getSourceNodes(topology, containerNode, "host");
             for (NodeTemplate nodeTemplate : hostedContainers) {
                 // we should have a single hosted docker container
-                NodeType nodeType = ToscaContext.get(NodeType.class, nodeTemplate.getType());
-                if (nodeType.getInterfaces() != null && nodeType.getInterfaces().containsKey(ToscaNodeLifecycleConstants.STANDARD)) {
-                    Interface standardInterface = nodeType.getInterfaces().get(ToscaNodeLifecycleConstants.STANDARD);
-                    if (standardInterface.getOperations() != null && standardInterface.getOperations().containsKey(ToscaNodeLifecycleConstants.CREATE)) {
-                        Operation createOp = standardInterface.getOperations().get(ToscaNodeLifecycleConstants.CREATE);
-                        safe(createOp.getInputParameters()).forEach((k, iValue) -> {
-                            if (iValue instanceof AbstractPropertyValue && k.startsWith("ENV_")) {
-                                String envKey = k.substring(4);
+                Operation createOp = KubeTopologyUtils.getContainerImageOperation(nodeTemplate);
+                if (createOp != null) {
+                    safe(createOp.getInputParameters()).forEach((k, iValue) -> {
+                        if (iValue instanceof AbstractPropertyValue && k.startsWith("ENV_")) {
+                            String envKey = k.substring(4);
 
-                                if (KubeTopologyUtils.isServiceIpAddress(topology, nodeTemplate, iValue)) {
-                                    NodeTemplate serviceTemplate = KubeTopologyUtils.getServiceDependency(topology, nodeTemplate, iValue);
-                                    AbstractPropertyValue serviceNameValue = PropertyUtil.getPropertyValueFromPath(serviceTemplate.getProperties(),
-                                            "metadata.name");
-                                    String serviceName = PropertyUtil.getScalarValue(serviceNameValue);
+                            if (KubeTopologyUtils.isServiceIpAddress(topology, nodeTemplate, iValue)) {
+                                NodeTemplate serviceTemplate = KubeTopologyUtils.getServiceDependency(topology, nodeTemplate, iValue);
+                                AbstractPropertyValue serviceNameValue = PropertyUtil.getPropertyValueFromPath(serviceTemplate.getProperties(),
+                                        "metadata.name");
+                                String serviceName = PropertyUtil.getScalarValue(serviceNameValue);
 
-                                    List<String> serviceIpAddresses = serviceIpAddressesPerDeploymentResource.get(deploymentResource.getName());
-                                    if (serviceIpAddresses == null) {
-                                        serviceIpAddresses = Lists.newArrayList();
-                                        serviceIpAddressesPerDeploymentResource.put(deploymentResource.getName(), serviceIpAddresses);
-                                    }
-                                    serviceIpAddresses.add(serviceName);
+                                List<String> serviceIpAddresses = serviceIpAddressesPerDeploymentResource.get(deploymentResource.getName());
+                                if (serviceIpAddresses == null) {
+                                    serviceIpAddresses = Lists.newArrayList();
+                                    serviceIpAddressesPerDeploymentResource.put(deploymentResource.getName(), serviceIpAddresses);
+                                }
+                                serviceIpAddresses.add(serviceName);
 
+                                ComplexPropertyValue envEntry = new ComplexPropertyValue();
+                                envEntry.setValue(Maps.newHashMap());
+                                envEntry.getValue().put("name", envKey);
+                                envEntry.getValue().put("value", "${SERVICE_IP_LOOKUP" + (serviceIpAddresses.size() - 1) + "}");
+                                appendNodePropertyPathValue(csar, topology, containerNode, "container.env", envEntry);
+                            } else if (KubeTopologyUtils.isTargetedEndpointProperty(topology, nodeTemplate, iValue)) {
+                                AbstractPropertyValue apv = KubeTopologyUtils.getTargetedEndpointProperty(topology, nodeTemplate, iValue);
+                                if (apv != null) {
                                     ComplexPropertyValue envEntry = new ComplexPropertyValue();
                                     envEntry.setValue(Maps.newHashMap());
                                     envEntry.getValue().put("name", envKey);
-                                    envEntry.getValue().put("value", "${SERVICE_IP_LOOKUP" + (serviceIpAddresses.size() - 1) + "}");
+                                    envEntry.getValue().put("value", PropertyUtil.getScalarValue(apv));
                                     appendNodePropertyPathValue(csar, topology, containerNode, "container.env", envEntry);
-                                } else if (KubeTopologyUtils.isTargetedEndpointProperty(topology, nodeTemplate, iValue)) {
-                                    AbstractPropertyValue apv = KubeTopologyUtils.getTargetedEndpointProperty(topology, nodeTemplate, iValue);
-                                    if (apv != null) {
-                                        ComplexPropertyValue envEntry = new ComplexPropertyValue();
-                                        envEntry.setValue(Maps.newHashMap());
-                                        envEntry.getValue().put("name", envKey);
-                                        envEntry.getValue().put("value", PropertyUtil.getScalarValue(apv));
-                                        appendNodePropertyPathValue(csar, topology, containerNode, "container.env", envEntry);
-                                    }
-                                } else {
-                                    try {
-                                        AbstractPropertyValue propertyValue = FunctionEvaluator.tryResolveValue(functionEvaluatorContext, nodeTemplate,
-                                                nodeTemplate.getProperties(), (AbstractPropertyValue) iValue);
-                                        if (propertyValue != null) {
-                                            if (propertyValue instanceof PropertyValue) {
-                                                ComplexPropertyValue envEntry = new ComplexPropertyValue();
-                                                envEntry.setValue(Maps.newHashMap());
-                                                envEntry.getValue().put("name", envKey);
-                                                envEntry.getValue().put("value", propertyValue);
-                                                appendNodePropertyPathValue(csar, topology, containerNode, "container.env", envEntry);
-                                            } else {
-                                                log.severe("Property is not PropertyValue but " + propertyValue.getClass());
-                                            }
+                                }
+                            } else {
+                                try {
+                                    AbstractPropertyValue propertyValue = FunctionEvaluator.tryResolveValue(functionEvaluatorContext, nodeTemplate,
+                                            nodeTemplate.getProperties(), (AbstractPropertyValue) iValue);
+                                    if (propertyValue != null) {
+                                        if (propertyValue instanceof PropertyValue) {
+                                            ComplexPropertyValue envEntry = new ComplexPropertyValue();
+                                            envEntry.setValue(Maps.newHashMap());
+                                            envEntry.getValue().put("name", envKey);
+                                            envEntry.getValue().put("value", propertyValue);
+                                            appendNodePropertyPathValue(csar, topology, containerNode, "container.env", envEntry);
+                                        } else {
+                                            log.severe("Property is not PropertyValue but " + propertyValue.getClass());
                                         }
-                                    } catch (IllegalArgumentException iae) {
-                                        log.severe(iae.getMessage());
                                     }
+                                } catch (IllegalArgumentException iae) {
+                                    log.severe(iae.getMessage());
                                 }
                             }
-                        });
-                    }
+                        }
+                    });
                 }
             }
 
