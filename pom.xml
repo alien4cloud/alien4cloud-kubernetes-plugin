@@ -240,7 +240,6 @@
         <targetPath>provider</targetPath>
         <filtering>true</filtering>
       </resource>
-
     </resources>
     <plugins>
       <plugin>
@@ -345,6 +344,7 @@
           </execution>
         </executions>
       </plugin>
+      <!--
       <plugin>
         <groupId>com.google.code.maven-replacer-plugin</groupId>
         <artifactId>maven-replacer-plugin</artifactId>
@@ -368,6 +368,7 @@
           </replacements>
         </configuration>
       </plugin>
+        -->
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>templating-maven-plugin</artifactId>
