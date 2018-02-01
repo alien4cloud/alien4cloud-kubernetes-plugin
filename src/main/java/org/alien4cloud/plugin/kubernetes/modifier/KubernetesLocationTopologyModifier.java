@@ -95,14 +95,14 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         // - populate properties on the K8S AbstractContainer that host the container image
         Set<NodeTemplate> containerNodes = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_APPLICATION_DOCKER_CONTAINER, true);
         containerNodes.forEach(nodeTemplate -> manageContainer(csar, topology, nodeTemplate, containerNodes));
-        containerNodes.forEach(nodeTemplate -> manageContainerHybridConnections(csar, topology, nodeTemplate));
+        containerNodes.forEach(nodeTemplate -> manageContainerHybridConnections(context, csar, topology, nodeTemplate));
 
         // replace all occurences of org.alien4cloud.nodes.DockerExtVolume by k8s abstract volumes
         Set<NodeTemplate> volumeNodes = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_DOCKER_VOLUME, true);
         volumeNodes.forEach(nodeTemplate -> manageVolumes(csar, topology, nodeTemplate));
     }
 
-    private void manageContainerHybridConnections(Csar csar, Topology topology, NodeTemplate containerNodeTemplate) {
+    private void manageContainerHybridConnections(FlowExecutionContext context, Csar csar, Topology topology, NodeTemplate containerNodeTemplate) {
 
         // targetNode -> (capabilityName -> sourceNodes)
         Map<NodeTemplate, Map<String, List<NodeTemplate>>> hybridConnections = Maps.newHashMap();
@@ -133,16 +133,17 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         }
         for (Map.Entry<NodeTemplate, Map<String, List<NodeTemplate>>> e : hybridConnections.entrySet()) {
             for (Map.Entry<String, List<NodeTemplate>> f : e.getValue().entrySet()) {
-                manageContainerHybridConnection(csar, topology, f.getValue(), e.getKey(), f.getKey());
+                manageContainerHybridConnection(context, csar, topology, f.getValue(), e.getKey(), f.getKey());
             }
         }
     }
 
-    private void manageContainerHybridConnection(Csar csar, Topology topology, List<NodeTemplate> containerNodeTemplates, NodeTemplate targetNodeTemplate, String endpointName) {
+    private void manageContainerHybridConnection(FlowExecutionContext context, Csar csar, Topology topology, List<NodeTemplate> containerNodeTemplates,
+            NodeTemplate targetNodeTemplate, String endpointName) {
 
         // add an abstract service node
-        NodeTemplate serviceNode = addNodeTemplate(csar, topology, targetNodeTemplate.getName() + "_" + endpointName + "_Service",
-                K8S_TYPES_ABSTRACT_SERVICE, K8S_CSAR_VERSION);
+        NodeTemplate serviceNode = addNodeTemplate(csar, topology, targetNodeTemplate.getName() + "_" + endpointName + "_Service", K8S_TYPES_ABSTRACT_SERVICE,
+                K8S_CSAR_VERSION);
         setNodeTagValue(serviceNode, A4C_KUBERNETES_MODIFIER_TAG, "Proxy of node <" + targetNodeTemplate.getName() + "> capability <" + endpointName + ">");
         setNodeTagValue(serviceNode, A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT, endpointName);
 
@@ -153,6 +154,11 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
 
         // get the endpoint port
         AbstractPropertyValue port = targetNodeTemplate.getCapabilities().get(endpointName).getProperties().get("port");
+        if (port == null) {
+            context.log().error("Connecting container to an external service require it's endpoint port to be defined. Port of [" + targetNodeTemplate.getName()
+                    + ".capabilities." + endpointName + "] is not defined.");
+            return;
+        }
 
         Map<String, Object> portEntry = Maps.newHashMap();
         portEntry.put("port", port);
@@ -161,7 +167,8 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
 
         for (NodeTemplate containerNodeTemplate : containerNodeTemplates) {
             // find the deployment node parent of the container
-            NodeTemplate deploymentHost = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology, containerNodeTemplate, K8S_TYPES_ABSTRACT_DEPLOYMENT);
+            NodeTemplate deploymentHost = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology, containerNodeTemplate,
+                    K8S_TYPES_ABSTRACT_DEPLOYMENT);
             // add a depends_on relationship between service and the deployment unit
             addRelationshipTemplate(csar, topology, deploymentHost, serviceNode.getName(), NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
         }

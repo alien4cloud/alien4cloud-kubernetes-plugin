@@ -10,7 +10,7 @@ description: |
   Kubernetes types that fit to K8S api, used by K8S topology modifiers and describe K8S matchable resources.
 
 imports:
-  - tosca-normative-types:1.0.0-SNAPSHOT
+  - tosca-normative-types:1.0.0-ALIEN20
   - docker-types:2.0.0-SNAPSHOT
   - alien-base-types:2.0.0-SNAPSHOT
 
@@ -37,6 +37,12 @@ data_types:
   #       type: org.alien4cloud.kubernetes.api.datatypes.DeploymentSpec
   #       description: |
   #         Specification of the desired behavior of the Deployment
+
+  org.alien4cloud.kubernetes.api.datatypes.LocalObjectReference:
+    derived_from: tosca.datatypes.Root
+    properties:
+      name:
+        type: string
 
   org.alien4cloud.kubernetes.api.datatypes.ServicePort:
     derived_from: tosca.datatypes.Root
@@ -304,10 +310,13 @@ data_types:
         type: string
         description: |
            Specifies the hostname of the Pod If not specified, the pod's hostname will be set to a system-defined value.
-      # imagePullSecrets:
-      #   type: LocalObjectReference
-      #   description: |
-      #     array  ImagePullSecrets is an optional list of references to secrets in the same namespace to use for pulling any of the images used by this PodSpec. If specified, these secrets will be passed to individual puller implementations for them to use. For example, in the case of docker, only DockerConfig type secrets are honored. More info: http://kubernetes.io/docs/user-guide/images#specifying-imagepullsecrets-on-a-pod
+      imagePullSecrets:
+        type: list
+        required: false
+        entry_schema:
+          type: org.alien4cloud.kubernetes.api.datatypes.LocalObjectReference
+        description: |
+          ImagePullSecrets is an optional list of references to secrets in the same namespace to use for pulling any of the images used by this PodSpec. If specified, these secrets will be passed to individual puller implementations for them to use. For example, in the case of docker, only DockerConfig type secrets are honored. More info: http://kubernetes.io/docs/user-guide/images#specifying-imagepullsecrets-on-a-pod
       initContainers:
         type: org.alien4cloud.kubernetes.api.datatypes.ContainerSpec
         description: |
@@ -443,7 +452,7 @@ data_types:
       #     array List of sources to populate environment variables in the container. The keys defined within a source must be a C_IDENTIFIER. All invalid keys will be reported as an event when the container is starting. When a key exists in multiple sources, the value associated with the last source will take precedence. Values defined by an Env with a duplicate key will take precedence. Cannot be updated.
       image:
         type: string
-        required: false
+        required: true
         description: |
           Docker image name. More info: http://kubernetes.io/docs/user-guide/images
       imagePullPolicy:
@@ -1092,6 +1101,12 @@ node_types:
     properties:
       container:
         type: org.alien4cloud.kubernetes.api.datatypes.ContainerSpec
+      repository:
+        type: string
+        description: >
+          This property can be specified to select from which repository the image will be pulled.
+          The kubernetes image will be the concatenation of this property to the image property: {repository}/{image}
+          Note that you may want to define imagePullSecrets references so kubernetes uses the right repository credentials. This property must be configured on the Deployment object.
 
   org.alien4cloud.kubernetes.api.types.BaseResource:
     abstract: true
