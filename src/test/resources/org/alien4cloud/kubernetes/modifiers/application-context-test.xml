@@ -36,6 +36,8 @@
       alien4cloud.plugin,
       alien4cloud.utils.services,
       org.alien4cloud.alm.service,
+      org.alien4cloud.secret.services,
+      alien4cloud.ui.form,
       org.alien4cloud.alm.deployment.configuration.flow,
       org.alien4cloud.alm.deployment.configuration.services,
       org.alien4cloud.git,

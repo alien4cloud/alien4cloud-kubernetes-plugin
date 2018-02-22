@@ -24,12 +24,16 @@ Feature: Kubernetes label placement policy topology modifier
     And I execute the modifier "kubernetes-automatching-modifier" on the current topology
     And I match the policy named "Scaling" to the concrete policy of type "org.alien4cloud.kubernetes.api.policies.AutoscalingPolicy"
     Given I set the policy "Scaling" "complex"'s property "spec" to "{"minReplicas": "1", "maxReplicas": "10", "metrics": [{"type": "Resource", "resource": {"name":"cpu", "targetAverageUtilization":"50"}}]}"
-    And I execute the modifier "kubernetes-final-modifier" on the current topology
+    When I execute the modifier "kubernetes-final-modifier" on the current topology
     And I store the current topology in the SPEL context
     Then The SPEL expression "nodeTemplates.size()" should return 3
 
-    Then register the SPEL expression "nodeTemplates['Apache1Deployment_Resource'].properties['resource_spec'].value" result as a map "Apache1Deployment_Resource_spec"
-    Then register the SPEL expression "nodeTemplates['Apache1Deployment_Scaling_Resource'].properties['resource_spec'].value" result as "Apache1Deployment_Scaling_Resource_spec"
+    Given register the SPEL expression "nodeTemplates['Apache1Deployment_Resource'].properties['resource_spec'].value" result as a map "Apache1Deployment_Resource_spec"
+    And register the SPEL expression "nodeTemplates['Apache1Deployment_Scaling_Resource'].properties['resource_spec'].value" result as "Apache1Deployment_Scaling_Resource_spec"
+    And register the SPEL expression "nodeTemplates['Apache1Deployment_Scaling_Resource'].properties['resource_spec'].value" result as a map "Apache1Deployment_Scaling_Resource_spec_map"
+
+    Then The SPEL expression "nodeTemplates['Apache1Deployment_Scaling_Resource'].properties['resource_type'].value" should return "hpa"
+    Then The SPEL expression "nodeTemplates['Apache1Deployment_Scaling_Resource'].properties['resource_id'].value" result should equals the registered "Apache1Deployment_Scaling_Resource_spec_map"'s SPEL expression "#this['metadata']['labels']['a4c_id']" result
 
   # now let's explore the env variables of the nocellar deployment
     When I Parse as JSON the content of the registered object "Apache1Deployment_Scaling_Resource_spec" and put it in the SPEL context
