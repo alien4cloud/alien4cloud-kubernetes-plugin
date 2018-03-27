@@ -1,26 +1,20 @@
 package org.alien4cloud.plugin.kubernetes.modifier;
 
-import static alien4cloud.utils.AlienUtils.safe;
-import static org.alien4cloud.plugin.kubernetes.csar.Version.K8S_CSAR_VERSION;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_APPLICATION_DOCKER_CONTAINER;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_CONTAINER;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_DEPLOYMENT;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_DEPLOYMENT_RESOURCE;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ENDPOINT_RESOURCE;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_RESOURCE;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SERVICE;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SERVICE_RESOURCE;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SIMPLE_RESOURCE;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_VOLUME_BASE;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.generateUniqueKubeName;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.getValue;
-import static org.alien4cloud.plugin.kubernetes.policies.KubePoliciesConstants.K8S_POLICIES_AUTO_SCALING;
-
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.logging.Level;
 
+import alien4cloud.paas.wf.validation.WorkflowValidator;
+import alien4cloud.tosca.context.ToscaContext;
+import alien4cloud.tosca.context.ToscaContextual;
+import alien4cloud.utils.CloneUtil;
+import alien4cloud.utils.MapUtil;
+import alien4cloud.utils.PropertyUtil;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import lombok.extern.java.Log;
 import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
 import org.alien4cloud.plugin.kubernetes.AbstractKubernetesModifier;
 import org.alien4cloud.tosca.model.Csar;
@@ -48,16 +42,21 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-
-import alien4cloud.paas.wf.validation.WorkflowValidator;
-import alien4cloud.tosca.context.ToscaContext;
-import alien4cloud.tosca.context.ToscaContextual;
-import alien4cloud.utils.CloneUtil;
-import alien4cloud.utils.MapUtil;
-import alien4cloud.utils.PropertyUtil;
-import lombok.extern.java.Log;
+import static alien4cloud.utils.AlienUtils.safe;
+import static org.alien4cloud.plugin.kubernetes.csar.Version.K8S_CSAR_VERSION;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_APPLICATION_DOCKER_CONTAINER;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_CONTAINER;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_DEPLOYMENT;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_DEPLOYMENT_RESOURCE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ENDPOINT_RESOURCE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_RESOURCE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SERVICE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SERVICE_RESOURCE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SIMPLE_RESOURCE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_VOLUME_BASE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.generateUniqueKubeName;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.getValue;
+import static org.alien4cloud.plugin.kubernetes.policies.KubePoliciesConstants.K8S_POLICIES_AUTO_SCALING;
 
 /**
  * Transform a matched K8S topology containing <code>Container</code>s, <code>Deployment</code>s, <code>Service</code>s
@@ -79,6 +78,9 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         try {
             WorkflowValidator.disableValidationThreadLocal.set(true);
             doProcess(topology, context);
+        } catch (Exception e) {
+            context.getLog().error("Couldn't process " + A4C_KUBERNETES_MODIFIER_TAG);
+            log.log(Level.WARNING, "Couldn't process " + A4C_KUBERNETES_MODIFIER_TAG, e);
         } finally {
             WorkflowValidator.disableValidationThreadLocal.remove();
         }
@@ -112,8 +114,9 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
 
         // for each container,
         Set<NodeTemplate> containerNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_CONTAINER, false);
-        containerNodes.forEach(nodeTemplate -> manageContainer(csar, topology, nodeTemplate, nodeReplacementMap, resourceNodeYamlStructures,
-                functionEvaluatorContext, serviceIpAddressesPerDeploymentResource));
+        containerNodes.forEach(
+                nodeTemplate -> manageContainer(csar, topology, nodeTemplate, nodeReplacementMap, resourceNodeYamlStructures, functionEvaluatorContext,
+                        serviceIpAddressesPerDeploymentResource));
 
         // for each volume node, populate the 'volumes' property of the corresponding deployment resource
         Set<NodeTemplate> volumeNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_VOLUME_BASE, true);
@@ -231,15 +234,15 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         }
 
         if (safe(policyTemplate.getProperties()).get("spec") == null) {
-            context.log().warn("Auto-scaling policy <{}> is not correctly configured, property \"spec\" is required. It will be ignored.",
-                    policyTemplate.getName());
+            context.log()
+                    .warn("Auto-scaling policy <{}> is not correctly configured, property \"spec\" is required. It will be ignored.", policyTemplate.getName());
 
             return;
         }
 
-        Set<NodeTemplate> validTargets = getValidTargets(policyTemplate, topology,
-                invalidName -> context.log().warn("Auto-scaling policy <{}>: will ignore target <{}> as it IS NOT an instance of <{}>.",
-                        policyTemplate.getName(), invalidName, K8S_TYPES_DEPLOYMENT));
+        Set<NodeTemplate> validTargets = getValidTargets(policyTemplate, topology, invalidName -> context.log()
+                .warn("Auto-scaling policy <{}>: will ignore target <{}> as it IS NOT an instance of <{}>.", policyTemplate.getName(), invalidName,
+                        K8S_TYPES_DEPLOYMENT));
 
         // for each target, add a SimpleResource for HorizontaPodAutoScaler, targeting the related DeploymentResource
         validTargets.forEach(nodeTemplate -> addHorizontalPodAutoScalingResource(csar, topology, policyTemplate, nodeTemplate, nodeReplacementMap,
@@ -326,8 +329,8 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
 
                             if (KubeTopologyUtils.isServiceIpAddress(topology, nodeTemplate, iValue)) {
                                 NodeTemplate serviceTemplate = KubeTopologyUtils.getServiceDependency(topology, nodeTemplate, iValue);
-                                AbstractPropertyValue serviceNameValue = PropertyUtil.getPropertyValueFromPath(serviceTemplate.getProperties(),
-                                        "metadata.name");
+                                AbstractPropertyValue serviceNameValue = PropertyUtil
+                                        .getPropertyValueFromPath(serviceTemplate.getProperties(), "metadata.name");
                                 String serviceName = PropertyUtil.getScalarValue(serviceNameValue);
 
                                 List<String> serviceIpAddresses = serviceIpAddressesPerDeploymentResource.get(deploymentResource.getName());
@@ -353,8 +356,9 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                                 }
                             } else {
                                 try {
-                                    AbstractPropertyValue propertyValue = FunctionEvaluator.tryResolveValue(functionEvaluatorContext, nodeTemplate,
-                                            nodeTemplate.getProperties(), (AbstractPropertyValue) iValue);
+                                    AbstractPropertyValue propertyValue = FunctionEvaluator
+                                            .tryResolveValue(functionEvaluatorContext, nodeTemplate, nodeTemplate.getProperties(),
+                                                    (AbstractPropertyValue) iValue);
                                     if (propertyValue != null) {
                                         if (propertyValue instanceof PropertyValue) {
                                             ComplexPropertyValue envEntry = new ComplexPropertyValue();
