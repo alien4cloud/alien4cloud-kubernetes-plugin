@@ -235,6 +235,38 @@ data_types:
         description: |
           The deployment strategy to use to replace existing pods with new ones.
 
+  # in version 1.10 there is another property : backoffLimit (integer) that specifies the number of retries before making this job failed (set to 6 by default)
+  org.alien4cloud.kubernetes.api.datatypes.JobSpec:
+    derived_from: org.alien4cloud.kubernetes.api.datatypes.ControllerSpec
+    description: >
+      c.f. https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#jobspec-v1-batch
+    properties:
+      activeDeadlineSeconds:
+        type: integer
+        required: false
+        description: |
+          Optional duration in seconds relative to the startTime that the job may be active before the system tries to terminate it; value must be positive integer
+      completions:
+        type: integer
+        required: false
+        description: |
+          Completions specifies the desired number of successfully finished pods the job should be run with.
+      manualSelector:
+        type: boolean
+        required: false
+        description: |
+          ManualSelector controls generation of pod labels and pod selectors. When false or unset, the system pick labels unique to this job and appends those labels to the pod template.
+      parallelism:
+        type: integer
+        required: false
+        description: |
+          Parallelism specifies the maximum desired number of pods the job should run at any given time.
+      selector:
+        type: string # datetype: org.alien4cloud.kubernetes.api.datatypes.LabelSelector
+        required: false
+        description: |
+          Label query over pods that should match the pod count. Normally, the system sets this field for you
+          
   org.alien4cloud.kubernetes.api.datatypes.PodTemplateSpec:
     derived_from: tosca.datatypes.Root
     description: >
