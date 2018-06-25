@@ -1080,6 +1080,17 @@ node_types:
       spec:
         type: org.alien4cloud.kubernetes.api.datatypes.ServiceSpec
 
+  # Could define an AbstractCrontroller type, super-type for AbstractDeployment and for AbstractJob
+  # [This could allow to choose between Job and Deployment when matching ContainerDeploymentUnit]
+  # org.alien4cloud.kubernetes.api.types.AbstractDeployment:
+  #  abstract: true
+  #  derived_from: org.alien4cloud.kubernetes.api.types.Base
+  # could define spec property here, type could be org.alien4cloud.kubernetes.api.datatypes.ControllerSpec
+  #  properties:
+  #    spec:
+  #      type: org.alien4cloud.kubernetes.api.datatypes.ControllerSpec
+  # in this case don't need to define spec property in AbstractDeployment and AbstractJobe
+
   org.alien4cloud.kubernetes.api.types.Deployment:
     derived_from: org.alien4cloud.kubernetes.api.types.AbstractDeployment
 
@@ -1106,6 +1117,7 @@ node_types:
         default: Deployment
         constraints:
           - equal: Deployment
+      # Could remove this if we derive AbstractDeployment from AbstractController
       spec:
         type: org.alien4cloud.kubernetes.api.datatypes.DeploymentSpec
 
@@ -1134,6 +1146,7 @@ node_types:
         default: Job
         constraints:
           - equal: Job
+      # Could remove this if we derive AbstractJob from AbstractController
       spec:
         type: org.alien4cloud.kubernetes.api.datatypes.JobSpec
 
