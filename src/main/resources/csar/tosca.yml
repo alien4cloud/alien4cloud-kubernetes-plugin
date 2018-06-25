@@ -266,7 +266,7 @@ data_types:
         required: false
         description: |
           Label query over pods that should match the pod count. Normally, the system sets this field for you
-          
+
   org.alien4cloud.kubernetes.api.datatypes.PodTemplateSpec:
     derived_from: tosca.datatypes.Root
     description: >
@@ -1108,6 +1108,34 @@ node_types:
           - equal: Deployment
       spec:
         type: org.alien4cloud.kubernetes.api.datatypes.DeploymentSpec
+
+  org.alien4cloud.kubernetes.api.types.Job:
+    derived_from: org.alien4cloud.kubernetes.api.types.AbstractJob
+
+  org.alien4cloud.kubernetes.api.types.AbstractJob:
+    abstract: true
+    derived_from: org.alien4cloud.kubernetes.api.types.Base
+    description: >
+      Represent a kubernetes Job
+    capabilities:
+      host: tosca.capabilities.Container.Docker
+    properties:
+      apiVersion:
+        type: string
+        description: |
+          APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#resources
+        default: batch/v1
+        constraints:
+          - equal: batch/v1
+      kind:
+        type: string
+        description: |
+          Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#types-kinds
+        default: Job
+        constraints:
+          - equal: Job
+      spec:
+        type: org.alien4cloud.kubernetes.api.datatypes.JobSpec
 
   org.alien4cloud.kubernetes.api.types.HorizontalPodAutoscaler:
     derived_from: org.alien4cloud.kubernetes.api.types.Base
