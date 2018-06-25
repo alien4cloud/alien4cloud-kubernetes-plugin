@@ -178,8 +178,19 @@ data_types:
         constraints:
           valid_values: [ 'ExternalName', 'ClusterIP', 'NodePort', 'LoadBalancer' ]
 
-  org.alien4cloud.kubernetes.api.datatypes.DeploymentSpec:
+  org.alien4cloud.kubernetes.api.datatypes.ControllerSpec:
     derived_from: tosca.datatypes.Root
+    description: >
+      Used to provied template of PodTemplateSpec to controllers as Job, Deployment, and in the future, StatefulSet
+    properties:
+      template:
+        type: org.alien4cloud.kubernetes.api.datatypes.PodTemplateSpec
+        required: false
+        description: |
+          Template describes the pods that will be created.
+
+  org.alien4cloud.kubernetes.api.datatypes.DeploymentSpec:
+    derived_from: org.alien4cloud.kubernetes.api.datatypes.ControllerSpec
     description: >
       c.f. https://kubernetes.io/docs/api-reference/v1.6/#deploymentspec-v1beta1-apps
     properties:
@@ -223,11 +234,6 @@ data_types:
         required: false
         description: |
           The deployment strategy to use to replace existing pods with new ones.
-      template:
-        type: org.alien4cloud.kubernetes.api.datatypes.PodTemplateSpec
-        required: false
-        description: |
-          Template describes the pods that will be created.
 
   org.alien4cloud.kubernetes.api.datatypes.PodTemplateSpec:
     derived_from: tosca.datatypes.Root
