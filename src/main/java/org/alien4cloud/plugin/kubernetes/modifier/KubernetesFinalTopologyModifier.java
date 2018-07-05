@@ -20,6 +20,7 @@ import org.alien4cloud.plugin.kubernetes.AbstractKubernetesModifier;
 import org.alien4cloud.tosca.model.Csar;
 import org.alien4cloud.tosca.model.definitions.AbstractPropertyValue;
 import org.alien4cloud.tosca.model.definitions.ComplexPropertyValue;
+import org.alien4cloud.tosca.model.definitions.ConcatPropertyValue;
 import org.alien4cloud.tosca.model.definitions.Operation;
 import org.alien4cloud.tosca.model.definitions.PropertyDefinition;
 import org.alien4cloud.tosca.model.definitions.PropertyValue;
@@ -307,6 +308,60 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         return metrics;
     }
 
+    private AbstractPropertyValue resolveContainerInput(Topology topology, NodeTemplate deploymentResource, NodeTemplate nodeTemplate,
+            FunctionEvaluatorContext functionEvaluatorContext, Map<String,
+            List<String>> serviceIpAddressesPerDeploymentResource,
+            AbstractPropertyValue iValue) {
+        if (iValue instanceof ConcatPropertyValue) {
+            ConcatPropertyValue cpv = (ConcatPropertyValue) iValue;
+            StringBuilder sb = new StringBuilder();
+            for (AbstractPropertyValue param : cpv.getParameters()) {
+                AbstractPropertyValue v = resolveContainerInput(topology, deploymentResource, nodeTemplate, functionEvaluatorContext,
+                        serviceIpAddressesPerDeploymentResource, param);
+                if (v instanceof ScalarPropertyValue) {
+                    sb.append(PropertyUtil.getScalarValue(v));
+                } else {
+                    log.severe("in concat operation '" + iValue.toString() + "' parameter '" + param.toString() +
+                            "' resolved to a complex result. Let's ignore it.");
+                }
+            }
+            return new ScalarPropertyValue(sb.toString());
+        } else if (KubeTopologyUtils.isServiceIpAddress(topology, nodeTemplate, iValue)) {
+            NodeTemplate serviceTemplate = KubeTopologyUtils.getServiceDependency(topology, nodeTemplate, iValue);
+            if (serviceTemplate != null) {
+                AbstractPropertyValue serviceNameValue = PropertyUtil
+                        .getPropertyValueFromPath(serviceTemplate.getProperties(), "metadata.name");
+                String serviceName = PropertyUtil.getScalarValue(serviceNameValue);
+
+                List<String> serviceIpAddresses = serviceIpAddressesPerDeploymentResource.get(deploymentResource.getName());
+                if (serviceIpAddresses == null) {
+                    serviceIpAddresses = Lists.newArrayList();
+                    serviceIpAddressesPerDeploymentResource.put(deploymentResource.getName(), serviceIpAddresses);
+                }
+                serviceIpAddresses.add(serviceName);
+
+                return new ScalarPropertyValue("${SERVICE_IP_LOOKUP" + (serviceIpAddresses.size() - 1) + "}");
+            }
+        } else if (KubeTopologyUtils.isTargetedEndpointProperty(topology, nodeTemplate, iValue)) {
+            return KubeTopologyUtils.getTargetedEndpointProperty(topology, nodeTemplate, iValue);
+        } else {
+            try {
+                AbstractPropertyValue propertyValue =
+                        FunctionEvaluator.tryResolveValue(functionEvaluatorContext, nodeTemplate, nodeTemplate.getProperties(), iValue);
+                if (propertyValue != null) {
+                    if (propertyValue instanceof PropertyValue) {
+                        return propertyValue;
+                    } else {
+                        log.severe("Property is not PropertyValue but " + propertyValue.getClass());
+                    }
+                }
+            } catch (IllegalArgumentException iae) {
+                log.severe(iae.getMessage());
+            }
+        }
+        return null;
+    }
+
     private void manageContainer(Csar csar, Topology topology, NodeTemplate containerNode, Map<String, NodeTemplate> nodeReplacementMap,
             Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures, FunctionEvaluatorContext functionEvaluatorContext,
             Map<String, List<String>> serviceIpAddressesPerDeploymentResource) {
@@ -326,53 +381,15 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                     safe(createOp.getInputParameters()).forEach((k, iValue) -> {
                         if (iValue instanceof AbstractPropertyValue && k.startsWith("ENV_")) {
                             String envKey = k.substring(4);
-
-                            if (KubeTopologyUtils.isServiceIpAddress(topology, nodeTemplate, iValue)) {
-                                NodeTemplate serviceTemplate = KubeTopologyUtils.getServiceDependency(topology, nodeTemplate, iValue);
-                                AbstractPropertyValue serviceNameValue = PropertyUtil
-                                        .getPropertyValueFromPath(serviceTemplate.getProperties(), "metadata.name");
-                                String serviceName = PropertyUtil.getScalarValue(serviceNameValue);
-
-                                List<String> serviceIpAddresses = serviceIpAddressesPerDeploymentResource.get(deploymentResource.getName());
-                                if (serviceIpAddresses == null) {
-                                    serviceIpAddresses = Lists.newArrayList();
-                                    serviceIpAddressesPerDeploymentResource.put(deploymentResource.getName(), serviceIpAddresses);
-                                }
-                                serviceIpAddresses.add(serviceName);
-
+                            AbstractPropertyValue v =
+                                    resolveContainerInput(topology, deploymentResource, nodeTemplate, functionEvaluatorContext,
+                                            serviceIpAddressesPerDeploymentResource, (AbstractPropertyValue) iValue);
+                            if (v != null) {
                                 ComplexPropertyValue envEntry = new ComplexPropertyValue();
                                 envEntry.setValue(Maps.newHashMap());
                                 envEntry.getValue().put("name", envKey);
-                                envEntry.getValue().put("value", "${SERVICE_IP_LOOKUP" + (serviceIpAddresses.size() - 1) + "}");
+                                envEntry.getValue().put("value", v);
                                 appendNodePropertyPathValue(csar, topology, containerNode, "container.env", envEntry);
-                            } else if (KubeTopologyUtils.isTargetedEndpointProperty(topology, nodeTemplate, iValue)) {
-                                AbstractPropertyValue apv = KubeTopologyUtils.getTargetedEndpointProperty(topology, nodeTemplate, iValue);
-                                if (apv != null) {
-                                    ComplexPropertyValue envEntry = new ComplexPropertyValue();
-                                    envEntry.setValue(Maps.newHashMap());
-                                    envEntry.getValue().put("name", envKey);
-                                    envEntry.getValue().put("value", PropertyUtil.getScalarValue(apv));
-                                    appendNodePropertyPathValue(csar, topology, containerNode, "container.env", envEntry);
-                                }
-                            } else {
-                                try {
-                                    AbstractPropertyValue propertyValue = FunctionEvaluator
-                                            .tryResolveValue(functionEvaluatorContext, nodeTemplate, nodeTemplate.getProperties(),
-                                                    (AbstractPropertyValue) iValue);
-                                    if (propertyValue != null) {
-                                        if (propertyValue instanceof PropertyValue) {
-                                            ComplexPropertyValue envEntry = new ComplexPropertyValue();
-                                            envEntry.setValue(Maps.newHashMap());
-                                            envEntry.getValue().put("name", envKey);
-                                            envEntry.getValue().put("value", propertyValue);
-                                            appendNodePropertyPathValue(csar, topology, containerNode, "container.env", envEntry);
-                                        } else {
-                                            log.severe("Property is not PropertyValue but " + propertyValue.getClass());
-                                        }
-                                    }
-                                } catch (IllegalArgumentException iae) {
-                                    log.severe(iae.getMessage());
-                                }
                             }
                         }
                     });
