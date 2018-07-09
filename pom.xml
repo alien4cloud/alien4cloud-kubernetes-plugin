@@ -3,10 +3,10 @@
   <parent>
     <groupId>alien4cloud</groupId>
     <artifactId>alien4cloud-parent</artifactId>
-    <version>2.0.0</version>
+    <version>2.1.0-SM5</version>
   </parent>
   <artifactId>alien4cloud-kubernetes-plugin</artifactId>
-  <version>2.0.0</version>
+  <version>2.1.0-SM5</version>
   <name>Alien 4 Cloud K8S plugin</name>
   <description>This plugin is used to manage transformation of containers in a topology into specific kubernetes nodes.</description>
 
@@ -344,7 +344,6 @@
           </execution>
         </executions>
       </plugin>
-      <!--
       <plugin>
         <groupId>com.google.code.maven-replacer-plugin</groupId>
         <artifactId>maven-replacer-plugin</artifactId>
@@ -362,13 +361,20 @@
           <outputFile>${project.build.directory}/classes/csar/tosca.yml</outputFile>
           <replacements>
             <replacement>
-              <token>template_version: .+</token>
+              <token>template_version:.+</token>
               <value>template_version: ${project.version}</value>
+            </replacement>
+            <replacement>
+              <token>docker-types:.+</token>
+              <value>docker-types:${project.version}</value>
+            </replacement>
+            <replacement>
+              <token>alien-base-types:.+</token>
+              <value>alien-base-types:${project.version}</value>
             </replacement>
           </replacements>
         </configuration>
       </plugin>
-        -->
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>templating-maven-plugin</artifactId>
