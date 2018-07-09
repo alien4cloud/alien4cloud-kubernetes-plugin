@@ -344,7 +344,6 @@
           </execution>
         </executions>
       </plugin>
-      <!--
       <plugin>
         <groupId>com.google.code.maven-replacer-plugin</groupId>
         <artifactId>maven-replacer-plugin</artifactId>
@@ -362,13 +361,20 @@
           <outputFile>${project.build.directory}/classes/csar/tosca.yml</outputFile>
           <replacements>
             <replacement>
-              <token>template_version: .+</token>
+              <token>template_version:.+</token>
               <value>template_version: ${project.version}</value>
+            </replacement>
+            <replacement>
+              <token>docker-types:.+</token>
+              <value>docker-types:${project.version}</value>
+            </replacement>
+            <replacement>
+              <token>alien-base-types:.+</token>
+              <value>alien-base-types:${project.version}</value>
             </replacement>
           </replacements>
         </configuration>
       </plugin>
-        -->
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>templating-maven-plugin</artifactId>
