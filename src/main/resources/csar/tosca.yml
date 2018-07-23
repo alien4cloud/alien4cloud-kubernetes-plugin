@@ -1244,6 +1244,28 @@ node_types:
               type: integer
           implementation: scripts/kubectl_deployment_scale.sh
 
+  org.alien4cloud.kubernetes.api.types.BaseJobResource:
+    abstract: true
+    derived_from: org.alien4cloud.nodes.Job
+    description: >
+      Represent a Job kubernetes final resource after node matching
+    properties:
+      resource_spec:
+        type: string
+        description: |
+          The the JSON serialization (and eventually transformation) of initial node properties.
+          This JSON can be used to instanciate the resource on the K8S cluster.
+
+  org.alien4cloud.kubernetes.api.types.JobResource:
+    derived_from: org.alien4cloud.kubernetes.api.types.BaseJobResource
+    interfaces:
+      tosca.interfaces.node.lifecycle.Runnable:
+        run:
+          inputs:
+            KUBE_RESOURCE_JOB_CONFIG: { get_property: [SELF, resource_spec] }
+          implementation: scripts/kubectl_job_run.sh
+          description: Standard lifecycle run operation.
+
   org.alien4cloud.kubernetes.api.types.EndpointResource:
     derived_from: org.alien4cloud.kubernetes.api.types.BaseResource
     properties:

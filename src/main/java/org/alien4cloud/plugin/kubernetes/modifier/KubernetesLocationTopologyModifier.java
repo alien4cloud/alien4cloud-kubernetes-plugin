@@ -39,10 +39,12 @@ import static alien4cloud.utils.AlienUtils.safe;
 import static org.alien4cloud.plugin.kubernetes.csar.Version.K8S_CSAR_VERSION;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_APPLICATION_DOCKER_CONTAINER;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_CONTAINER_DEPLOYMENT_UNIT;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_CONTAINER_JOB_UNIT;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_CONTAINER_RUNTIME;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_DOCKER_VOLUME;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ABSTRACT_CONTAINER;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ABSTRACT_DEPLOYMENT;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ABSTRACT_JOB;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ABSTRACT_SERVICE;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ABSTRACT_VOLUME_BASE;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ENDPOINT_RESOURCE;
@@ -104,8 +106,14 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         containerRuntimeNodes.forEach(nodeTemplate -> transformContainerRuntime(csar, topology, nodeTemplate));
 
         // replace all ContainerDeploymentUnit by org.alien4cloud.kubernetes.api.types.AbstractDeployment
+        System.out.println(">>>>>>>>>>> Replace ContainerDeploymentUnit by AbstractDeployment");
         Set<NodeTemplate> containerDeploymentUnitNodes = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_CONTAINER_DEPLOYMENT_UNIT, false);
         containerDeploymentUnitNodes.forEach(nodeTemplate -> transformContainerDeploymentUnit(csar, topology, nodeTemplate));
+
+        // replace all ContainerJobUnit by org.alien4cloud.kubernetes.api.types.AbstractJob
+        System.out.println(">>>>>>>>>>> Replace ContainerJobUnit by AbstractJob");
+        Set<NodeTemplate> containerJobUnitNodes = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_CONTAINER_JOB_UNIT, false);
+        containerJobUnitNodes.forEach(nodeTemplate -> transformContainerJobUnit(csar, topology, nodeTemplate));
 
         // for each container capability of type endpoint
         // - add a org.alien4cloud.kubernetes.api.types.ServiceResource and weave depends_on relationships
@@ -289,6 +297,18 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         ScalarPropertyValue deploymentName = new ScalarPropertyValue(generateUniqueKubeName(nodeTemplate.getName()));
         setNodePropertyPathValue(csar, topology, nodeTemplate, "metadata.name", deploymentName);
         setNodePropertyPathValue(csar, topology, nodeTemplate, "spec.template.metadata.labels.app", deploymentName);
+    }
+
+    /**
+     * Replace this node of type ContainerJobUnit by a node of type AbstractJob.
+     */
+    private void transformContainerJobUnit(Csar csar, Topology topology, NodeTemplate nodeTemplate) {
+        nodeTemplate = replaceNode(csar, topology, nodeTemplate, K8S_TYPES_ABSTRACT_JOB, K8S_CSAR_VERSION);
+        setNodeTagValue(nodeTemplate, A4C_KUBERNETES_MODIFIER_TAG, "Replacement of a " + A4C_TYPES_CONTAINER_JOB_UNIT);
+
+        ScalarPropertyValue jobName = new ScalarPropertyValue(generateUniqueKubeName(nodeTemplate.getName()));
+        setNodePropertyPathValue(csar, topology, nodeTemplate, "metadata.name", jobName);
+        setNodePropertyPathValue(csar, topology, nodeTemplate, "spec.template.metadata.labels.app", jobName);
     }
 
     /**
