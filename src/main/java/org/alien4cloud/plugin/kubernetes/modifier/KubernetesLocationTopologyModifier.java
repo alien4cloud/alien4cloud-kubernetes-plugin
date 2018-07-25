@@ -56,8 +56,8 @@ import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.getVa
 import static org.alien4cloud.tosca.utils.ToscaTypeUtils.isOfType;
 
 /**
- * Transform an abstract topology containing <code>DockerContainer</code>s, <code>ContainerRuntime</code>s and <code>ContainerDeploymentUnit</code>s to an
- * abstract K8S topology.
+ * Transform an abstract topology containing <code>DockerContainer</code>s, <code>ContainerRuntime</code>s and <code>ContainerDeploymentUnit</code>,
+ * or <code>ContainerJobUnit</code>, to an abstract K8S topology.
  *
  * This modifier:
  * </p>
@@ -66,6 +66,8 @@ import static org.alien4cloud.tosca.utils.ToscaTypeUtils.isOfType;
  * <code>org.alien4cloud.kubernetes.api.types.AbstractContainer</code> and fill k8s properties.</li>
  * <li>Replace all occurences of <code>org.alien4cloud.extended.container.types.ContainerDeploymentUnit</code> by
  * <code>org.alien4cloud.kubernetes.api.types.AbstractDeployment</code> and fill k8s properties.</li>
+ * <li>Replace all occurences of <code>org.alien4cloud.extended.container.types.ContainerJobUnit</code> by
+ * <code>org.alien4cloud.kubernetes.api.types.AbstractJob</code> and fill k8s properties.</li>
  * <li>Wrap all orphan <code>org.alien4cloud.kubernetes.api.types.AbstractContainer</code> inside a
  * <code>org.alien4cloud.kubernetes.api.types.AbstractDeployment</code>.</li>
  * <li>For each container endpoint, create a node of type <code>org.alien4cloud.kubernetes.api.types.AbstractService</code> that depends on the coresponding
@@ -106,12 +108,10 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         containerRuntimeNodes.forEach(nodeTemplate -> transformContainerRuntime(csar, topology, nodeTemplate));
 
         // replace all ContainerDeploymentUnit by org.alien4cloud.kubernetes.api.types.AbstractDeployment
-        System.out.println(">>>>>>>>>>> Replace ContainerDeploymentUnit by AbstractDeployment");
         Set<NodeTemplate> containerDeploymentUnitNodes = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_CONTAINER_DEPLOYMENT_UNIT, false);
         containerDeploymentUnitNodes.forEach(nodeTemplate -> transformContainerDeploymentUnit(csar, topology, nodeTemplate));
 
         // replace all ContainerJobUnit by org.alien4cloud.kubernetes.api.types.AbstractJob
-        System.out.println(">>>>>>>>>>> Replace ContainerJobUnit by AbstractJob");
         Set<NodeTemplate> containerJobUnitNodes = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_CONTAINER_JOB_UNIT, false);
         containerJobUnitNodes.forEach(nodeTemplate -> transformContainerJobUnit(csar, topology, nodeTemplate));
 
