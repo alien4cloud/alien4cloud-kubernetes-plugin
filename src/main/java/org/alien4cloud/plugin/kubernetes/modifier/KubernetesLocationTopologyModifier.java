@@ -3,6 +3,7 @@ package org.alien4cloud.plugin.kubernetes.modifier;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Optional;
 import java.util.logging.Level;
 
 import alien4cloud.paas.wf.validation.WorkflowValidator;
@@ -15,6 +16,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import lombok.extern.java.Log;
 import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
+import org.alien4cloud.alm.deployment.configuration.flow.EnvironmentContext;
 import org.alien4cloud.plugin.kubernetes.AbstractKubernetesModifier;
 import org.alien4cloud.tosca.model.Csar;
 import org.alien4cloud.tosca.model.definitions.AbstractPropertyValue;
@@ -101,11 +103,11 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
 
         // replace all ContainerRuntime by org.alien4cloud.kubernetes.api.types.AbstractContainer
         Set<NodeTemplate> containerRuntimeNodes = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_CONTAINER_RUNTIME, false);
-        containerRuntimeNodes.forEach(nodeTemplate -> transformContainerRuntime(csar, topology, nodeTemplate));
+        containerRuntimeNodes.forEach(nodeTemplate -> transformContainerRuntime(csar, topology, context, nodeTemplate));
 
         // replace all ContainerDeploymentUnit by org.alien4cloud.kubernetes.api.types.AbstractDeployment
         Set<NodeTemplate> containerDeploymentUnitNodes = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_CONTAINER_DEPLOYMENT_UNIT, false);
-        containerDeploymentUnitNodes.forEach(nodeTemplate -> transformContainerDeploymentUnit(csar, topology, nodeTemplate));
+        containerDeploymentUnitNodes.forEach(nodeTemplate -> transformContainerDeploymentUnit(csar, topology, context, nodeTemplate));
 
         // for each container capability of type endpoint
         // - add a org.alien4cloud.kubernetes.api.types.ServiceResource and weave depends_on relationships
@@ -266,20 +268,20 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
     /**
      * Replace this node of type ContainerRuntime by a node of type AbstractContainer.
      */
-    private void transformContainerRuntime(Csar csar, Topology topology, NodeTemplate nodeTemplate) {
+    private void transformContainerRuntime(Csar csar, Topology topology, FlowExecutionContext context, NodeTemplate nodeTemplate) {
         nodeTemplate = replaceNode(csar, topology, nodeTemplate, K8S_TYPES_ABSTRACT_CONTAINER, K8S_CSAR_VERSION);
         setNodeTagValue(nodeTemplate, A4C_KUBERNETES_MODIFIER_TAG, "Replacement of a " + A4C_TYPES_CONTAINER_RUNTIME);
 
         // if containerRuntime is orphan, wrap it into an AbstractDeployment
         if (!TopologyNavigationUtil.isHosted(topology, nodeTemplate)) {
-            wrapInAbstractDeployment(csar, topology, nodeTemplate);
+            wrapInAbstractDeployment(csar, topology, context, nodeTemplate);
         }
     }
 
     /**
      * Replace this node of type ContainerDeploymentUnit by a node of type AbstractDeployment.
      */
-    private void transformContainerDeploymentUnit(Csar csar, Topology topology, NodeTemplate nodeTemplate) {
+    private void transformContainerDeploymentUnit(Csar csar, Topology topology, FlowExecutionContext context, NodeTemplate nodeTemplate) {
         nodeTemplate = replaceNode(csar, topology, nodeTemplate, K8S_TYPES_ABSTRACT_DEPLOYMENT, K8S_CSAR_VERSION);
         setNodeTagValue(nodeTemplate, A4C_KUBERNETES_MODIFIER_TAG, "Replacement of a " + A4C_TYPES_CONTAINER_DEPLOYMENT_UNIT);
 
@@ -288,19 +290,79 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         setNodePropertyPathValue(csar, topology, nodeTemplate, "spec.replicas", defaultInstances);
         ScalarPropertyValue deploymentName = new ScalarPropertyValue(generateUniqueKubeName(nodeTemplate.getName()));
         setNodePropertyPathValue(csar, topology, nodeTemplate, "metadata.name", deploymentName);
+        setProvidedNamespaceInNodeTemplate(csar, topology, nodeTemplate, context);
         setNodePropertyPathValue(csar, topology, nodeTemplate, "spec.template.metadata.labels.app", deploymentName);
+    }
+
+    /**
+     * Scroll the meta-properties and if there is one that corresponds to a k8s namespace
+     * specification, return the value of that property
+     * @param context Execution context that allows modifiers to access some useful contextual information
+     * @return the value of a meta-property corresponding to a namespace specification
+     */
+    private String getProvidedNamespace(FlowExecutionContext context) {
+        String providedNamespace = null;
+        Optional<EnvironmentContext> ec = context.getEnvironmentContext();
+        try {
+            EnvironmentContext env = ec.get();
+            String appName = env.getApplication().getName();
+            Map<String, String> metaProperties = env.getApplication().getMetaProperties();
+            if (!metaProperties.isEmpty()) {
+                Set<String> keys = metaProperties.keySet();
+                for (java.util.Iterator<String> keysIt = keys.iterator(); keysIt.hasNext(); ) {
+                    String key = keysIt.next();
+                    if (isAppNamespace(key, appName)) {
+                        providedNamespace = metaProperties.get(key);
+                        break;
+                    }
+                }
+            }
+        } catch (java.util.NoSuchElementException e) {
+            //TODO
+        }
+        return providedNamespace;
+    }
+
+    /**
+     * This method needs to be developped. The code should implement requests to Alien to get the name of the
+     * meta-property corresponding to the given key. Then, it should verify that this name corresponds to a
+     * namespace property name (check some naming policy to be defined and documented).
+     * @param metaPropertyKey a key that corresponds to an application meta-property
+     * @param appName the application's name
+     * @return true if the given key corresponds to a meta-property that defines a namespace for this application
+     */
+    private boolean isAppNamespace(String metaPropertyKey, String appName) {
+        // Temporary code
+        // Suppose that maximum one meta-propery defined for the aplication, and that it corresponds to a namespace specification
+        return true;
+    }
+
+    /**
+     * Set the providedNamespace into a nodeTemplate within a topology and a csar.
+     * @param csar
+     * @param topology
+     * @param nodeTemplate
+     */
+    private void setProvidedNamespaceInNodeTemplate(Csar csar, Topology topology, NodeTemplate nodeTemplate, FlowExecutionContext context) {
+        String providedNamespace = getProvidedNamespace(context);
+        if (providedNamespace != null) {
+            ScalarPropertyValue namespace = new ScalarPropertyValue(providedNamespace);
+            setNodePropertyPathValue(csar, topology, nodeTemplate, "metadata.namespace", namespace);
+            context.log().info("Namespace metadata with value " + providedNamespace + " set as metadata.namespace property of " + nodeTemplate.getType());
+        }
     }
 
     /**
      * Wrap this node of type AbstractContainer into a node of type AbstractDeployment.
      */
-    private void wrapInAbstractDeployment(Csar csar, Topology topology, NodeTemplate nodeTemplate) {
+    private void wrapInAbstractDeployment(Csar csar, Topology topology, FlowExecutionContext context, NodeTemplate nodeTemplate) {
         NodeTemplate hostNode = addNodeTemplate(csar, topology, nodeTemplate.getName() + "Deployment", K8S_TYPES_ABSTRACT_DEPLOYMENT, K8S_CSAR_VERSION);
         setNodeTagValue(hostNode, A4C_KUBERNETES_MODIFIER_TAG, "Created to host " + nodeTemplate.getName());
 
         // set a generated name to the K8S object
         ScalarPropertyValue deploymentName = new ScalarPropertyValue(generateUniqueKubeName(hostNode.getName()));
         setNodePropertyPathValue(csar, topology, hostNode, "metadata.name", deploymentName);
+        setProvidedNamespaceInNodeTemplate(csar, topology, hostNode, context);
         setNodePropertyPathValue(csar, topology, hostNode, "spec.template.metadata.labels.app", deploymentName);
         Set<NodeTemplate> hostedContainers = TopologyNavigationUtil.getSourceNodes(topology, nodeTemplate, "host");
         // we may have a single hosted container
@@ -394,6 +456,7 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
 
         // fill properties of service
         setNodePropertyPathValue(csar, topology, serviceNode, "metadata.name", new ScalarPropertyValue(generateUniqueKubeName(serviceNode.getName())));
+        setProvidedNamespaceInNodeTemplate(csar, topology, serviceNode, context);
         setNodePropertyPathValue(csar, topology, serviceNode, "spec.service_type", new ScalarPropertyValue("NodePort"));
         // get the "pod name"
         AbstractPropertyValue podName = PropertyUtil.getPropertyValueFromPath(safe(deploymentNodeTemplate.getProperties()), "metadata.name");
