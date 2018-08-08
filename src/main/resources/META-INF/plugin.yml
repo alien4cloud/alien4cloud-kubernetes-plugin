@@ -8,7 +8,7 @@ component_descriptors:
   - bean_name: kubernetes-modifier
     name: Kubernetes modifier.
     description: >
-      Topology modifier that transform a generic topology into a Kubernetes topology.
+      Topology modifier (with namespace support) that transform a generic topology into a Kubernetes topology.
       Insert this modifier to post-location-match phase. Note that you MUST also insert the kubernetes-final-modifier to your location.
   - bean_name: kubernetes-anti-affinity-modifier
     name: Kubernetes modifier for anti-affinity policy.
