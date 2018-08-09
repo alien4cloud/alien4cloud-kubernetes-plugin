@@ -217,6 +217,7 @@ public class KubeTopologyUtils {
             if (evaluatedFunction.getFunction().equals(ToscaFunctionConstants.GET_ATTRIBUTE)) {
                 if (evaluatedFunction.getTemplateName().equals(ToscaFunctionConstants.R_TARGET)) {
                     String requirement = evaluatedFunction.getCapabilityOrRequirementName();
+                    String capabilityName = getCapabilityName(evaluatedFunction);
                     if (requirement != null) {
                         Set<NodeTemplate> targetNodes = TopologyNavigationUtil.getTargetNodes(topology, sourceNodeTemplate, requirement);
                         for (NodeTemplate targetNode : targetNodes) {
@@ -227,7 +228,7 @@ public class KubeTopologyUtils {
                                 NodeTemplate deploymentNode = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology, targetNode,
                                         K8S_TYPES_DEPLOYMENT);
                                 if (deploymentNode != null) {
-                                    return getServiceRelatedToDeployment(topology, deploymentNode, requirement);
+                                    return getServiceRelatedToDeployment(topology, deploymentNode, capabilityName);
                                 }
                             } else {
                                 // the target is not a container, so we should find a service that proxy the endpoint
@@ -243,6 +244,10 @@ public class KubeTopologyUtils {
             }
         }
         return null;
+    }
+
+    private static String getCapabilityName(FunctionPropertyValue evaluatedFunction) {
+        return evaluatedFunction.getParameters().get(evaluatedFunction.getParameters().size() -2);
     }
 
     /**
