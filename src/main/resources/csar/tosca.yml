@@ -872,7 +872,7 @@ data_types:
           Will force the ReadOnly setting in VolumeMounts. Default false.
         default: false
 
-  org.alien4cloud.kubernetes.api.datatypes.volumes.EmptyDirVolumeSpec:
+  org.alien4cloud.kubernetes.api.datatypes.volumes.ConfigMapVolumeSpec:
     derived_from: tosca.datatypes.Root
     properties:
       name:
@@ -957,7 +957,7 @@ node_types:
         constraints:
           - equal: emptyDir
       spec:
-        type: org.alien4cloud.kubernetes.api.datatypes.volumes.EmptyDirVolumeSpec
+        type: org.alien4cloud.kubernetes.api.datatypes.volumes.ConfigMapVolumeSpec
         required: false
 
   org.alien4cloud.kubernetes.api.types.volume.HostPathVolumeSource:
