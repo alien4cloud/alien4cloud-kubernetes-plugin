@@ -14,6 +14,7 @@ import alien4cloud.utils.MapUtil;
 import alien4cloud.utils.PropertyUtil;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import lombok.extern.java.Log;
 import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
 import org.alien4cloud.plugin.kubernetes.AbstractKubernetesModifier;
@@ -34,11 +35,7 @@ import org.alien4cloud.tosca.model.types.NodeType;
 import org.alien4cloud.tosca.model.types.PolicyType;
 import org.alien4cloud.tosca.normative.constants.AlienCapabilityTypes;
 import org.alien4cloud.tosca.normative.constants.NormativeRelationshipConstants;
-import org.alien4cloud.tosca.utils.FunctionEvaluator;
-import org.alien4cloud.tosca.utils.FunctionEvaluatorContext;
-import org.alien4cloud.tosca.utils.NodeTemplateUtils;
-import org.alien4cloud.tosca.utils.TopologyNavigationUtil;
-import org.alien4cloud.tosca.utils.ToscaTypeUtils;
+import org.alien4cloud.tosca.utils.*;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
@@ -497,6 +494,19 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
     private void createServiceResource(Csar csar, Topology topology, NodeTemplate serviceNode, Map<String, NodeTemplate> nodeReplacementMap,
             Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures) {
         NodeTemplate serviceResourceNode = addNodeTemplate(csar, topology, serviceNode.getName() + "_Resource", K8S_TYPES_SERVICE_RESOURCE, K8S_CSAR_VERSION);
+
+        // add an output attribute with the node_port
+        Map<String, Set<String>> topologyAttributes = topology.getOutputAttributes();
+        if (topologyAttributes == null) {
+            topologyAttributes = Maps.newHashMap();
+            topology.setOutputAttributes(topologyAttributes);
+        }
+        Set<String> nodeAttributes = topology.getOutputAttributes().get(serviceResourceNode.getName());
+        if (nodeAttributes == null) {
+            nodeAttributes = Sets.newHashSet();
+            topology.getOutputAttributes().put(serviceResourceNode.getName(), nodeAttributes);
+        }
+        nodeAttributes.add("node_port");
 
         nodeReplacementMap.put(serviceNode.getName(), serviceResourceNode);
         setNodeTagValue(serviceResourceNode, A4C_KUBERNETES_MODIFIER_TAG + "_created_from", serviceNode.getName());

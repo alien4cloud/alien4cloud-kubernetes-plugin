@@ -957,7 +957,7 @@ node_types:
         constraints:
           - equal: emptyDir
       spec:
-        type: org.alien4cloud.kubernetes.api.datatypes.volumes.ConfigMapVolumeSpec
+        type: org.alien4cloud.kubernetes.api.datatypes.volumes.EmptyDirVolumeSpec
         required: false
 
   org.alien4cloud.kubernetes.api.types.volume.HostPathVolumeSource:
@@ -1038,7 +1038,7 @@ node_types:
         constraints:
           - equal: configMap
       spec:
-        type: org.alien4cloud.kubernetes.api.datatypes.volumes.EmptyDirVolumeSpec
+        type: org.alien4cloud.kubernetes.api.datatypes.volumes.ConfigMapVolumeSpec
         required: false
 
   org.alien4cloud.kubernetes.api.types.Service:
@@ -1236,6 +1236,7 @@ node_types:
     attributes:
       ip_address: { get_operation_output: [SELF, Standard, create, IP_ADDRESS] }
       port: { get_operation_output: [SELF, Standard, create, PORT] }
+      node_port: { get_operation_output: [SELF, Standard, create, NODE_PORT] }
     interfaces:
       Standard:
         create:
@@ -1244,7 +1245,7 @@ node_types:
             KUBE_SERVICE_CONFIG: { get_property: [SELF, resource_spec] }
           implementation: scripts/kubectl_service_wrapper.sh
           description: |
-            - Deploy the service onto kubernets
+            - Deploy the service onto kubernetes
             - Export the service ip_address and port to expose it as attributes
         delete:
           inputs:

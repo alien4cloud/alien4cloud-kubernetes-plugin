@@ -28,8 +28,8 @@ function deploy_service(){
 
     # get IP/PORT
     export IP_ADDRESS=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" get services "${KUBE_SERVICE_NAME}" -o=jsonpath={.spec.clusterIP})
-    #export PORT=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" get services "${KUBE_SERVICE_NAME}" -o=jsonpath={.spec.ports[0].port})
-    #export PORT=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" get services "${KUBE_SERVICE_NAME}" -o=jsonpath={.spec.ports[0].nodePort})
+    export PORT=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" get services "${KUBE_SERVICE_NAME}" -o=jsonpath={.spec.ports[0].port})
+    export NODE_PORT=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" get services "${KUBE_SERVICE_NAME}" -o=jsonpath={.spec.ports[0].nodePort})
 }
 
 deploy_service
