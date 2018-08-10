@@ -872,6 +872,15 @@ data_types:
           Will force the ReadOnly setting in VolumeMounts. Default false.
         default: false
 
+  org.alien4cloud.kubernetes.api.datatypes.volumes.EmptyDirVolumeSpec:
+    derived_from: tosca.datatypes.Root
+    properties:
+      name:
+        type: string
+        description: |
+          The name of the ConfigMap : You must create a ConfigMap before you can use it.
+        required: true
+
 node_types:
 
   # HOWTO: How about relationships and capabilities ?
@@ -928,7 +937,7 @@ node_types:
       volume_type:
         type: string
         constraints:
-          - valid_values: [emptyDir, hostPath, awsElasticBlockStore, persistentVolumeClaim]
+          - valid_values: [emptyDir, hostPath, awsElasticBlockStore, persistentVolumeClaim, configMap]
       spec:
         type: tosca.datatypes.Root
         description: may be overriden by concrete implementations
@@ -1016,6 +1025,21 @@ node_types:
       storageClassName:
         type: string
         default: default
+
+  org.alien4cloud.kubernetes.api.types.volume.ConfigMapSource:
+    derived_from: org.alien4cloud.kubernetes.api.types.volume.VolumeBase
+    description: |
+      The configMap resource provides a way to inject configuration data into Pods.
+      More info: https://kubernetes.io/docs/concepts/storage/#configmap
+    properties:
+      volume_type:
+        type: string
+        default: configMap
+        constraints:
+          - equal: configMap
+      spec:
+        type: org.alien4cloud.kubernetes.api.datatypes.volumes.EmptyDirVolumeSpec
+        required: false
 
   org.alien4cloud.kubernetes.api.types.Service:
     derived_from: org.alien4cloud.kubernetes.api.types.AbstractService
