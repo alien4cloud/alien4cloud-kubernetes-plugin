@@ -117,7 +117,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         Set<NodeTemplate> containerNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_CONTAINER, false);
         containerNodes.forEach(
                 nodeTemplate -> manageContainer(csar, topology, nodeTemplate, nodeReplacementMap, resourceNodeYamlStructures, functionEvaluatorContext,
-                        serviceIpAddressesPerDeploymentResource));
+                        serviceIpAddressesPerDeploymentResource, context));
 
         // for each volume node, populate the 'volumes' property of the corresponding deployment resource
         Set<NodeTemplate> volumeNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_VOLUME_BASE, true);
@@ -364,7 +364,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
 
     private void manageContainer(Csar csar, Topology topology, NodeTemplate containerNode, Map<String, NodeTemplate> nodeReplacementMap,
             Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures, FunctionEvaluatorContext functionEvaluatorContext,
-            Map<String, List<String>> serviceIpAddressesPerDeploymentResource) {
+            Map<String, List<String>> serviceIpAddressesPerDeploymentResource, FlowExecutionContext context) {
         {
             // get the hosting node
             NodeTemplate deploymentNode = TopologyNavigationUtil.getImmediateHostTemplate(topology, containerNode);
@@ -390,6 +390,8 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                                 envEntry.getValue().put("name", envKey);
                                 envEntry.getValue().put("value", v);
                                 appendNodePropertyPathValue(csar, topology, containerNode, "container.env", envEntry);
+                            } else {
+                                context.log().warn("Not able to define value for var : " + envKey);
                             }
                         }
                     });
