@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.logging.Level;
 
+import alien4cloud.component.repository.ArtifactRepositoryConstants;
 import alien4cloud.paas.wf.validation.WorkflowValidator;
 import alien4cloud.tosca.context.ToscaContext;
 import alien4cloud.tosca.context.ToscaContextual;
@@ -19,18 +20,13 @@ import lombok.extern.java.Log;
 import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
 import org.alien4cloud.plugin.kubernetes.AbstractKubernetesModifier;
 import org.alien4cloud.tosca.model.Csar;
-import org.alien4cloud.tosca.model.definitions.AbstractPropertyValue;
-import org.alien4cloud.tosca.model.definitions.ComplexPropertyValue;
-import org.alien4cloud.tosca.model.definitions.ConcatPropertyValue;
-import org.alien4cloud.tosca.model.definitions.Operation;
-import org.alien4cloud.tosca.model.definitions.PropertyDefinition;
-import org.alien4cloud.tosca.model.definitions.PropertyValue;
-import org.alien4cloud.tosca.model.definitions.ScalarPropertyValue;
+import org.alien4cloud.tosca.model.definitions.*;
 import org.alien4cloud.tosca.model.templates.Capability;
 import org.alien4cloud.tosca.model.templates.NodeTemplate;
 import org.alien4cloud.tosca.model.templates.PolicyTemplate;
 import org.alien4cloud.tosca.model.templates.RelationshipTemplate;
 import org.alien4cloud.tosca.model.templates.Topology;
+import org.alien4cloud.tosca.model.types.CapabilityType;
 import org.alien4cloud.tosca.model.types.NodeType;
 import org.alien4cloud.tosca.model.types.PolicyType;
 import org.alien4cloud.tosca.normative.constants.AlienCapabilityTypes;
@@ -369,28 +365,106 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
             NodeTemplate deploymentResource = nodeReplacementMap.get(deploymentNode.getName());
             Map<String, AbstractPropertyValue> deploymentResourceNodeProperties = resourceNodeYamlStructures.get(deploymentResource.getName());
 
+            // if the container if of type ConfigurableDockerContainer we must create a ConfigMapFactory per config_settings entry
+            // a map of input_prefix -> NodeTemplate (where NodeTemplate is an instance of ConfigMapFactory)
+            Map<String, NodeTemplate> configMapFactories = Maps.newHashMap();
+
             // resolve env variables
             Set<NodeTemplate> hostedContainers = TopologyNavigationUtil.getSourceNodes(topology, containerNode, "host");
             for (NodeTemplate nodeTemplate : hostedContainers) {
                 // we should have a single hosted docker container
+
+                NodeType containerType = ToscaContext.get(NodeType.class, nodeTemplate.getType());
+                if (ToscaTypeUtils.isOfType(containerType, KubeTopologyUtils.A4C_TYPES_APPLICATION_CONFIGURABLE_DOCKER_CONTAINER)) {
+                    AbstractPropertyValue config_settings = safe(nodeTemplate.getProperties()).get("config_settings");
+                    if (config_settings != null && config_settings instanceof ListPropertyValue) {
+                        ListPropertyValue config_settings_list = (ListPropertyValue)config_settings;
+                        for (Object config_setting_obj : config_settings_list.getValue()) {
+                            if (config_setting_obj instanceof Map) {
+                                Map<String, String> config_setting_map = (Map<String, String>)config_setting_obj;
+                                String mount_path = config_setting_map.get("mount_path");
+                                String input_prefix = config_setting_map.get("input_prefix");
+                                String config_path = config_setting_map.get("config_path");
+
+                                NodeTemplate configMapFactoryNode = addNodeTemplate(csar, topology, nodeTemplate.getName() + "_ConfigMap_" + input_prefix, KubeTopologyUtils.K8S_TYPES_CONFIG_MAP_FACTORY,
+                                        K8S_CSAR_VERSION);
+                                AbstractPropertyValue containerNameAPV = PropertyUtil.getPropertyValueFromPath(safe(containerNode.getProperties()), "container.name");
+                                String containerName = ((ScalarPropertyValue)containerNameAPV).getValue();
+                                String configMapName = KubeTopologyUtils.generateKubeName(containerName + "_ConfigMap_" + input_prefix);
+                                configMapName = configMapName.replaceAll("--", ".");
+                                if (configMapName.endsWith("-")) {
+                                    configMapName = configMapName.substring(0, configMapName.length() -1);
+                                }
+                                setNodePropertyPathValue(csar, topology, configMapFactoryNode, "name", new ScalarPropertyValue(configMapName));
+                                DeploymentArtifact configsArtifact = configMapFactoryNode.getArtifacts().get("configs");
+                                configsArtifact.setArchiveName(topology.getArchiveName());
+                                configsArtifact.setArchiveVersion(topology.getArchiveVersion());
+                                configsArtifact.setArtifactRepository(ArtifactRepositoryConstants.ALIEN_TOPOLOGY_REPOSITORY);
+                                // the artifact ref using the value found in setting
+                                configsArtifact.setArtifactRef(config_path);
+                                configMapFactories.put(input_prefix, configMapFactoryNode);
+
+                                // add the configMap to the deployment
+                                Map<String, Object> volumeEntry = Maps.newHashMap();
+                                Map<String, Object> volumeSpec = Maps.newHashMap();
+                                volumeSpec.put("name", configMapName);
+                                volumeEntry.put("name", configMapName);
+                                volumeEntry.put("configMap", volumeSpec);
+                                feedPropertyValue(deploymentResourceNodeProperties, "resource_def.spec.template.spec.volumes", volumeEntry, true);
+
+                                // add the volume to the container
+                                Map<String, Object> containerVolumeEntry = Maps.newHashMap();
+                                containerVolumeEntry.put("name", configMapName);
+                                containerVolumeEntry.put("mountPath", mount_path);
+                                appendNodePropertyPathValue(csar, topology, containerNode, "container.volumeMounts", new ComplexPropertyValue(containerVolumeEntry));
+
+                                // add all a dependsOn relationship between the configMapFactory and each dependsOn target of deploymentResource
+                                Set<NodeTemplate> deploymentResourceDependencies = TopologyNavigationUtil.getTargetNodes(topology, deploymentResource, "dependency");
+                                RelationshipTemplate dependOnFromDeploymentResource = TopologyNavigationUtil.getRelationshipFromType(deploymentResource, NormativeRelationshipConstants.DEPENDS_ON);
+                                for (NodeTemplate deploymentResourceDependency : deploymentResourceDependencies) {
+                                    addRelationshipTemplate(csar, topology, configMapFactoryNode, deploymentResourceDependency.getName(),
+                                            NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
+                                }
+                                // and finally add a dependsOn between the deploymentResource and the configMapFactory
+                                addRelationshipTemplate(csar, topology, deploymentResource, configMapFactoryNode.getName(),
+                                        NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
+                            }
+                        }
+                    }
+                }
+
                 Operation createOp = KubeTopologyUtils.getContainerImageOperation(nodeTemplate);
                 if (createOp != null) {
-                    safe(createOp.getInputParameters()).forEach((k, iValue) -> {
-                        if (iValue instanceof AbstractPropertyValue && k.startsWith("ENV_")) {
-                            String envKey = k.substring(4);
+                    safe(createOp.getInputParameters()).forEach((inputName, iValue) -> {
+                        if (iValue instanceof AbstractPropertyValue) {
                             AbstractPropertyValue v =
                                     resolveContainerInput(topology, deploymentResource, nodeTemplate, functionEvaluatorContext,
                                             serviceIpAddressesPerDeploymentResource, (AbstractPropertyValue) iValue);
                             if (v != null) {
-                                ComplexPropertyValue envEntry = new ComplexPropertyValue();
-                                envEntry.setValue(Maps.newHashMap());
-                                envEntry.getValue().put("name", envKey);
-                                envEntry.getValue().put("value", v);
-                                appendNodePropertyPathValue(csar, topology, containerNode, "container.env", envEntry);
+                                if (inputName.startsWith("ENV_")) {
+                                    String envKey = inputName.substring(4);
+                                    ComplexPropertyValue envEntry = new ComplexPropertyValue();
+                                    envEntry.setValue(Maps.newHashMap());
+                                    envEntry.getValue().put("name", envKey);
+                                    envEntry.getValue().put("value", v);
+                                    appendNodePropertyPathValue(csar, topology, containerNode, "container.env", envEntry);
+                                } else if (!configMapFactories.isEmpty()) {
+                                    // maybe it's a config that should be associated with a configMap
+                                    for (Map.Entry<String, NodeTemplate> configMapFactoryEntry : configMapFactories.entrySet()) {
+                                        String inputPrefix = configMapFactoryEntry.getKey();
+                                        if (inputName.startsWith(inputPrefix)) {
+                                            // ok this input is related to this configMapFactory
+                                            String varName = inputName.substring(inputPrefix.length());
+                                            setNodePropertyPathValue(csar, topology, configMapFactoryEntry.getValue(), "input_variables." + varName, v);
+                                            break;
+                                        }
+                                    }
+                                }
                             } else {
-                                context.log().warn("Not able to define value for var : " + envKey);
+                                context.log().warn("Not able to define value for input : " + inputName);
                             }
                         }
+                        // here we should manage container of type tosca.nodes.Container.Application.ConfigurableDockerContainer
                     });
                 }
             }
@@ -408,6 +482,11 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                 }
                 setNodePropertyPathValue(csar, topology, deploymentResourceNode, "service_dependency_lookups",
                         new ScalarPropertyValue(serviceDependencyDefinitionsValue.toString()));
+                // we set the same property for each configMapFactory if any
+                configMapFactories.forEach((input_prefix, configMapFactoryNodeTemplate) -> {
+                    setNodePropertyPathValue(csar, topology, configMapFactoryNodeTemplate, "service_dependency_lookups",
+                            new ScalarPropertyValue(serviceDependencyDefinitionsValue.toString()));
+                });
             });
 
             // add an entry in the deployment resource

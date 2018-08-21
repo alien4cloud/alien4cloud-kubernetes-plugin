@@ -39,6 +39,7 @@ public class KubeTopologyUtils {
     public static final String A4C_TYPES_CONTAINER_RUNTIME = "org.alien4cloud.extended.container.types.ContainerRuntime";
     public static final String A4C_TYPES_CONTAINER_DEPLOYMENT_UNIT = "org.alien4cloud.extended.container.types.ContainerDeploymentUnit";
     public static final String A4C_TYPES_APPLICATION_DOCKER_CONTAINER = "tosca.nodes.Container.Application.DockerContainer";
+    public static final String A4C_TYPES_APPLICATION_CONFIGURABLE_DOCKER_CONTAINER = "tosca.nodes.Container.Application.ConfigurableDockerContainer";
     public static final String A4C_TYPES_DOCKER_VOLUME = "org.alien4cloud.nodes.DockerExtVolume";
     // K8S abstract types
     public static final String K8S_TYPES_ABSTRACT_CONTAINER = "org.alien4cloud.kubernetes.api.types.AbstractContainer";
@@ -59,6 +60,7 @@ public class KubeTopologyUtils {
     public static final String K8S_TYPES_SERVICE_RESOURCE = "org.alien4cloud.kubernetes.api.types.ServiceResource";
     public static final String K8S_TYPES_SIMPLE_RESOURCE = "org.alien4cloud.kubernetes.api.types.SimpleResource";
     public static final String K8S_TYPES_ENDPOINT_RESOURCE = "org.alien4cloud.kubernetes.api.types.EndpointResource";
+    public static final String K8S_TYPES_CONFIG_MAP_FACTORY = "org.alien4cloud.kubernetes.api.types.ConfigMapFactory";
     // K8S relationships
     public static final String K8S_TYPES_RSENDPOINT = "org.alien4cloud.kubernetes.api.relationships.K8SEndpointConnectToEndpoint";
 

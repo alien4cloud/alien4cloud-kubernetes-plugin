@@ -879,11 +879,54 @@ data_types:
         type: string
         description: |
           The name of the ConfigMap : You must create a ConfigMap before you can use it.
+        constraints:
+          - pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
         required: true
 
 node_types:
 
   # HOWTO: How about relationships and capabilities ?
+
+  org.alien4cloud.kubernetes.api.types.ConfigMapFactory:
+    derived_from: tosca.nodes.Root
+    description: |
+      Component in charge of creating a configMap using a container (of type ConfigurableDockerContainer) inputs.
+    properties:
+      name:
+        type: string
+        description: |
+          The name of the configMap
+        constraints:
+          - pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+      service_dependency_lookups:
+        type: string
+        required: false
+        description: |
+          A CSV key:value pairs where key should be replaced by the interpretation of value in the JSON.
+          The value is the Kube name of the service for which the scheduler will need to find the ClusterIP and
+          replace the key in the JSON with the found value.
+      input_variables:
+        type: map
+        entry_schema:
+          type: string
+        description: |
+          The variables names and values that should be replaced in the files
+    interfaces:
+      Standard:
+        create:
+          inputs:
+            CONFIGMAP_NAME: { get_property: [SELF, name] }
+            INPUT_VARIABLES: { get_property: [SELF, input_variables] }
+            KUBE_SERVICE_DEPENDENCIES: { get_property: [SELF, service_dependency_lookups] }
+          implementation: scripts/kubectl_configmap_create.sh
+        delete:
+          inputs:
+            CONFIGMAP_NAME: { get_attribute: [SELF, name] }
+          implementation: scripts/kubectl_configmap_delete.sh
+    artifacts:
+      - configs:
+          file: configs
+          type: tosca.artifacts.File
 
   org.alien4cloud.kubernetes.api.types.Base:
     abstract: true
