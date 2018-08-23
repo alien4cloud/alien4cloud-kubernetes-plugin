@@ -83,6 +83,9 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
     private void doProcess(Topology topology, FlowExecutionContext context) {
         Csar csar = new Csar(topology.getArchiveName(), topology.getArchiveVersion());
 
+        Set<NodeTemplate> endpointNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_ENDPOINT_RESOURCE, false);
+        endpointNodes.forEach(nodeTemplate -> manageEndpoints(context, csar, topology, nodeTemplate));
+
         // just a map that store the node name as key and the replacement node as value
         Map<String, NodeTemplate> nodeReplacementMap = Maps.newHashMap();
 
@@ -140,6 +143,58 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                 setNodePropertyPathValue(csar, topology, resourceNode, "resource_spec", new ScalarPropertyValue(serializedPropertyValue));
             }
         }
+    }
+
+    private void manageEndpoints(FlowExecutionContext context, Csar csar, Topology topology, NodeTemplate endpointNode) {
+        // and enpoint is connected to a regular node (not a container), but maybe to a service that has been matched
+        // we just ensure the port is up-to-date now (after matching)
+        // so we set port property on Endpoint node and the service node that both proxy the a4c service node
+        Set<RelationshipTemplate> targetRelationships = TopologyNavigationUtil.getTargetRelationships(endpointNode, "endpoint");
+        if (targetRelationships == null || targetRelationships.size() > 1) {
+            // should never occur
+            return;
+        }
+        RelationshipTemplate targetRelationship = targetRelationships.iterator().next();
+        NodeTemplate targetNodeTemplate = topology.getNodeTemplates().get(targetRelationship.getTarget());
+        AbstractPropertyValue port = TopologyNavigationUtil.getNodeCapabilityPropertyValue(targetNodeTemplate, targetRelationship.getTargetedCapabilityName(), "port");
+        if (port == null) {
+            context.log().error("Connecting container to an external service requires its endpoint port to be defined. Port of [" + targetNodeTemplate.getName()
+                    + ".capabilities." + targetRelationship.getTargetedCapabilityName() + "] is not defined.");
+            return;
+        }
+
+        Set<NodeTemplate> targetEndpointNodes = TopologyNavigationUtil.getTargetNodes(topology, endpointNode, "endpoint");
+        if (targetEndpointNodes == null || targetEndpointNodes.size() > 1) {
+            // should never occur
+            return;
+        }
+        // this is the K8S targeted service node (maybe an abstract service that has now been matched)
+        NodeTemplate targetEndpointNode = targetEndpointNodes.iterator().next();
+        // now search for the service that depends on this endpoint
+        Set<NodeTemplate> targetServiceNodes = TopologyNavigationUtil.getSourceNodes(topology, endpointNode, "feature");
+        if (targetServiceNodes == null || targetServiceNodes.size() > 1) {
+            // should never occur
+            return;
+        }
+        NodeTemplate targetServiceNode = targetServiceNodes.iterator().next();
+
+        // fill service property
+        Map<String, Object> portEntry = Maps.newHashMap();
+        portEntry.put("port", port);
+        ComplexPropertyValue complexPropertyValue = new ComplexPropertyValue(portEntry);
+        appendNodePropertyPathValue(csar, topology, targetServiceNode, "spec.ports", complexPropertyValue);
+
+        // fill endpoint subsets property
+        Map<String, Object> subsetEntry = Maps.newHashMap();
+        Map<String, Object> addresses = Maps.newHashMap();
+        addresses.put("ip", "#{TARGET_IP_ADDRESS}");
+        subsetEntry.put("addresses", new ListPropertyValue(Lists.newArrayList(addresses)));
+        Map<String, Object> ports = Maps.newHashMap();
+        ports.put("port", port);
+        subsetEntry.put("ports", new ListPropertyValue(Lists.newArrayList(ports)));
+        ComplexPropertyValue subsetComplexPropertyValue = new ComplexPropertyValue(subsetEntry);
+        ListPropertyValue subsets = new ListPropertyValue(Lists.newArrayList(subsetComplexPropertyValue));
+        setNodePropertyPathValue(csar, topology, endpointNode, "subsets", subsets);
     }
 
     private void manageVolume(Csar csar, Topology topology, NodeTemplate volumeNode, Map<String, NodeTemplate> nodeReplacementMap,

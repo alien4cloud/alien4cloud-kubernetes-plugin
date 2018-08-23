@@ -171,19 +171,6 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         setNodePropertyPathValue(csar, topology, serviceNode, "metadata.name", new ScalarPropertyValue(serviceName));
         setNodePropertyPathValue(csar, topology, serviceNode, "spec.service_type", new ScalarPropertyValue("ClusterIP"));
 
-        // get the endpoint port
-        AbstractPropertyValue port = targetNodeTemplate.getCapabilities().get(endpointName).getProperties().get("port");
-        if (port == null) {
-            context.log().error("Connecting container to an external service requires its endpoint port to be defined. Port of [" + targetNodeTemplate.getName()
-                    + ".capabilities." + endpointName + "] is not defined.");
-            return;
-        }
-
-        Map<String, Object> portEntry = Maps.newHashMap();
-        portEntry.put("port", port);
-        ComplexPropertyValue complexPropertyValue = new ComplexPropertyValue(portEntry);
-        appendNodePropertyPathValue(csar, topology, serviceNode, "spec.ports", complexPropertyValue);
-
         for (NodeTemplate containerNodeTemplate : containerNodeTemplates) {
             // find the deployment node parent of the container
             NodeTemplate deploymentHost = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology, containerNodeTemplate,
@@ -196,17 +183,6 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         NodeTemplate endpointNode = addNodeTemplate(csar, topology, targetNodeTemplate.getName() + "_" + endpointName + "_ServiceEndpoint",
                 K8S_TYPES_ENDPOINT_RESOURCE, K8S_CSAR_VERSION);
         setNodePropertyPathValue(csar, topology, endpointNode, "resource_id", new ScalarPropertyValue(serviceName));
-        // fill subsets property
-        Map<String, Object> subsetEntry = Maps.newHashMap();
-        Map<String, Object> addresses = Maps.newHashMap();
-        addresses.put("ip", "#{TARGET_IP_ADDRESS}");
-        subsetEntry.put("addresses", new ListPropertyValue(Lists.newArrayList(addresses)));
-        Map<String, Object> ports = Maps.newHashMap();
-        ports.put("port", port);
-        subsetEntry.put("ports", new ListPropertyValue(Lists.newArrayList(ports)));
-        ComplexPropertyValue subsetComplexPropertyValue = new ComplexPropertyValue(subsetEntry);
-        ListPropertyValue subsets = new ListPropertyValue(Lists.newArrayList(subsetComplexPropertyValue));
-        setNodePropertyPathValue(csar, topology, endpointNode, "subsets", subsets);
 
         // add a relationship between the endpoint and the target node
         addRelationshipTemplate(csar, topology, endpointNode, targetNodeTemplate.getName(), K8S_TYPES_RSENDPOINT, "endpoint", endpointName);
