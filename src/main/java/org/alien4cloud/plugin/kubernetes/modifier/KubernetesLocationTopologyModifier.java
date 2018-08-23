@@ -114,42 +114,45 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         // - populate properties on the K8S AbstractContainer that host the container image
         Set<NodeTemplate> containerNodes = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_APPLICATION_DOCKER_CONTAINER, true);
         containerNodes.forEach(nodeTemplate -> manageContainer(csar, topology, nodeTemplate, containerNodes, context));
-        containerNodes.forEach(nodeTemplate -> manageContainerHybridConnections(context, csar, topology, nodeTemplate));
+        manageContainerHybridConnections(context, csar, topology, containerNodes);
 
         // replace all occurences of org.alien4cloud.nodes.DockerExtVolume by k8s abstract volumes
         Set<NodeTemplate> volumeNodes = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_DOCKER_VOLUME, true);
         volumeNodes.forEach(nodeTemplate -> manageVolumes(csar, topology, nodeTemplate));
     }
 
-    private void manageContainerHybridConnections(FlowExecutionContext context, Csar csar, Topology topology, NodeTemplate containerNodeTemplate) {
+    private void manageContainerHybridConnections(FlowExecutionContext context, Csar csar, Topology topology, Set<NodeTemplate> containerNodeTemplates) {
 
         // targetNode -> (capabilityName -> sourceNodes)
         Map<NodeTemplate, Map<String, List<NodeTemplate>>> hybridConnections = Maps.newHashMap();
-        for (Map.Entry<String, RelationshipTemplate> e : safe(containerNodeTemplate.getRelationships()).entrySet()) {
-            NodeTemplate targetNodeTemplate = topology.getNodeTemplates().get(e.getValue().getTarget());
-            NodeType targetNodeType = ToscaContext.getOrFail(NodeType.class, targetNodeTemplate.getType());
-            if (ToscaTypeUtils.isOfType(targetNodeType, A4C_TYPES_APPLICATION_DOCKER_CONTAINER)) {
-                // only consider targets that are not containers
-                continue;
-            }
-            String endpointName = e.getValue().getTargetedCapabilityName();
-            Capability capability = targetNodeTemplate.getCapabilities().get(endpointName);
-            CapabilityType capabilityType = ToscaContext.getOrFail(CapabilityType.class, capability.getType());
-            if (ToscaTypeUtils.isOfType(capabilityType, NormativeCapabilityTypes.ENDPOINT)) {
-                // TODO: add service and endpoint resource
-                Map<String, List<NodeTemplate>> endpointsSources = hybridConnections.get(targetNodeTemplate);
-                if (endpointsSources == null) {
-                    endpointsSources = Maps.newHashMap();
-                    hybridConnections.put(targetNodeTemplate, endpointsSources);
+
+        containerNodeTemplates.forEach(containerNodeTemplate -> {
+            for (Map.Entry<String, RelationshipTemplate> e : safe(containerNodeTemplate.getRelationships()).entrySet()) {
+                NodeTemplate targetNodeTemplate = topology.getNodeTemplates().get(e.getValue().getTarget());
+                NodeType targetNodeType = ToscaContext.getOrFail(NodeType.class, targetNodeTemplate.getType());
+                if (ToscaTypeUtils.isOfType(targetNodeType, A4C_TYPES_APPLICATION_DOCKER_CONTAINER)) {
+                    // only consider targets that are not containers
+                    continue;
                 }
-                List<NodeTemplate> sources = endpointsSources.get(endpointName);
-                if (sources == null) {
-                    sources = Lists.newArrayList();
-                    endpointsSources.put(endpointName, sources);
+                String endpointName = e.getValue().getTargetedCapabilityName();
+                Capability capability = targetNodeTemplate.getCapabilities().get(endpointName);
+                CapabilityType capabilityType = ToscaContext.getOrFail(CapabilityType.class, capability.getType());
+                if (ToscaTypeUtils.isOfType(capabilityType, NormativeCapabilityTypes.ENDPOINT)) {
+                    // TODO: add service and endpoint resource
+                    Map<String, List<NodeTemplate>> endpointsSources = hybridConnections.get(targetNodeTemplate);
+                    if (endpointsSources == null) {
+                        endpointsSources = Maps.newHashMap();
+                        hybridConnections.put(targetNodeTemplate, endpointsSources);
+                    }
+                    List<NodeTemplate> sources = endpointsSources.get(endpointName);
+                    if (sources == null) {
+                        sources = Lists.newArrayList();
+                        endpointsSources.put(endpointName, sources);
+                    }
+                    sources.add(containerNodeTemplate);
                 }
-                sources.add(containerNodeTemplate);
             }
-        }
+        });
         for (Map.Entry<NodeTemplate, Map<String, List<NodeTemplate>>> e : hybridConnections.entrySet()) {
             for (Map.Entry<String, List<NodeTemplate>> f : e.getValue().entrySet()) {
                 manageContainerHybridConnection(context, csar, topology, f.getValue(), e.getKey(), f.getKey());
