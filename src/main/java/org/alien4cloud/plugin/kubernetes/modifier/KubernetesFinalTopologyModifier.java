@@ -474,12 +474,12 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                                 appendNodePropertyPathValue(csar, topology, containerNode, "container.volumeMounts", new ComplexPropertyValue(containerVolumeEntry));
 
                                 // add all a dependsOn relationship between the configMapFactory and each dependsOn target of deploymentResource
-                                Set<NodeTemplate> deploymentResourceDependencies = TopologyNavigationUtil.getTargetNodes(topology, deploymentResource, "dependency");
-                                RelationshipTemplate dependOnFromDeploymentResource = TopologyNavigationUtil.getRelationshipFromType(deploymentResource, NormativeRelationshipConstants.DEPENDS_ON);
-                                for (NodeTemplate deploymentResourceDependency : deploymentResourceDependencies) {
-                                    addRelationshipTemplate(csar, topology, configMapFactoryNode, deploymentResourceDependency.getName(),
+                                Set<RelationshipTemplate> dependsOnRelationships = TopologyNavigationUtil.getTargetRelationships(deploymentResource, "dependency");
+                                dependsOnRelationships.forEach(dependsOnRelationship -> {
+                                    addRelationshipTemplate(csar, topology, configMapFactoryNode, dependsOnRelationship.getTarget(),
                                             NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
-                                }
+                                    removeRelationship(csar, topology, deploymentResource.getName(), dependsOnRelationship.getName());
+                                });
                                 // and finally add a dependsOn between the deploymentResource and the configMapFactory
                                 addRelationshipTemplate(csar, topology, deploymentResource, configMapFactoryNode.getName(),
                                         NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
