@@ -23,8 +23,16 @@ function resolve_service_dependencies_variables(){
         # Iterate over files in value of $config (the config folder artifact)
         for file in $( ls $configs/* )
         do
-            echo "Replacing occurences of \${$var_name} by '$var_value' in file ${file}"
-            sed -i "s/\${$var_name}/${var_value}/g" ${file}
+            echo "Replacing occurrences of \${$var_name} by '$var_value' in file ${file}"
+            # we can not manage value containing / @ and ^ (probability near zero !)
+            sed_expre="s/\${$var_name}/${var_value}/g";
+            if [ -z "${var_value##*/*}" ] ;then
+                sed_expre="s@\${$var_name}@${var_value}@g";
+                if [ -z "${var_value##*@*}" ] ;then
+                    sed_expre="s^\${$var_name}^${var_value}^g";
+                fi
+            fi
+            sed -i "${sed_expre}" ${file}
         done
 	done
 }
@@ -40,8 +48,16 @@ do
     for key in $(echo $json | jq 'keys' | jq -r '.[]');
     do
         value=$(echo $json | jq -r ".${key}");
-        echo "Replacing occurences of \${$key} by '$value' in file ${file}"
-        sed -i "s/\${$key}/${value}/g" ${file}
+        echo "Replacing occurrences of \${$key} by '$value' in file ${file}"
+        # we can not manage value containing / @ and ^ (probability near zero !)
+        sed_expre="s/\${$key}/${value}/g";
+        if [ -z "${value##*/*}" ] ;then
+            sed_expre="s@\${$key}@${value}@g";
+            if [ -z "${value##*@*}" ] ;then
+                sed_expre="s^\${$key}^${value}^g";
+            fi
+        fi
+        sed -i "${sed_expre}" ${file}
     done
     # build the config map command end
     command="$command --from-file=$file"
