@@ -9,15 +9,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-import org.alien4cloud.tosca.model.definitions.AbstractPropertyValue;
-import org.alien4cloud.tosca.model.definitions.FunctionPropertyValue;
-import org.alien4cloud.tosca.model.definitions.IValue;
-import org.alien4cloud.tosca.model.definitions.Operation;
-import org.alien4cloud.tosca.model.definitions.PropertyValue;
-import org.alien4cloud.tosca.model.templates.Capability;
-import org.alien4cloud.tosca.model.templates.NodeTemplate;
-import org.alien4cloud.tosca.model.templates.RelationshipTemplate;
-import org.alien4cloud.tosca.model.templates.Topology;
+import org.alien4cloud.plugin.kubernetes.AbstractKubernetesModifier;
+import org.alien4cloud.tosca.model.definitions.*;
+import org.alien4cloud.tosca.model.templates.*;
 import org.alien4cloud.tosca.model.types.NodeType;
 import org.alien4cloud.tosca.normative.constants.ToscaFunctionConstants;
 import org.alien4cloud.tosca.utils.InterfaceUtils;
@@ -194,10 +188,15 @@ public class KubeTopologyUtils {
                             // if (isOfType(targetNodeType, A4C_TYPES_APPLICATION_DOCKER_CONTAINER)) {
 
                             Capability endpoint = targetNode.getCapabilities().get(targetRelationship.getTargetedCapabilityName());
-                            AbstractPropertyValue targetPropertyValue = PropertyUtil.getPropertyValueFromPath(endpoint.getProperties(),
-                                    evaluatedFunction.getElementNameToFetch());
-                            if (targetPropertyValue != null) {
-                                return targetPropertyValue;
+                            String attributeName = "capabilities." + targetRelationship.getTargetedCapabilityName() + "." + evaluatedFunction.getElementNameToFetch();
+                            if (targetNode instanceof ServiceNodeTemplate && ((ServiceNodeTemplate)targetNode).getAttributeValues().containsKey(attributeName)) {
+                                return new ScalarPropertyValue(((ServiceNodeTemplate)targetNode).getAttributeValues().get(attributeName));
+                            } else {
+                                AbstractPropertyValue targetPropertyValue = PropertyUtil.getPropertyValueFromPath(endpoint.getProperties(),
+                                        evaluatedFunction.getElementNameToFetch());
+                                if (targetPropertyValue != null) {
+                                    return targetPropertyValue;
+                                }
                             }
                             // }
                         }
@@ -226,11 +225,17 @@ public class KubeTopologyUtils {
                             // is this node a container ?
                             NodeType targetNodeType = ToscaContext.get(NodeType.class, targetNode.getType());
                             if (isOfType(targetNodeType, A4C_TYPES_APPLICATION_DOCKER_CONTAINER)) {
-                                // find the deployment that host this container
-                                NodeTemplate deploymentNode = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology, targetNode,
-                                        K8S_TYPES_DEPLOYMENT);
-                                if (deploymentNode != null) {
-                                    return getServiceRelatedToDeployment(topology, deploymentNode, capabilityName);
+                                if (targetNode instanceof ServiceNodeTemplate) {
+                                    // this a container exposed as a service
+                                    return targetNode;
+                                } else {
+                                    // this a regular container, also deployed in this deployemnt
+                                    // find the deployment that host this container
+                                    NodeTemplate deploymentNode = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology, targetNode,
+                                            K8S_TYPES_DEPLOYMENT);
+                                    if (deploymentNode != null) {
+                                        return getServiceRelatedToDeployment(topology, deploymentNode, capabilityName);
+                                    }
                                 }
                             } else {
                                 // the target is not a container, so we should find a service that proxy the endpoint
@@ -260,7 +265,7 @@ public class KubeTopologyUtils {
         for (NodeTemplate sourceNode : sourceNodes) {
             Collection<Tag> sourceNodeTags = safe(sourceNode.getTags());
             for (Tag tag : sourceNodeTags) {
-                if (tag.getName().equals(KubernetesLocationTopologyModifier.A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT)) {
+                if (tag.getName().equals(AbstractKubernetesModifier.A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT)) {
                     if (tag.getValue().equals(endpointName)) {
                         return sourceNode;
                     }

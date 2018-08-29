@@ -24,10 +24,7 @@ import org.alien4cloud.tosca.model.definitions.ComplexPropertyValue;
 import org.alien4cloud.tosca.model.definitions.ListPropertyValue;
 import org.alien4cloud.tosca.model.definitions.PropertyDefinition;
 import org.alien4cloud.tosca.model.definitions.ScalarPropertyValue;
-import org.alien4cloud.tosca.model.templates.Capability;
-import org.alien4cloud.tosca.model.templates.NodeTemplate;
-import org.alien4cloud.tosca.model.templates.RelationshipTemplate;
-import org.alien4cloud.tosca.model.templates.Topology;
+import org.alien4cloud.tosca.model.templates.*;
 import org.alien4cloud.tosca.model.types.CapabilityType;
 import org.alien4cloud.tosca.model.types.NodeType;
 import org.alien4cloud.tosca.normative.constants.NormativeCapabilityTypes;
@@ -79,9 +76,6 @@ import static org.alien4cloud.tosca.utils.ToscaTypeUtils.isOfType;
 @Component(value = "kubernetes-modifier")
 public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifier {
 
-    public static final String A4C_KUBERNETES_MODIFIER_TAG = "a4c_kubernetes-modifier";
-    public static final String A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT = A4C_KUBERNETES_MODIFIER_TAG + "_service_endpoint";
-
     @Override
     @ToscaContextual
     public void process(Topology topology, FlowExecutionContext context) {
@@ -112,7 +106,7 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         // for each container capability of type endpoint
         // - add a org.alien4cloud.kubernetes.api.types.ServiceResource and weave depends_on relationships
         // - populate properties on the K8S AbstractContainer that host the container image
-        Set<NodeTemplate> containerNodes = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_APPLICATION_DOCKER_CONTAINER, true);
+        Set<NodeTemplate> containerNodes = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_APPLICATION_DOCKER_CONTAINER, true, false);
         containerNodes.forEach(nodeTemplate -> manageContainer(csar, topology, nodeTemplate, containerNodes, context));
         manageContainerHybridConnections(context, csar, topology, containerNodes);
 
@@ -130,8 +124,9 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
             for (Map.Entry<String, RelationshipTemplate> e : safe(containerNodeTemplate.getRelationships()).entrySet()) {
                 NodeTemplate targetNodeTemplate = topology.getNodeTemplates().get(e.getValue().getTarget());
                 NodeType targetNodeType = ToscaContext.getOrFail(NodeType.class, targetNodeTemplate.getType());
-                if (ToscaTypeUtils.isOfType(targetNodeType, A4C_TYPES_APPLICATION_DOCKER_CONTAINER)) {
+                if (ToscaTypeUtils.isOfType(targetNodeType, A4C_TYPES_APPLICATION_DOCKER_CONTAINER) || targetNodeType.isAbstract()) {
                     // only consider targets that are not containers
+                    // don't consider targets that are abstract (they are services and will resolved as services)
                     continue;
                 }
                 String endpointName = e.getValue().getTargetedCapabilityName();
@@ -384,8 +379,17 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.name",
                 new ScalarPropertyValue(generateUniqueKubeName(containerNodeTemplate.getName())));
         AbstractPropertyValue docker_run_cmd = PropertyUtil.getPropertyValueFromPath(properties, "docker_run_cmd");
+        AbstractPropertyValue docker_bash_cmd = PropertyUtil.getPropertyValueFromPath(properties, "docker_bash_cmd");
         if (docker_run_cmd != null && docker_run_cmd instanceof ScalarPropertyValue) {
-            List<Object> values = Lists.newArrayList("/bin/bash", "-c", ((ScalarPropertyValue) docker_run_cmd).getValue());
+            List<Object> values = Lists.newArrayList();
+            if (docker_bash_cmd != null && docker_bash_cmd instanceof ListPropertyValue) {
+                ListPropertyValue dockerBashCmdList = (ListPropertyValue)docker_bash_cmd;
+                values.addAll(dockerBashCmdList.getValue());
+            } else {
+                values.add("/bin/bash");
+                values.add("-c");
+            }
+            values.add(((ScalarPropertyValue) docker_run_cmd).getValue());
             ListPropertyValue listPropertyValue = new ListPropertyValue();
             listPropertyValue.setValue(values);
             setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.command", listPropertyValue);
@@ -406,15 +410,28 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
                 endpointNames.add(e.getKey());
             }
         }
+        // a map of exposed capabilities for this node {name of the capability of the container} -> {name of the exposed capability}
+        Map<String, String> exposedEndpoints = Maps.newHashMap();
+        if (topology.getSubstitutionMapping() != null && topology.getSubstitutionMapping().getCapabilities() != null) {
+            topology.getSubstitutionMapping().getCapabilities().forEach(
+                    (substitutionCapabilityName, substitutionTarget) -> {
+                        if (substitutionTarget.getNodeTemplateName().equals(containerNodeTemplate.getName())) {
+                            // FIXME: should we limit only to capa of type Endpoint ?
+                            exposedEndpoints.putIfAbsent(substitutionTarget.getTargetId(), substitutionCapabilityName);
+                        }
+                    }
+            );
+        }
         endpointNames.forEach(endpointName -> manageContainerEndpoint(csar, topology, containerNodeTemplate, endpointName, containerRuntimeNodeTemplate,
-                deploymentNodeTemplate, allContainerNodes, context));
+                deploymentNodeTemplate, allContainerNodes, context, exposedEndpoints));
     }
 
     /**
      * For a given endpoint capability of a node of type container, we must create a Service node.
      */
     private void manageContainerEndpoint(Csar csar, Topology topology, NodeTemplate containerNodeTemplate, String endpointName,
-            NodeTemplate containerRuntimeNodeTemplate, NodeTemplate deploymentNodeTemplate, Set<NodeTemplate> allContainerNodes, FlowExecutionContext context) {
+                                         NodeTemplate containerRuntimeNodeTemplate, NodeTemplate deploymentNodeTemplate, Set<NodeTemplate> allContainerNodes, FlowExecutionContext context, Map<String, String> exposedEndpoints) {
+
         // fill the ports map of the hosting K8S AbstractContainer
         AbstractPropertyValue port = containerNodeTemplate.getCapabilities().get(endpointName).getProperties().get("port");
         if (port == null) {
@@ -432,6 +449,14 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
                 K8S_TYPES_ABSTRACT_SERVICE, K8S_CSAR_VERSION);
         setNodeTagValue(serviceNode, A4C_KUBERNETES_MODIFIER_TAG, "Proxy of node <" + containerNodeTemplate.getName() + "> capability <" + endpointName + ">");
         setNodeTagValue(serviceNode, A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT, endpointName);
+        setNodeTagValue(serviceNode, A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT_PORT, ((ScalarPropertyValue)port).getValue());
+
+        String exposedCapabilityName = exposedEndpoints.get(endpointName);
+        if (exposedCapabilityName != null) {
+            // a container capability is exposed for substitution
+            // here tag the exposed capability name onto serviceNode
+            setNodeTagValue(serviceNode, A4C_KUBERNETES_MODIFIER_TAG_EXPOSED_AS_CAPA, exposedCapabilityName);
+        }
 
         // fill properties of service
         setNodePropertyPathValue(csar, topology, serviceNode, "metadata.name", new ScalarPropertyValue(generateUniqueKubeName(serviceNode.getName())));

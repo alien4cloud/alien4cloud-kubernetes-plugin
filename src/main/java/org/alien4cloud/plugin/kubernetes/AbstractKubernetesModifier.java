@@ -9,7 +9,6 @@ import alien4cloud.tosca.context.ToscaContext;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
-import org.alien4cloud.plugin.kubernetes.modifier.KubernetesFinalTopologyModifier;
 import org.alien4cloud.tosca.exceptions.InvalidPropertyValueException;
 import org.alien4cloud.tosca.model.definitions.PropertyDefinition;
 import org.alien4cloud.tosca.model.definitions.PropertyValue;
@@ -25,6 +24,10 @@ import org.alien4cloud.tosca.utils.TopologyNavigationUtil;
 
 public abstract class AbstractKubernetesModifier extends TopologyModifierSupport {
 
+    public static final String A4C_KUBERNETES_MODIFIER_TAG = "a4c_kubernetes-modifier";
+    public static final String A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT = A4C_KUBERNETES_MODIFIER_TAG + "_service_endpoint";
+    protected static final String A4C_KUBERNETES_MODIFIER_TAG_EXPOSED_AS_CAPA = AbstractKubernetesModifier.A4C_KUBERNETES_MODIFIER_TAG + "_exposedAs";
+    protected static final String A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT_PORT = A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT + "_port";
     private static Map<String, AbstractKubernetesModifier.Parser> k8sParsers = Maps.newHashMap();
 
     static {

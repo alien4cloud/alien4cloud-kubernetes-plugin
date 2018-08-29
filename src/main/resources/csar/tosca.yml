@@ -1280,6 +1280,9 @@ node_types:
       ip_address: { get_operation_output: [SELF, Standard, create, IP_ADDRESS] }
       port: { get_operation_output: [SELF, Standard, create, PORT] }
       node_port: { get_operation_output: [SELF, Standard, create, NODE_PORT] }
+    capabilities:
+      cluster_endpoint:
+        type: tosca.capabilities.Endpoint
     interfaces:
       Standard:
         create:
