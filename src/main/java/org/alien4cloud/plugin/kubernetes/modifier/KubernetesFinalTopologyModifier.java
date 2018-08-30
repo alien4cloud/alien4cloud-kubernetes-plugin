@@ -449,7 +449,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                                 AbstractPropertyValue containerNameAPV = PropertyUtil.getPropertyValueFromPath(safe(containerNode.getProperties()), "container.name");
                                 String containerName = ((ScalarPropertyValue)containerNameAPV).getValue();
                                 String configMapName = KubeTopologyUtils.generateKubeName(containerName + "_ConfigMap_" + input_prefix);
-                                configMapName = configMapName.replaceAll("--", ".");
+                                configMapName = configMapName.replaceAll("--", "-");
                                 if (configMapName.endsWith("-")) {
                                     configMapName = configMapName.substring(0, configMapName.length() -1);
                                 }
