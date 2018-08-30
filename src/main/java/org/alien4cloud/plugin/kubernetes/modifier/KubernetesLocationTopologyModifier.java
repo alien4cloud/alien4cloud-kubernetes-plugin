@@ -441,7 +441,8 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         }
         ComplexPropertyValue portPropertyValue = new ComplexPropertyValue(Maps.newHashMap());
         portPropertyValue.getValue().put("containerPort", port);
-        portPropertyValue.getValue().put("name", new ScalarPropertyValue(generateKubeName(endpointName)));
+        String portName = generateKubeName(endpointName);
+        portPropertyValue.getValue().put("name", new ScalarPropertyValue(portName));
         appendNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.ports", portPropertyValue);
 
         // add an abstract service node
@@ -450,6 +451,7 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         setNodeTagValue(serviceNode, A4C_KUBERNETES_MODIFIER_TAG, "Proxy of node <" + containerNodeTemplate.getName() + "> capability <" + endpointName + ">");
         setNodeTagValue(serviceNode, A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT, endpointName);
         setNodeTagValue(serviceNode, A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT_PORT, ((ScalarPropertyValue)port).getValue());
+        setNodeTagValue(serviceNode, A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT_PORT_NAME, portName);
 
         String exposedCapabilityName = exposedEndpoints.get(endpointName);
         if (exposedCapabilityName != null) {
@@ -468,7 +470,6 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
 
         // fill port list
         Map<String, Object> portEntry = Maps.newHashMap();
-        String portName = generateKubeName(endpointName);
         portEntry.put("name", new ScalarPropertyValue(portName));
         portEntry.put("targetPort", new ScalarPropertyValue(portName));
         portEntry.put("port", port);

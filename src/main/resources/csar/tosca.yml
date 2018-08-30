@@ -1087,6 +1087,19 @@ node_types:
   org.alien4cloud.kubernetes.api.types.Service:
     derived_from: org.alien4cloud.kubernetes.api.types.AbstractService
 
+  org.alien4cloud.kubernetes.api.types.IngressService:
+    derived_from: org.alien4cloud.kubernetes.api.types.Service
+    description: |
+      This kind of service can be used of you want to expose your service using the Ingress controler
+    properties:
+      host:
+        type: string
+        description: |
+          The dns name for the ingress.
+        required: true
+        constraints:
+          - pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+
   org.alien4cloud.kubernetes.api.types.AbstractService:
     abstract: true
     derived_from: org.alien4cloud.kubernetes.api.types.Base
@@ -1310,7 +1323,7 @@ node_types:
         constraints:
           # for the moment managed types are: PersistenceVolumeClaim (pvc), HorizontalPodAutoscaler (hpa)
           # Cf. https://kubernetes.io/docs/reference/kubectl/overview/ section 'Resource types'
-          - valid_values: [pvc, hpa]
+          - valid_values: [pvc, hpa, ing]
       resource_id:
         type: string
         required: true

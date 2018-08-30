@@ -16,6 +16,7 @@ import org.alien4cloud.tosca.model.types.NodeType;
 import org.alien4cloud.tosca.normative.constants.ToscaFunctionConstants;
 import org.alien4cloud.tosca.utils.InterfaceUtils;
 import org.alien4cloud.tosca.utils.TopologyNavigationUtil;
+import org.alien4cloud.tosca.utils.ToscaTypeUtils;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Maps;
 
@@ -45,6 +46,7 @@ public class KubeTopologyUtils {
     public static final String K8S_TYPES_CONTAINER = "org.alien4cloud.kubernetes.api.types.Container";
     public static final String K8S_TYPES_DEPLOYMENT = "org.alien4cloud.kubernetes.api.types.Deployment";
     public static final String K8S_TYPES_SERVICE = "org.alien4cloud.kubernetes.api.types.Service";
+    public static final String K8S_TYPES_SERVICE_INGRESS = "org.alien4cloud.kubernetes.api.types.IngressService";
     // K8S volume types
     public static final String K8S_TYPES_VOLUMES_CLAIM = "org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimSource";
     public static final String K8S_TYPES_VOLUMES_CLAIM_SC = "org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimStorageClassSource";
@@ -243,7 +245,10 @@ public class KubeTopologyUtils {
                                         K8S_TYPES_RSENDPOINT);
                                 NodeTemplate endpointNode = endpoints.iterator().next();
                                 Set<NodeTemplate> services = TopologyNavigationUtil.getSourceNodes(topology, endpointNode, "feature");
-                                return services.stream().filter(nodeTemplate -> nodeTemplate.getType().equals(K8S_TYPES_SERVICE)).findFirst().get();
+                                return services.stream().filter(nodeTemplate -> {
+                                    NodeType nodeType = ToscaContext.get(NodeType.class, nodeTemplate.getType());
+                                    return ToscaTypeUtils.isOfType(nodeType, K8S_TYPES_SERVICE);
+                                }).findFirst().get();
                             }
                         }
                     }

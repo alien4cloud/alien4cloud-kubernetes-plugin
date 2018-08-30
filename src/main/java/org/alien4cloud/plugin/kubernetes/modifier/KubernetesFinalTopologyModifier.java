@@ -40,6 +40,7 @@ import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_T
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_DEPLOYMENT_RESOURCE;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ENDPOINT_RESOURCE;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_RESOURCE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SERVICE_INGRESS;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SERVICE;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SERVICE_RESOURCE;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SIMPLE_RESOURCE;
@@ -91,7 +92,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures = Maps.newHashMap();
 
         // for each Service create a node of type ServiceResource
-        Set<NodeTemplate> serviceNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_SERVICE, false);
+        Set<NodeTemplate> serviceNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_SERVICE, true);
         serviceNodes.forEach(nodeTemplate -> createServiceResource(csar, topology, nodeTemplate, nodeReplacementMap, resourceNodeYamlStructures));
 
         // for each Deployment create a node of type DeploymentResource
@@ -597,31 +598,31 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
 
         // find each node of type Service that targets this deployment
         Set<NodeTemplate> sourceCandidates = TopologyNavigationUtil.getSourceNodes(topology, deploymentNode, "feature");
-        for (NodeTemplate nodeTemplate : sourceCandidates) {
-            // TODO: manage inheritance ?
-            if (nodeTemplate.getType().equals(K8S_TYPES_SERVICE)) {
+        for (NodeTemplate sourceCandidate : sourceCandidates) {
+            NodeType sourceCandidateType = ToscaContext.get(NodeType.class, sourceCandidate.getType());
+            if (ToscaTypeUtils.isOfType(sourceCandidateType, K8S_TYPES_SERVICE)) {
                 // find the replacer
-                NodeTemplate serviceResource = nodeReplacementMap.get(nodeTemplate.getName());
+                NodeTemplate serviceResource = nodeReplacementMap.get(sourceCandidate.getName());
                 if (!TopologyNavigationUtil.hasRelationship(serviceResource, deploymentResourceNode.getName(), "dependency", "feature")) {
                     RelationshipTemplate relationshipTemplate = addRelationshipTemplate(csar, topology, serviceResource, deploymentResourceNode.getName(),
                             NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
                     setNodeTagValue(relationshipTemplate, A4C_KUBERNETES_MODIFIER_TAG + "_created_from",
-                            nodeTemplate.getName() + " -> " + deploymentNode.getName());
+                            sourceCandidate.getName() + " -> " + deploymentNode.getName());
                 }
             }
         }
         // find each node of type service this deployment depends on
         Set<NodeTemplate> targetCandidates = TopologyNavigationUtil.getTargetNodes(topology, deploymentNode, "dependency");
-        for (NodeTemplate nodeTemplate : targetCandidates) {
-            // TODO: manage inheritance ?
-            if (nodeTemplate.getType().equals(K8S_TYPES_SERVICE)) {
+        for (NodeTemplate targetCandidate : targetCandidates) {
+            NodeType targetCandidateType = ToscaContext.get(NodeType.class, targetCandidate.getType());
+            if (ToscaTypeUtils.isOfType(targetCandidateType, K8S_TYPES_SERVICE)) {
                 // find the replacer
-                NodeTemplate serviceResource = nodeReplacementMap.get(nodeTemplate.getName());
+                NodeTemplate serviceResource = nodeReplacementMap.get(targetCandidate.getName());
                 if (!TopologyNavigationUtil.hasRelationship(deploymentResourceNode, serviceResource.getName(), "dependency", "feature")) {
                     RelationshipTemplate relationshipTemplate = addRelationshipTemplate(csar, topology, deploymentResourceNode, serviceResource.getName(),
                             NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
                     setNodeTagValue(relationshipTemplate, A4C_KUBERNETES_MODIFIER_TAG + "_created_from",
-                            deploymentNode.getName() + " -> " + nodeTemplate.getName());
+                            deploymentNode.getName() + " -> " + targetCandidate.getName());
                 }
             }
         }
@@ -647,6 +648,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
 
         // set the value for the 'cluster_endpoint' port property
         String port = getNodeTagValueOrNull(serviceNode, A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT_PORT);
+        String portName = getNodeTagValueOrNull(serviceNode, A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT_PORT_NAME);
         if (port != null) {
             setNodeCappabilityPropertyPathValue(csar, topology, serviceResourceNode, "cluster_endpoint", "port", new ScalarPropertyValue(port), false);
         }
@@ -694,6 +696,66 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                         "dependency", "feature");
             }
         }
+
+        if (serviceNode.getType().equals(K8S_TYPES_SERVICE_INGRESS)) {
+            createIngress(csar, topology, serviceNode, serviceResourceNode, portName, namePropertyValue, resourceNodeYamlStructures);
+        }
+    }
+
+    private void createIngress(Csar csar, Topology topology, NodeTemplate serviceNode, NodeTemplate serviceResourcesNode, String portName, AbstractPropertyValue serviceName, Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures) {
+        AbstractPropertyValue ingressHost = PropertyUtil.getPropertyValueFromPath(safe(serviceNode.getProperties()), "host");
+
+        NodeTemplate ingressResourceNode = addNodeTemplate(csar, topology, serviceNode.getName() + "_Ingress", K8S_TYPES_SIMPLE_RESOURCE, K8S_CSAR_VERSION);
+
+        Map<String, AbstractPropertyValue> ingressResourceNodeProperties = Maps.newHashMap();
+        resourceNodeYamlStructures.put(ingressResourceNode.getName(), ingressResourceNodeProperties);
+
+        String ingressName = generateUniqueKubeName(ingressResourceNode.getName());
+
+        feedPropertyValue(ingressResourceNode.getProperties(), "resource_type", new ScalarPropertyValue("ing"), false);
+        feedPropertyValue(ingressResourceNode.getProperties(), "resource_id", new ScalarPropertyValue(ingressName), false);
+
+        /* here we are creating something like that:
+        apiVersion: extensions/v1beta1
+        kind: Ingress
+        metadata:
+          name: ingress
+        spec:
+          rules:
+          - host: helloworld-test.artemis.public
+            http:
+              paths:
+              - path: /
+                backend:
+                  serviceName: helloworld-ingress-svc
+                  servicePort: 80
+         */
+
+        // fill the future JSON spec
+        feedPropertyValue(ingressResourceNodeProperties, "resource_def.kind", "Ingress", false);
+        feedPropertyValue(ingressResourceNodeProperties, "resource_def.apiVersion", "extensions/v1beta1", false);
+        feedPropertyValue(ingressResourceNodeProperties, "resource_def.metadata.name", ingressName, false);
+        feedPropertyValue(ingressResourceNodeProperties, "resource_def.metadata.labels.a4c_id", ingressName, false);
+
+        Map<String, Object> rule = Maps.newHashMap();
+        rule.put("host", ingressHost);
+        Map<String, Object> http = Maps.newHashMap();
+        rule.put("http", http);
+        Map<String, Object> path = Maps.newHashMap();
+        path.put("path", "/");
+        Map<String, Object> backend = Maps.newHashMap();
+        backend.put("serviceName", serviceName);
+        backend.put("servicePort", portName);
+        path.put("backend", backend);
+        List<Object> paths = Lists.newArrayList();
+        paths.add(path);
+        http.put("paths", paths);
+        feedPropertyValue(ingressResourceNodeProperties, "resource_def.spec.rules", rule, true);
+
+        // add a dependency between the ingress and the service
+        addRelationshipTemplate(csar, topology, ingressResourceNode, serviceResourcesNode.getName(), NormativeRelationshipConstants.DEPENDS_ON,
+                "dependency", "feature");
+
     }
 
     private void renameProperty(Object propertyValue, String propertyPath, String newName) {
