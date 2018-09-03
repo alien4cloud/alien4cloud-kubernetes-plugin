@@ -434,7 +434,11 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
 
                 AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(safe(nodeTemplate.getProperties()), "docker_run_args");
                 if (propertyValue != null) {
-                    setNodePropertyPathValue(csar, topology, containerNode, "container.args", propertyValue);
+                    if (propertyValue instanceof ListPropertyValue) {
+                        setNodePropertyPathValue(csar, topology, containerNode, "container.args", propertyValue);
+                    } else {
+                        context.getLog().warn("Ignoring args for container <" + nodeTemplate.getName() + ">, it should be a list but it is not");
+                    }
                 }
 
                 NodeType containerType = ToscaContext.get(NodeType.class, nodeTemplate.getType());
@@ -505,6 +509,10 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                                     resolveContainerInput(topology, deploymentResource, nodeTemplate, functionEvaluatorContext,
                                             serviceIpAddressesPerDeploymentResource, (AbstractPropertyValue) iValue);
                             if (v != null) {
+                                if (!(v instanceof ScalarPropertyValue)) {
+                                    context.getLog().warn("Ignoring INPUT named <" + inputName + "> because the value is not a scalar: " + v.getClass().getSimpleName());
+                                    return;
+                                }
                                 if (inputName.startsWith("ENV_")) {
                                     String envKey = inputName.substring(4);
                                     ComplexPropertyValue envEntry = new ComplexPropertyValue();
@@ -587,6 +595,9 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         copyProperty(csar, topology, deploymentNode, "apiVersion", deploymentResourceNodeProperties, "resource_def.apiVersion");
         copyProperty(csar, topology, deploymentNode, "kind", deploymentResourceNodeProperties, "resource_def.kind");
         copyProperty(csar, topology, deploymentNode, "metadata", deploymentResourceNodeProperties, "resource_def.metadata");
+        copyProperty(csar, topology, deploymentNode, "metadata.name", deploymentResourceNodeProperties, "resource_id");
+
+
 
         AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(safe(deploymentNode.getProperties()), "spec");
         NodeType nodeType = ToscaContext.get(NodeType.class, deploymentNode.getType());

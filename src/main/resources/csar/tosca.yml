@@ -1211,6 +1211,11 @@ node_types:
   org.alien4cloud.kubernetes.api.types.DeploymentResource:
     derived_from: org.alien4cloud.kubernetes.api.types.BaseResource
     properties:
+      resource_id:
+        type: string
+        required: true
+        description: |
+          a unique id set by a4c to identify a resource. it should be added as a label named 'a4c_id'
       service_dependency_lookups:
         type: string
         required: false
@@ -1236,7 +1241,7 @@ node_types:
             - Export some informations to expose it as attributes ?
         delete:
           inputs:
-            KUBE_DEPLOYMENT_ID: { get_attribute: [SELF, deployment_id] }
+            KUBE_DEPLOYMENT_ID: { get_property: [SELF, resource_id] }
           implementation: scripts/kubectl_deployment_delete.sh
       org.alien4cloud.management.ClusterControl:
         scale:
