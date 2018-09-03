@@ -37,7 +37,10 @@ function resolve_service_dependencies_variables(){
 	done
 }
 
-echo $(ls $configs)
+if [ ! -d "$configs" ]; then
+    echo "The directory $configs doesn't exist, can't create configMap from it !" >&2
+    exit 1;
+fi
 
 command="kubectl --kubeconfig ${KUBE_ADMIN_CONFIG_PATH} create configmap ${CONFIGMAP_NAME}"
 
