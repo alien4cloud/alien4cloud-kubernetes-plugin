@@ -432,6 +432,11 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
             for (NodeTemplate nodeTemplate : hostedContainers) {
                 // we should have a single hosted docker container
 
+                AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(safe(nodeTemplate.getProperties()), "docker_run_args");
+                if (propertyValue != null) {
+                    setNodePropertyPathValue(csar, topology, containerNode, "container.args", propertyValue);
+                }
+
                 NodeType containerType = ToscaContext.get(NodeType.class, nodeTemplate.getType());
                 if (ToscaTypeUtils.isOfType(containerType, KubeTopologyUtils.A4C_TYPES_APPLICATION_CONFIGURABLE_DOCKER_CONTAINER)) {
                     AbstractPropertyValue config_settings = safe(nodeTemplate.getProperties()).get("config_settings");
@@ -450,6 +455,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                                 String containerName = ((ScalarPropertyValue)containerNameAPV).getValue();
                                 String configMapName = KubeTopologyUtils.generateKubeName(containerName + "_ConfigMap_" + input_prefix);
                                 configMapName = configMapName.replaceAll("--", "-");
+                                configMapName = configMapName.replaceAll("\\.", "-");
                                 if (configMapName.endsWith("-")) {
                                     configMapName = configMapName.substring(0, configMapName.length() -1);
                                 }

@@ -429,8 +429,10 @@ data_types:
     derived_from: tosca.datatypes.Root
     properties:
       args:
-        type: string
+        type: list
         required: false
+        entry_schema:
+          type: string
         description: |
           array  Arguments to the entrypoint. The docker image's CMD is used if this is not provided. Variable references $(VAR_NAME) are expanded using the container's environment. If a variable cannot be resolved, the reference in the input string will be unchanged. The $(VAR_NAME) syntax can be escaped with a double $$, ie: $$(VAR_NAME). Escaped references will never be expanded, regardless of whether the variable exists or not. Cannot be updated. More info: http://kubernetes.io/docs/user-guide/containers#containers-and-commands
       command:
