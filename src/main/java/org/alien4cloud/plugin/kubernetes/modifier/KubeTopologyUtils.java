@@ -243,12 +243,14 @@ public class KubeTopologyUtils {
                                 // the target is not a container, so we should find a service that proxy the endpoint
                                 Set<NodeTemplate> endpoints = TopologyNavigationUtil.getSourceNodesByRelationshipType(topology, targetNode,
                                         K8S_TYPES_RSENDPOINT);
-                                NodeTemplate endpointNode = endpoints.iterator().next();
-                                Set<NodeTemplate> services = TopologyNavigationUtil.getSourceNodes(topology, endpointNode, "feature");
-                                return services.stream().filter(nodeTemplate -> {
-                                    NodeType nodeType = ToscaContext.get(NodeType.class, nodeTemplate.getType());
-                                    return ToscaTypeUtils.isOfType(nodeType, K8S_TYPES_SERVICE);
-                                }).findFirst().get();
+                                if (endpoints.size() > 0) {
+                                    NodeTemplate endpointNode = endpoints.iterator().next();
+                                    Set<NodeTemplate> services = TopologyNavigationUtil.getSourceNodes(topology, endpointNode, "feature");
+                                    return services.stream().filter(nodeTemplate -> {
+                                        NodeType nodeType = ToscaContext.get(NodeType.class, nodeTemplate.getType());
+                                        return ToscaTypeUtils.isOfType(nodeType, K8S_TYPES_SERVICE);
+                                    }).findFirst().get();
+                                }
                             }
                         }
                     }

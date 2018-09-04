@@ -10,6 +10,7 @@ import alien4cloud.component.repository.ArtifactRepositoryConstants;
 import alien4cloud.paas.wf.validation.WorkflowValidator;
 import alien4cloud.tosca.context.ToscaContext;
 import alien4cloud.tosca.context.ToscaContextual;
+import alien4cloud.tosca.serializer.ToscaPropertySerializerUtils;
 import alien4cloud.utils.CloneUtil;
 import alien4cloud.utils.MapUtil;
 import alien4cloud.utils.PropertyUtil;
@@ -361,25 +362,27 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
 
     private AbstractPropertyValue resolveContainerInput(Topology topology, NodeTemplate deploymentResource, NodeTemplate nodeTemplate,
             FunctionEvaluatorContext functionEvaluatorContext, Map<String,
-            List<String>> serviceIpAddressesPerDeploymentResource,
-            AbstractPropertyValue iValue) {
+            List<String>> serviceIpAddressesPerDeploymentResource, String inputName,
+            AbstractPropertyValue iValue, FlowExecutionContext context) {
         if (iValue instanceof ConcatPropertyValue) {
             ConcatPropertyValue cpv = (ConcatPropertyValue) iValue;
             StringBuilder sb = new StringBuilder();
             for (AbstractPropertyValue param : cpv.getParameters()) {
                 AbstractPropertyValue v = resolveContainerInput(topology, deploymentResource, nodeTemplate, functionEvaluatorContext,
-                        serviceIpAddressesPerDeploymentResource, param);
+                        serviceIpAddressesPerDeploymentResource, inputName, param, context);
                 if (v instanceof ScalarPropertyValue) {
                     sb.append(PropertyUtil.getScalarValue(v));
                 } else {
-                    log.severe("in concat operation '" + iValue.toString() + "' parameter '" + param.toString() +
-                            "' resolved to a complex result. Let's ignore it.");
+                    // TODO: we need a AbstractPropertyValue serializer
+                    context.getLog().warn("Some element in concat operation for input <" + inputName + "> (" + serializePropertyValue(param)+ ") of container <" + nodeTemplate.getName() + "> resolved to a complex result. Let's ignore it.");
                 }
             }
             return new ScalarPropertyValue(sb.toString());
-        } else if (KubeTopologyUtils.isTargetedEndpointProperty(topology, nodeTemplate, iValue)) {
+        }
+        if (KubeTopologyUtils.isTargetedEndpointProperty(topology, nodeTemplate, iValue)) {
             return KubeTopologyUtils.getTargetedEndpointProperty(topology, nodeTemplate, iValue);
-        } else if (KubeTopologyUtils.isServiceIpAddress(topology, nodeTemplate, iValue)) {
+        }
+        if (KubeTopologyUtils.isServiceIpAddress(topology, nodeTemplate, iValue)) {
             NodeTemplate serviceTemplate = KubeTopologyUtils.getServiceDependency(topology, nodeTemplate, iValue);
             if (serviceTemplate != null) {
                 AbstractPropertyValue serviceNameValue = PropertyUtil
@@ -394,23 +397,32 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                 serviceIpAddresses.add(serviceName);
 
                 return new ScalarPropertyValue("${SERVICE_IP_LOOKUP" + (serviceIpAddresses.size() - 1) + "}");
-            }
-        } else {
-            try {
-                AbstractPropertyValue propertyValue =
-                        FunctionEvaluator.tryResolveValue(functionEvaluatorContext, nodeTemplate, nodeTemplate.getProperties(), iValue);
-                if (propertyValue != null) {
-                    if (propertyValue instanceof PropertyValue) {
-                        return propertyValue;
-                    } else {
-                        log.severe("Property is not PropertyValue but " + propertyValue.getClass());
-                    }
-                }
-            } catch (IllegalArgumentException iae) {
-                log.severe(iae.getMessage());
+            } else {
+                context.getLog().warn("Can not resolve service dependency for input <" + inputName + "> (" + serializePropertyValue(iValue)+ ") of container <" + nodeTemplate.getName() + ">");
             }
         }
+        try {
+            AbstractPropertyValue propertyValue =
+                    FunctionEvaluator.tryResolveValue(functionEvaluatorContext, nodeTemplate, nodeTemplate.getProperties(), iValue);
+            if (propertyValue != null) {
+                if (propertyValue instanceof PropertyValue) {
+                    return propertyValue;
+                } else {
+                    context.getLog().warn("Property is not PropertyValue but <" + propertyValue.getClass() + "> for input <" + inputName + "> (" + serializePropertyValue(propertyValue)+ ") of container <" + nodeTemplate.getName() + ">");
+                }
+            }
+        } catch (IllegalArgumentException iae) {
+            context.getLog().warn("Can't resolve value for input <" + inputName + "> (" + serializePropertyValue(iValue)+ ") of container <" + nodeTemplate.getName() + ">, error was : " + iae.getMessage());
+        }
         return null;
+    }
+
+    private static String serializePropertyValue(AbstractPropertyValue value) {
+        try {
+            return ToscaPropertySerializerUtils.formatPropertyValue(0, value);
+        } catch(Exception e) {
+            return "Serialization not possible : " + e.getMessage();
+        }
     }
 
     private void manageContainer(Csar csar, Topology topology, NodeTemplate containerNode, Map<String, NodeTemplate> nodeReplacementMap,
@@ -507,7 +519,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                         if (iValue instanceof AbstractPropertyValue) {
                             AbstractPropertyValue v =
                                     resolveContainerInput(topology, deploymentResource, nodeTemplate, functionEvaluatorContext,
-                                            serviceIpAddressesPerDeploymentResource, (AbstractPropertyValue) iValue);
+                                            serviceIpAddressesPerDeploymentResource, inputName, (AbstractPropertyValue) iValue, context);
                             if (v != null) {
                                 if (inputName.startsWith("ENV_")) {
                                     String envKey = inputName.substring(4);
@@ -515,7 +527,12 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                                     envEntry.setValue(Maps.newHashMap());
                                     envEntry.getValue().put("name", envKey);
                                     envEntry.getValue().put("value", v);
-                                    appendNodePropertyPathValue(csar, topology, containerNode, "container.env", envEntry);
+                                    try {
+                                        appendNodePropertyPathValue(csar, topology, containerNode, "container.env", envEntry);
+                                        context.getLog().info("env variable <" + envKey + "> to value <" + serializePropertyValue(v) + ">");
+                                    } catch(Exception e) {
+                                        context.getLog().warn("Not able to set env variable <" + envKey + "> to value <" + serializePropertyValue(v) + ">, error was : " + e.getMessage());
+                                    }
                                 } else if (!configMapFactories.isEmpty()) {
                                     // maybe it's a config that should be associated with a configMap
                                     for (Map.Entry<String, NodeTemplate> configMapFactoryEntry : configMapFactories.entrySet()) {
@@ -524,20 +541,25 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                                             // ok this input is related to this configMapFactory
                                             String varName = inputName.substring(inputPrefix.length());
                                             if (!(v instanceof ScalarPropertyValue)) {
-                                                context.getLog().warn("Ignoring INPUT named <" + inputName + "> because the value is not a scalar: " + v.getClass().getSimpleName());
-                                                return;
+                                                context.getLog().warn("Ignoring INPUT named <" + inputName + "> because the value is not a scalar (" + serializePropertyValue(v) + ") and cannot be added to a configMap");
+                                            } else {
+                                                try {
+                                                    setNodePropertyPathValue(csar, topology, configMapFactoryEntry.getValue(), "input_variables." + varName, v);
+                                                    context.getLog().info("Successfully set INPUT named <" + inputName + "> with value <" + serializePropertyValue(v) + "> to configMap <" + configMapFactoryEntry.getValue().getName() + ">");
+                                                } catch(Exception e) {
+                                                    context.getLog().warn("Not able to set INPUT named <" + inputName + "> with value <" + serializePropertyValue(v) + "> to configMap, <" + configMapFactoryEntry.getValue().getName() + ">, error was : " + e.getMessage());
+                                                }
                                             }
-
-                                            setNodePropertyPathValue(csar, topology, configMapFactoryEntry.getValue(), "input_variables." + varName, v);
                                             break;
                                         }
                                     }
                                 }
                             } else {
-                                context.log().warn("Not able to define value for input : " + inputName);
+                                context.log().warn("Not able to define value for input <" + inputName + "> (" + serializePropertyValue((AbstractPropertyValue)iValue) + ") of container <" + nodeTemplate.getName() + ">");
                             }
+                        } else {
+                            context.log().warn("Input <" + inputName + "> of container <" + nodeTemplate.getName() + "> is ignored since it's not of type AbstractPropertyValue but " + iValue.getClass().getSimpleName());
                         }
-                        // here we should manage container of type tosca.nodes.Container.Application.ConfigurableDockerContainer
                     });
                 }
             }
