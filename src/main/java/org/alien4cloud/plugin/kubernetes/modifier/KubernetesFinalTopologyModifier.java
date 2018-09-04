@@ -509,10 +509,6 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                                     resolveContainerInput(topology, deploymentResource, nodeTemplate, functionEvaluatorContext,
                                             serviceIpAddressesPerDeploymentResource, (AbstractPropertyValue) iValue);
                             if (v != null) {
-                                if (!(v instanceof ScalarPropertyValue)) {
-                                    context.getLog().warn("Ignoring INPUT named <" + inputName + "> because the value is not a scalar: " + v.getClass().getSimpleName());
-                                    return;
-                                }
                                 if (inputName.startsWith("ENV_")) {
                                     String envKey = inputName.substring(4);
                                     ComplexPropertyValue envEntry = new ComplexPropertyValue();
@@ -527,6 +523,11 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                                         if (inputName.startsWith(inputPrefix)) {
                                             // ok this input is related to this configMapFactory
                                             String varName = inputName.substring(inputPrefix.length());
+                                            if (!(v instanceof ScalarPropertyValue)) {
+                                                context.getLog().warn("Ignoring INPUT named <" + inputName + "> because the value is not a scalar: " + v.getClass().getSimpleName());
+                                                return;
+                                            }
+
                                             setNodePropertyPathValue(csar, topology, configMapFactoryEntry.getValue(), "input_variables." + varName, v);
                                             break;
                                         }
@@ -595,9 +596,9 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         copyProperty(csar, topology, deploymentNode, "apiVersion", deploymentResourceNodeProperties, "resource_def.apiVersion");
         copyProperty(csar, topology, deploymentNode, "kind", deploymentResourceNodeProperties, "resource_def.kind");
         copyProperty(csar, topology, deploymentNode, "metadata", deploymentResourceNodeProperties, "resource_def.metadata");
-        copyProperty(csar, topology, deploymentNode, "metadata.name", deploymentResourceNodeProperties, "resource_id");
 
-
+        AbstractPropertyValue resource_id = PropertyUtil.getPropertyValueFromPath(safe(deploymentNode.getProperties()), "metadata.name");
+        setNodePropertyPathValue(csar, topology, deploymentResourceNode, "resource_id", resource_id);
 
         AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(safe(deploymentNode.getProperties()), "spec");
         NodeType nodeType = ToscaContext.get(NodeType.class, deploymentNode.getType());
