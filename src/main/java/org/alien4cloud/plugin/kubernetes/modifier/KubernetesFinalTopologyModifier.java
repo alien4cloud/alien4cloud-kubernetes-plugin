@@ -131,11 +131,15 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         Set<NodeTemplate> containers = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_APPLICATION_DOCKER_CONTAINER, true, false);
         safe(containers).forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
 
+        String providedNamespace = getProvidedNamespace(context);
         // finally set the 'resource_spec' property with the JSON content of the resource specification
         Set<NodeTemplate> resourceNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_RESOURCE, true);
         for (NodeTemplate resourceNode : resourceNodes) {
             Map<String, AbstractPropertyValue> resourceNodeProperties = resourceNodeYamlStructures.get(resourceNode.getName());
             if (resourceNodeProperties != null && resourceNodeProperties.containsKey("resource_def")) {
+                if (providedNamespace != null) {
+                    feedPropertyValue(resourceNodeProperties, "resource_def.metadata.namespace", providedNamespace, false);
+                }
                 Object propertyValue = getValue(resourceNodeProperties.get("resource_def"));
                 String serializedPropertyValue = PropertyUtil.serializePropertyValue(propertyValue);
                 setNodePropertyPathValue(csar, topology, resourceNode, "resource_spec", new ScalarPropertyValue(serializedPropertyValue));
@@ -529,9 +533,9 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                                     envEntry.getValue().put("value", v);
                                     try {
                                         appendNodePropertyPathValue(csar, topology, containerNode, "container.env", envEntry);
-                                        context.getLog().info("env variable <" + envKey + "> to value <" + serializePropertyValue(v) + ">");
+                                        context.getLog().info("Env variable <" + envKey + "> for container <" + nodeTemplate.getName() + "> set to value <" + serializePropertyValue(v) + ">");
                                     } catch(Exception e) {
-                                        context.getLog().warn("Not able to set env variable <" + envKey + "> to value <" + serializePropertyValue(v) + ">, error was : " + e.getMessage());
+                                        context.getLog().warn("Not able to set env variable <" + envKey + "> to value <" + serializePropertyValue(v) + "> for container <" + nodeTemplate.getName() + ">, error was : " + e.getMessage());
                                     }
                                 } else if (!configMapFactories.isEmpty()) {
                                     // maybe it's a config that should be associated with a configMap
@@ -541,13 +545,13 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                                             // ok this input is related to this configMapFactory
                                             String varName = inputName.substring(inputPrefix.length());
                                             if (!(v instanceof ScalarPropertyValue)) {
-                                                context.getLog().warn("Ignoring INPUT named <" + inputName + "> because the value is not a scalar (" + serializePropertyValue(v) + ") and cannot be added to a configMap");
+                                                context.getLog().warn("Ignoring INPUT named <" + inputName + "> for container <" + nodeTemplate.getName() + "> because the value is not a scalar (" + serializePropertyValue(v) + ") and cannot be added to a configMap");
                                             } else {
                                                 try {
                                                     setNodePropertyPathValue(csar, topology, configMapFactoryEntry.getValue(), "input_variables." + varName, v);
-                                                    context.getLog().info("Successfully set INPUT named <" + inputName + "> with value <" + serializePropertyValue(v) + "> to configMap <" + configMapFactoryEntry.getValue().getName() + ">");
+                                                    context.getLog().info("Successfully set INPUT named <" + inputName + "> with value <" + serializePropertyValue(v) + "> to configMap <" + configMapFactoryEntry.getValue().getName() + "> for container <" + nodeTemplate.getName() + ">");
                                                 } catch(Exception e) {
-                                                    context.getLog().warn("Not able to set INPUT named <" + inputName + "> with value <" + serializePropertyValue(v) + "> to configMap, <" + configMapFactoryEntry.getValue().getName() + ">, error was : " + e.getMessage());
+                                                    context.getLog().warn("Not able to set INPUT named <" + inputName + "> with value <" + serializePropertyValue(v) + "> to configMap, <" + configMapFactoryEntry.getValue().getName() + "> for container <" + nodeTemplate.getName() + ">, error was : " + e.getMessage());
                                                 }
                                             }
                                             break;
