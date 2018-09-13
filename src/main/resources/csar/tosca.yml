@@ -241,7 +241,7 @@ data_types:
     properties:
       metadata:
         type: org.alien4cloud.kubernetes.api.datatypes.PodTemplateMetadata
-        required: true
+        required: false
         description: |
           Standard object's metadata. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata
       spec:
@@ -457,7 +457,7 @@ data_types:
       #     array List of sources to populate environment variables in the container. The keys defined within a source must be a C_IDENTIFIER. All invalid keys will be reported as an event when the container is starting. When a key exists in multiple sources, the value associated with the last source will take precedence. Values defined by an Env with a duplicate key will take precedence. Cannot be updated.
       image:
         type: string
-        required: true
+        required: false
         description: |
           Docker image name. More info: http://kubernetes.io/docs/user-guide/images
       imagePullPolicy:
@@ -551,10 +551,12 @@ data_types:
     properties:
       limits:
         type: org.alien4cloud.kubernetes.api.datatypes.ResourceRequest
+        required: false
         description: |
           Limits describes the maximum amount of compute resources allowed. More info: http://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
       requests:
         type: org.alien4cloud.kubernetes.api.datatypes.ResourceRequest
+        required: false
         description: |
           Requests describes the minimum amount of compute resources required. If Requests is omitted for a container, it defaults to Limits if that is explicitly specified, otherwise to an implementation-defined value. More info: http://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
 
@@ -563,8 +565,10 @@ data_types:
     properties:
       memory:
         type: scalar-unit.size
+        required: false
       cpu:
         type: float
+        required: false
 
   org.alien4cloud.kubernetes.api.datatypes.Affinity:
     derived_from: tosca.datatypes.Root
