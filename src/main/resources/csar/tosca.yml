@@ -241,7 +241,7 @@ data_types:
     properties:
       metadata:
         type: org.alien4cloud.kubernetes.api.datatypes.PodTemplateMetadata
-        required: true
+        required: false
         description: |
           Standard object's metadata. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata
       spec:
@@ -309,6 +309,7 @@ data_types:
           Use the host's pid namespace. Optional: Default to false.
       hostname:
         type: string
+        required: false
         description: |
            Specifies the hostname of the Pod If not specified, the pod's hostname will be set to a system-defined value.
       imagePullSecrets:
@@ -320,6 +321,7 @@ data_types:
           ImagePullSecrets is an optional list of references to secrets in the same namespace to use for pulling any of the images used by this PodSpec. If specified, these secrets will be passed to individual puller implementations for them to use. For example, in the case of docker, only DockerConfig type secrets are honored. More info: http://kubernetes.io/docs/user-guide/images#specifying-imagepullsecrets-on-a-pod
       initContainers:
         type: org.alien4cloud.kubernetes.api.datatypes.ContainerSpec
+        required: false
         description: |
           array List of initialization containers belonging to the pod. Init containers are executed in order prior to containers being started. If any init container fails, the pod is considered to have failed and is handled according to its restartPolicy. The name for an init container or normal container must be unique among all containers. Init containers may not have Lifecycle actions, Readiness probes, or Liveness probes. The resourceRequirements of an init container are taken into account during scheduling by finding the highest request/limit for each resource type, and then using the max of of that value or the sum of the normal containers. Limits are applied to init containers in a similar fashion. Init containers cannot currently be added or removed. Cannot be updated. More info: http://kubernetes.io/docs/user-guide/containers
       nodeName:
@@ -429,8 +431,10 @@ data_types:
     derived_from: tosca.datatypes.Root
     properties:
       args:
-        type: string
+        type: list
         required: false
+        entry_schema:
+          type: string
         description: |
           array  Arguments to the entrypoint. The docker image's CMD is used if this is not provided. Variable references $(VAR_NAME) are expanded using the container's environment. If a variable cannot be resolved, the reference in the input string will be unchanged. The $(VAR_NAME) syntax can be escaped with a double $$, ie: $$(VAR_NAME). Escaped references will never be expanded, regardless of whether the variable exists or not. Cannot be updated. More info: http://kubernetes.io/docs/user-guide/containers#containers-and-commands
       command:
@@ -453,7 +457,7 @@ data_types:
       #     array List of sources to populate environment variables in the container. The keys defined within a source must be a C_IDENTIFIER. All invalid keys will be reported as an event when the container is starting. When a key exists in multiple sources, the value associated with the last source will take precedence. Values defined by an Env with a duplicate key will take precedence. Cannot be updated.
       image:
         type: string
-        required: true
+        required: false
         description: |
           Docker image name. More info: http://kubernetes.io/docs/user-guide/images
       imagePullPolicy:
@@ -547,10 +551,12 @@ data_types:
     properties:
       limits:
         type: org.alien4cloud.kubernetes.api.datatypes.ResourceRequest
+        required: false
         description: |
           Limits describes the maximum amount of compute resources allowed. More info: http://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
       requests:
         type: org.alien4cloud.kubernetes.api.datatypes.ResourceRequest
+        required: false
         description: |
           Requests describes the minimum amount of compute resources required. If Requests is omitted for a container, it defaults to Limits if that is explicitly specified, otherwise to an implementation-defined value. More info: http://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
 
@@ -559,8 +565,10 @@ data_types:
     properties:
       memory:
         type: scalar-unit.size
+        required: false
       cpu:
         type: float
+        required: false
 
   org.alien4cloud.kubernetes.api.datatypes.Affinity:
     derived_from: tosca.datatypes.Root
@@ -872,9 +880,61 @@ data_types:
           Will force the ReadOnly setting in VolumeMounts. Default false.
         default: false
 
+  org.alien4cloud.kubernetes.api.datatypes.volumes.ConfigMapVolumeSpec:
+    derived_from: tosca.datatypes.Root
+    properties:
+      name:
+        type: string
+        description: |
+          The name of the ConfigMap : You must create a ConfigMap before you can use it.
+        constraints:
+          - pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+        required: true
+
 node_types:
 
   # HOWTO: How about relationships and capabilities ?
+
+  org.alien4cloud.kubernetes.api.types.ConfigMapFactory:
+    derived_from: tosca.nodes.Root
+    description: |
+      Component in charge of creating a configMap using a container (of type ConfigurableDockerContainer) inputs.
+    properties:
+      name:
+        type: string
+        description: |
+          The name of the configMap
+        constraints:
+          - pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+      service_dependency_lookups:
+        type: string
+        required: false
+        description: |
+          A CSV key:value pairs where key should be replaced by the interpretation of value in the JSON.
+          The value is the Kube name of the service for which the scheduler will need to find the ClusterIP and
+          replace the key in the JSON with the found value.
+      input_variables:
+        type: map
+        entry_schema:
+          type: string
+        description: |
+          The variables names and values that should be replaced in the files
+    interfaces:
+      Standard:
+        create:
+          inputs:
+            CONFIGMAP_NAME: { get_property: [SELF, name] }
+            INPUT_VARIABLES: { get_property: [SELF, input_variables] }
+            KUBE_SERVICE_DEPENDENCIES: { get_property: [SELF, service_dependency_lookups] }
+          implementation: scripts/kubectl_configmap_create.sh
+        delete:
+          inputs:
+            CONFIGMAP_NAME: { get_attribute: [SELF, name] }
+          implementation: scripts/kubectl_configmap_delete.sh
+    artifacts:
+      - configs:
+          file: configs
+          type: tosca.artifacts.File
 
   org.alien4cloud.kubernetes.api.types.Base:
     abstract: true
@@ -928,7 +988,7 @@ node_types:
       volume_type:
         type: string
         constraints:
-          - valid_values: [emptyDir, hostPath, awsElasticBlockStore, persistentVolumeClaim]
+          - valid_values: [emptyDir, hostPath, awsElasticBlockStore, persistentVolumeClaim, configMap]
       spec:
         type: tosca.datatypes.Root
         description: may be overriden by concrete implementations
@@ -1017,8 +1077,37 @@ node_types:
         type: string
         default: default
 
+  org.alien4cloud.kubernetes.api.types.volume.ConfigMapSource:
+    derived_from: org.alien4cloud.kubernetes.api.types.volume.VolumeBase
+    description: |
+      The configMap resource provides a way to inject configuration data into Pods.
+      More info: https://kubernetes.io/docs/concepts/storage/#configmap
+    properties:
+      volume_type:
+        type: string
+        default: configMap
+        constraints:
+          - equal: configMap
+      spec:
+        type: org.alien4cloud.kubernetes.api.datatypes.volumes.ConfigMapVolumeSpec
+        required: false
+
   org.alien4cloud.kubernetes.api.types.Service:
     derived_from: org.alien4cloud.kubernetes.api.types.AbstractService
+
+
+  org.alien4cloud.kubernetes.api.types.IngressService:
+    derived_from: org.alien4cloud.kubernetes.api.types.Service
+    description: |
+      This kind of service can be used of you want to expose your service using the Ingress controler
+    properties:
+      host:
+        type: string
+        description: |
+          The dns name for the ingress.
+        required: true
+        constraints:
+          - pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
 
   org.alien4cloud.kubernetes.api.types.AbstractService:
     abstract: true
@@ -1026,6 +1115,14 @@ node_types:
     description: |
       Represent a kubernetes Service
     properties:
+      service_name:
+        type: string
+        description: |
+          Usually, the service name is generated by the plugin. If you need to define a static service name, you can define it using this property.
+          253 characters and consist of lower case alphanumeric characters, -, and .
+        required: false
+        constraints:
+          - pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
       apiVersion:
         type: string
         description: |
@@ -1129,6 +1226,11 @@ node_types:
   org.alien4cloud.kubernetes.api.types.DeploymentResource:
     derived_from: org.alien4cloud.kubernetes.api.types.BaseResource
     properties:
+      resource_id:
+        type: string
+        required: true
+        description: |
+          a unique id set by a4c to identify a resource. it should be added as a label named 'a4c_id'
       service_dependency_lookups:
         type: string
         required: false
@@ -1154,7 +1256,7 @@ node_types:
             - Export some informations to expose it as attributes ?
         delete:
           inputs:
-            KUBE_DEPLOYMENT_ID: { get_attribute: [SELF, deployment_id] }
+            KUBE_DEPLOYMENT_ID: { get_property: [SELF, resource_id] }
           implementation: scripts/kubectl_deployment_delete.sh
       org.alien4cloud.management.ClusterControl:
         scale:
@@ -1212,6 +1314,10 @@ node_types:
     attributes:
       ip_address: { get_operation_output: [SELF, Standard, create, IP_ADDRESS] }
       port: { get_operation_output: [SELF, Standard, create, PORT] }
+      node_port: { get_operation_output: [SELF, Standard, create, NODE_PORT] }
+    capabilities:
+      cluster_endpoint:
+        type: tosca.capabilities.Endpoint
     interfaces:
       Standard:
         create:
@@ -1220,7 +1326,7 @@ node_types:
             KUBE_SERVICE_CONFIG: { get_property: [SELF, resource_spec] }
           implementation: scripts/kubectl_service_wrapper.sh
           description: |
-            - Deploy the service onto kubernets
+            - Deploy the service onto kubernetes
             - Export the service ip_address and port to expose it as attributes
         delete:
           inputs:
@@ -1239,7 +1345,7 @@ node_types:
         constraints:
           # for the moment managed types are: PersistenceVolumeClaim (pvc), HorizontalPodAutoscaler (hpa)
           # Cf. https://kubernetes.io/docs/reference/kubectl/overview/ section 'Resource types'
-          - valid_values: [pvc, hpa]
+          - valid_values: [pvc, hpa, ing]
       resource_id:
         type: string
         required: true
