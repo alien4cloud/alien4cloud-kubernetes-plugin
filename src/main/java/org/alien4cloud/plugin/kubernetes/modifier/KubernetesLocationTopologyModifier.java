@@ -304,20 +304,18 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.name",
                 new ScalarPropertyValue(generateUniqueKubeName(containerNodeTemplate.getName())));
         AbstractPropertyValue docker_run_cmd = PropertyUtil.getPropertyValueFromPath(properties, "docker_run_cmd");
-        AbstractPropertyValue docker_bash_cmd = PropertyUtil.getPropertyValueFromPath(properties, "docker_bash_cmd");
-        if (docker_run_cmd != null && docker_run_cmd instanceof ScalarPropertyValue) {
+        if (docker_run_cmd != null) {
             List<Object> values = Lists.newArrayList();
-            if (docker_bash_cmd != null && docker_bash_cmd instanceof ListPropertyValue) {
-                ListPropertyValue dockerBashCmdList = (ListPropertyValue)docker_bash_cmd;
-                values.addAll(dockerBashCmdList.getValue());
-            } else {
-                values.add("/bin/bash");
-                values.add("-c");
+            if (docker_run_cmd instanceof ScalarPropertyValue) {
+                values.add(((ScalarPropertyValue) docker_run_cmd).getValue());
+            } else if (docker_run_cmd instanceof ListPropertyValue) {
+                ListPropertyValue dockerRunCmdList = (ListPropertyValue)docker_run_cmd;
+                values.addAll(dockerRunCmdList.getValue());
             }
-            values.add(((ScalarPropertyValue) docker_run_cmd).getValue());
-            ListPropertyValue listPropertyValue = new ListPropertyValue();
-            listPropertyValue.setValue(values);
-            setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.command", listPropertyValue);
+            if (!values.isEmpty()) {
+                ListPropertyValue listPropertyValue = new ListPropertyValue(values);
+                setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.command", listPropertyValue);
+            }
         }
         manageContainerEndpoints(csar, topology, containerNodeTemplate, containerRuntimeNodeTemplate, deploymentNodeTemplate, allContainerNodes, context);
     }
