@@ -40,7 +40,7 @@ function deploy_resource(){
 
     exit_if_error
 
-    command="kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" get deployment ${KUBE_DEPLOYMENT_ID} -o=jsonpath={.status.conditions[*].status}"
+    command="kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" get deployment ${KUBE_DEPLOYMENT_ID} -o=jsonpath='{.status.conditions[?(@.type==\"Available\")].status}'"
 
     wait_until_done_or_exit "$command" 60
 }
@@ -57,18 +57,13 @@ function wait_until_done_or_exit {
   cmd_output=$(echo $command | sh)
   cmd_code=$?
   while [ "${cmd_code}" -eq "0" ] && [ "${retries}" -lt "${max_retries}" ] ; do
-    case "${cmd_output}" in
-    *False*)
-      # At least one condition is not fulfil - keep going
-      ;;
-    *)
-      # All conditions are fufilled
+    if [ "${cmd_output}" == "True" ] ; then
+      # Deployment is available
       echo "Success"
       break
-      ;;
-    esac
+    fi
 
-    echo "Waiting for deployment to be completed ... (${retries}/${max_retries})"
+    echo "Waiting for deployment to be available ... (${retries}/${max_retries})"
     sleep 5
     retries=$((${retries}+1))
     cmd_output=$(echo $command | sh)
@@ -76,7 +71,7 @@ function wait_until_done_or_exit {
   done
 
   if [ "${retries}" -eq "${max_retries}" ] ; then
-    echo "Giving up waiting for deployment to complete. Reached max retries (=$max_retries)"
+    echo "Giving up waiting for deployment to available. Reached max retries (=$max_retries)"
     exit 1
   fi
   echo $cmd_output
