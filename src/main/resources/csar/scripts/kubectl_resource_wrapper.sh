@@ -16,7 +16,7 @@ function deploy_resource(){
     echo "${KUBE_RESOURCE_CONFIG}" > "${DEPLOYMENT_TMP_FILE}"
 
     # deploy
-    export KUBE_DEPLOYMENT_ID=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" create -f "${DEPLOYMENT_TMP_FILE}" | sed -r 's/.+ "([a-zA-Z0-9\-]*)" created/\1/')
+    export KUBE_RESOURCE_ID=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" create -f "${DEPLOYMENT_TMP_FILE}" | sed -r 's/.+ "([a-zA-Z0-9\-]*)" created/\1/')
     export DEPLOYMENT_STATUS=$?
 
     # cleanup
@@ -59,6 +59,12 @@ function exit_if_error(){
         echo "Failed to deploy"
         exit "${DEPLOYMENT_STATUS}"
     fi
+    if [ -z "${KUBE_RESOURCE_ID}" ]
+    then
+        echo "Not able to retrieve resource ID"
+        exit "1"
+    fi
+    echo "Resource ID: ${KUBE_RESOURCE_ID}"
 }
 
 deploy_resource

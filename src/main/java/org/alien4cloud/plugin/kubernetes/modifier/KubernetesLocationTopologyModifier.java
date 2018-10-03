@@ -300,6 +300,9 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.resources.requests.memory", mem_share);
         setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.resources.limits.memory", mem_share);
         String imageName = getContainerImageName(containerNodeTemplate);
+        if (imageName == null) {
+            context.getLog().error("Image is not set for container <" + containerNodeTemplate.getName() + ">");
+        }
         setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.image", new ScalarPropertyValue(imageName));
         setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.name",
                 new ScalarPropertyValue(generateUniqueKubeName(containerNodeTemplate.getName())));

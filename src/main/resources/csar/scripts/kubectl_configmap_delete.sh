@@ -8,7 +8,12 @@ KUBE_ADMIN_CONFIG_PATH=/etc/kubernetes/admin.conf
 
 echo "Will delete configMap ${CONFIGMAP_NAME}"
 
-command="kubectl --kubeconfig ${KUBE_ADMIN_CONFIG_PATH} delete configmap ${CONFIGMAP_NAME}"
+NAMESPACE_OPTION=""
+if [ -z "$NAMESPACE" ]; then
+    NAMESPACE_OPTION="-n ${NAMESPACE}"
+fi
+
+command="kubectl --kubeconfig ${KUBE_ADMIN_CONFIG_PATH} delete configmap ${CONFIGMAP_NAME} ${NAMESPACE_OPTION}"
 cmd_output=$(echo $command | sh)
 cmd_code=$?
 if [ "${cmd_code}" -ne 0 ]; then

@@ -1100,7 +1100,8 @@ node_types:
   org.alien4cloud.kubernetes.api.types.IngressService:
     derived_from: org.alien4cloud.kubernetes.api.types.Service
     description: |
-      This kind of service can be used of you want to expose your service using the Ingress controler
+      This kind of service can be used of you want to expose your service using the Ingress controler.
+      If tls_crt AND tls_key are set, the Ingress will be secured using a secret.
     properties:
       host:
         type: string
@@ -1109,6 +1110,16 @@ node_types:
         required: true
         constraints:
           - pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+      tls_crt:
+        type: string
+        description: |
+          Optionnal base64 encoded certificate (if TLS need to be set for the ingress)
+        required: false
+      tls_key:
+        type: string
+        description: |
+          Optionnal base64 encoded key (if TLS need to be set for the ingress)
+        required: false
 
   org.alien4cloud.kubernetes.api.types.AbstractService:
     abstract: true
@@ -1213,6 +1224,11 @@ node_types:
     description: >
       Represent a kubernetes final resource after node matching (Pod, ReplicaSet or Deployment)
     properties:
+      namespace:
+        type: string
+        required: false
+        description: |
+          The namespace where the resource is deployed.
       resource_spec:
         type: string
         description: |
@@ -1258,6 +1274,7 @@ node_types:
         delete:
           inputs:
             KUBE_DEPLOYMENT_ID: { get_property: [SELF, resource_id] }
+            NAMESPACE: { get_property: [SELF, namespace] }
           implementation: scripts/kubectl_deployment_delete.sh
       org.alien4cloud.management.ClusterControl:
         scale:
@@ -1304,6 +1321,7 @@ node_types:
           inputs:
             KUBE_RESOURCE_TYPE: endpoints
             KUBE_RESOURCE_ID: { get_attribute: [SELF, resource_id] }
+            NAMESPACE: { get_property: [SELF, namespace] }
           implementation: scripts/kubectl_resource_wrapper_uninstall.sh
 
   org.alien4cloud.kubernetes.api.types.ServiceResource:
@@ -1332,6 +1350,7 @@ node_types:
         delete:
           inputs:
             KUBE_SERVICE_NAME: { get_property: [SELF, service_name] }
+            NAMESPACE: { get_property: [SELF, namespace] }
           implementation: scripts/kubectl_service_wrapper_uninstall.sh
 
   org.alien4cloud.kubernetes.api.types.SimpleResource:
@@ -1366,16 +1385,17 @@ node_types:
       Standard:
         create:
           input:
-            KUBE_RESOURCE_TYPE: { get_attribute: [SELF, resource_type] }
-            KUBE_RESOURCE_ID: { get_attribute: [SELF, resource_id] }
+            KUBE_RESOURCE_TYPE: { get_property: [SELF, resource_type] }
+            KUBE_RESOURCE_ID: { get_property: [SELF, resource_id] }
             KUBE_RESOURCE_CONFIG: { get_property: [SELF, resource_spec] }
             KUBE_JSON_PATH_EXPR: { get_property: [SELF, json_path_expr] }
             KUBE_JSON_PATH_VALUE: { get_property: [SELF, json_path_value] }
           implementation: scripts/kubectl_resource_wrapper.sh
         delete:
           inputs:
-            KUBE_RESOURCE_TYPE: { get_attribute: [SELF, resource_type] }
-            KUBE_RESOURCE_ID: { get_attribute: [SELF, resource_id] }
+            KUBE_RESOURCE_TYPE: { get_property: [SELF, resource_type] }
+            KUBE_RESOURCE_ID: { get_property: [SELF, resource_id] }
+            NAMESPACE: { get_property: [SELF, namespace] }
           implementation: scripts/kubectl_resource_wrapper_uninstall.sh
 
 relationship_types:

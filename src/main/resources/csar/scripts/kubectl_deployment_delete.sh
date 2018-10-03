@@ -8,7 +8,13 @@ KUBE_ADMIN_CONFIG_PATH=/etc/kubernetes/admin.conf
 
 function undeploy_resource(){
     # undeploy
-    kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" delete deployment "${KUBE_DEPLOYMENT_ID}"
+
+    NAMESPACE_OPTION=""
+    if [ -z "$NAMESPACE" ]; then
+        NAMESPACE_OPTION="-n $NAMESPACE"
+    fi
+
+    kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" delete deployment "${KUBE_DEPLOYMENT_ID}" $NAMESPACE_OPTION
     UNDEPLOY_STATUS=$?
 
     if [ "${UNDEPLOY_STATUS}" -ne 0 ]
