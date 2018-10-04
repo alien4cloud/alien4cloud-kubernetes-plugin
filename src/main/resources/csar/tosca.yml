@@ -11,7 +11,7 @@ description: |
 
 imports:
   - tosca-normative-types:1.0.0-ALIEN20
-  # these version will be changed at build time (see maven-replacer-plugin in pom.xml)
+  # these versions will be changed at build time (see maven-replacer-plugin in pom.xml)
   - docker-types:2.1.0-SNAPSHOT
   - alien-base-types:2.1.0-SNAPSHOT
 
@@ -1266,6 +1266,7 @@ node_types:
           inputs:
             KUBE_SERVICE_DEPENDENCIES: { get_property: [SELF, service_dependency_lookups] }
             KUBE_RESOURCE_DEPLOYMENT_CONFIG: { get_property: [SELF, resource_spec] }
+            NAMESPACE: { get_property: [SELF, namespace] }
           implementation: scripts/kubectl_deployment_create.sh
           description: |
             - filter variable in the artifact file
@@ -1280,6 +1281,7 @@ node_types:
         scale:
           inputs:
             KUBE_DEPLOYMENT_ID: { get_attribute: [SELF, deployment_id] }
+            NAMESPACE: { get_property: [SELF, namespace] }
             EXPECTED_INSTANCES:
               type: integer
             INSTANCES_DELTA:
@@ -1311,11 +1313,13 @@ node_types:
         create:
           inputs:
             KUBE_RESOURCE_CONFIG: { get_property: [SELF, resource_spec] }
+            NAMESPACE: { get_property: [SELF, namespace] }
           implementation: scripts/kubectl_endpoint_create.sh
         start:
           inputs:
             KUBE_RESOURCE_ID: { get_property: [SELF, resource_id] }
             KUBE_SPEC_PATH: { get_attribute: [SELF, spec_path] }
+            NAMESPACE: { get_property: [SELF, namespace] }
           implementation: scripts/kubectl_endpoint_start.sh
         delete:
           inputs:
@@ -1343,6 +1347,7 @@ node_types:
           input:
             KUBE_SERVICE_NAME: { get_property: [SELF, service_name] }
             KUBE_SERVICE_CONFIG: { get_property: [SELF, resource_spec] }
+            NAMESPACE: { get_property: [SELF, namespace] }
           implementation: scripts/kubectl_service_wrapper.sh
           description: |
             - Deploy the service onto kubernetes
@@ -1390,6 +1395,7 @@ node_types:
             KUBE_RESOURCE_CONFIG: { get_property: [SELF, resource_spec] }
             KUBE_JSON_PATH_EXPR: { get_property: [SELF, json_path_expr] }
             KUBE_JSON_PATH_VALUE: { get_property: [SELF, json_path_value] }
+            NAMESPACE: { get_property: [SELF, namespace] }
           implementation: scripts/kubectl_resource_wrapper.sh
         delete:
           inputs:

@@ -3,7 +3,10 @@
 # configuration
 KUBE_ADMIN_CONFIG_PATH=/etc/kubernetes/admin.conf
 
-# Provided variables:
+NAMESPACE_OPTION=""
+if [ ! -z "$NAMESPACE" ]; then
+    NAMESPACE_OPTION="-n $NAMESPACE "
+fi
 
 function string_replace {
   echo "$1" | sed -e "s/$2/$3/g"
@@ -25,7 +28,7 @@ function deploy_resource(){
     exit_if_error
 
     if [ -n "$KUBE_JSON_PATH_EXPR" ]; then
-        command="kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" get ${KUBE_RESOURCE_TYPE} -l a4c_id=${KUBE_RESOURCE_ID} -o=jsonpath={${KUBE_JSON_PATH_EXPR}}"
+        command="kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" ${NAMESPACE_OPTION}get ${KUBE_RESOURCE_TYPE} -l a4c_id=${KUBE_RESOURCE_ID} -o=jsonpath={${KUBE_JSON_PATH_EXPR}}"
         wait_until_done_or_exit "$command" 60
     fi
 

@@ -5,15 +5,16 @@ KUBE_ADMIN_CONFIG_PATH=/etc/kubernetes/admin.conf
 
 # Provided variables:
 # KUBE_RESOURCE_ID: name of the service to start
-# NAMESPACE: optionnal namespace
+# NAMESPACE: optional namespace
+
+NAMESPACE_OPTION=""
+if [ ! -z "$NAMESPACE" ]; then
+    NAMESPACE_OPTION="-n $NAMESPACE "
+fi
 
 function delete_resource(){
 
-    NAMESPACE_OPTION=""
-    if [ -z "$NAMESPACE" ]; then
-        NAMESPACE_OPTION="-n $NAMESPACE"
-    fi
-    kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" delete ${KUBE_RESOURCE_TYPE} -l "a4c_id=${KUBE_RESOURCE_ID}" ${NAMESPACE_OPTION}
+    kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" ${NAMESPACE_OPTION}delete ${KUBE_RESOURCE_TYPE} -l "a4c_id=${KUBE_RESOURCE_ID}"
     RESOURCE_DELETE_STATUS=$?
 
     if [ "$?" -ne 0 ]

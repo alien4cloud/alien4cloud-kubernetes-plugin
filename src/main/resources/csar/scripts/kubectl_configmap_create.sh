@@ -6,6 +6,11 @@ KUBE_ADMIN_CONFIG_PATH=/etc/kubernetes/admin.conf
 # Provided variables:
 # KUBE_SERVICE_DEPENDENCIES: contains a list of key values VARIABLE_WHERE_TO_STORE_SERVICE_IP:service-name,VAR2:service-name2
 
+NAMESPACE_OPTION=""
+if [ ! -z "$NAMESPACE" ]; then
+   NAMESPACE_OPTION="-n $NAMESPACE "
+fi
+
 function string_replace {
   echo "$1" | sed -e "s/$2/$3/g"
 }
@@ -17,7 +22,7 @@ function resolve_service_dependencies_variables(){
 	do
         var_name=$(echo $service_dependency | cut -d ':' -f 1)
         var_service_name=$(echo $service_dependency | cut -d ':' -f 2)
-        var_value=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" get services "${var_service_name}" -o=jsonpath={.spec.clusterIP})
+        var_value=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" ${NAMESPACE_OPTION}get services "${var_service_name}" -o=jsonpath={.spec.clusterIP})
 		echo "${var_name} : ${var_value}"
         eval "${var_name}=${var_value}"
         # Iterate over files in value of $config (the config folder artifact)
@@ -42,7 +47,7 @@ if [ ! -d "$configs" ]; then
     exit 1;
 fi
 
-command="kubectl --kubeconfig ${KUBE_ADMIN_CONFIG_PATH} create configmap ${CONFIGMAP_NAME}"
+command="kubectl --kubeconfig ${KUBE_ADMIN_CONFIG_PATH} ${NAMESPACE_OPTION}create configmap ${CONFIGMAP_NAME}"
 
 json="$INPUT_VARIABLES"
 # Iterate over files in value of $config (the config folder artifact)

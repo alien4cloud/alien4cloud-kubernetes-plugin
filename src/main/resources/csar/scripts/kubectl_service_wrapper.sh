@@ -7,6 +7,11 @@ KUBE_ADMIN_CONFIG_PATH=/etc/kubernetes/admin.conf
 # KUBE_SERVICE_CONFIG: k8s deployment configuration in JSON format
 # KUBE_SERVICE_NAME: name of the service to start
 
+NAMESPACE_OPTION=""
+if [ ! -z "$NAMESPACE" ]; then
+    NAMESPACE_OPTION="-n $NAMESPACE "
+fi
+
 function deploy_service(){
     SERVICE_CONFIG_TMP_FILE=$(mktemp)
 
@@ -29,8 +34,8 @@ function deploy_service(){
     # get IP/PORT
     #export IP_ADDRESS=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" get services "${KUBE_SERVICE_NAME}" -o=jsonpath={.spec.clusterIP})
     export IP_ADDRESS=$KUBE_SERVICE_NAME
-    export PORT=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" get services "${KUBE_SERVICE_NAME}" -o=jsonpath={.spec.ports[0].port})
-    export NODE_PORT=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" get services "${KUBE_SERVICE_NAME}" -o=jsonpath={.spec.ports[0].nodePort})
+    export PORT=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" ${NAMESPACE_OPTION}get services "${KUBE_SERVICE_NAME}" -o=jsonpath={.spec.ports[0].port})
+    export NODE_PORT=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" ${NAMESPACE_OPTION}get services "${KUBE_SERVICE_NAME}" -o=jsonpath={.spec.ports[0].nodePort})
 }
 
 deploy_service
