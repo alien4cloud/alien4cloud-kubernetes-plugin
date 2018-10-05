@@ -13,6 +13,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import lombok.extern.java.Log;
 import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
+import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
 import org.alien4cloud.plugin.kubernetes.AbstractKubernetesModifier;
 import org.alien4cloud.tosca.model.Csar;
 import org.alien4cloud.tosca.model.definitions.*;
@@ -134,6 +135,11 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                 Object propertyValue = getValue(resourceNodeProperties.get("resource_def"));
                 String serializedPropertyValue = PropertyUtil.serializePropertyValue(propertyValue);
                 setNodePropertyPathValue(csar, topology, resourceNode, "resource_spec", new ScalarPropertyValue(serializedPropertyValue));
+            } else {
+                setNodePropertyPathValue(csar, topology, resourceNode, "resource_spec", new ScalarPropertyValue("N/A"));
+            }
+            if (providedNamespace != null) {
+                setNodePropertyPathValue(csar, topology, resourceNode, "namespace", new ScalarPropertyValue(providedNamespace));
             }
         }
     }
@@ -198,6 +204,8 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
 
     private void manageVolume(Csar csar, Topology topology, NodeTemplate volumeNode, Map<String, NodeTemplate> nodeReplacementMap,
             Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures) {
+
+        // FIXME : doesn't support many attachement (1 volume -> many containers) ?)
         Optional<RelationshipTemplate> relationshipTemplate = TopologyNavigationUtil.getTargetRelationships(volumeNode, "attachment").stream().findFirst();
         if (!relationshipTemplate.isPresent()) {
             return;
@@ -224,6 +232,26 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         }
         volumeEntry.put(PropertyUtil.getScalarValue(volume_type), volumeSpecObject);
         feedPropertyValue(deploymentResourceNodeProperties, "resource_def.spec.template.spec.volumes", volumeEntry, true);
+
+        NodeType volumeNodeType = ToscaContext.get(NodeType.class, volumeNode.getType());
+        if (ToscaTypeUtils.isOfType(volumeNodeType, KubeTopologyUtils.K8S_TYPES_SECRET_VOLUME)) {
+            // we must create a secret, the deployment should depend on it
+            NodeTemplate secretFactory = addNodeTemplate(csar, topology, volumeNode.getName() + "_Secret", KubeTopologyUtils.K8S_TYPES_SECRET_FACTORY,
+                    K8S_CSAR_VERSION);
+            String secretName = generateUniqueKubeName(volumeNode.getName());
+            setNodePropertyPathValue(csar, topology, secretFactory, "name", new ScalarPropertyValue(secretName));
+            // we must also define the secretName of the secret
+            TopologyModifierSupport.feedMapOrComplexPropertyEntry(volumeSpecObject, "secretName", secretName);
+
+            Map<String, DeploymentArtifact> artifacts = secretFactory.getArtifacts();
+            if (artifacts == null) {
+                artifacts = Maps.newHashMap();
+                secretFactory.setArtifacts(artifacts);
+            }
+            artifacts.put("resources", volumeNode.getArtifacts().get("resources"));
+            addRelationshipTemplate(csar, topology, deploymentResourceNode, secretFactory.getName(), NormativeRelationshipConstants.DEPENDS_ON,
+                    "dependency", "feature");
+        }
     }
 
     private void managePersistentVolumeClaim(Csar csar, Topology topology, NodeTemplate volumeNode,
