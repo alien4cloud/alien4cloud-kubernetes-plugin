@@ -316,9 +316,17 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         Map<String, AbstractPropertyValue> properties = safe(containerNodeTemplate.getProperties());
         AbstractPropertyValue cpu_share = PropertyUtil.getPropertyValueFromPath(properties, "cpu_share");
         setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.resources.requests.cpu", cpu_share);
+        AbstractPropertyValue cpu_share_limit = PropertyUtil.getPropertyValueFromPath(properties, "cpu_share_limit");
+        if (cpu_share_limit == null) {
+            cpu_share_limit = cpu_share;
+        }
         setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.resources.limits.cpu", cpu_share);
         AbstractPropertyValue mem_share = PropertyUtil.getPropertyValueFromPath(properties, "mem_share");
         setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.resources.requests.memory", mem_share);
+        AbstractPropertyValue mem_share_limit = PropertyUtil.getPropertyValueFromPath(properties, "mem_share_limit");
+        if (mem_share_limit == null) {
+            mem_share_limit = mem_share;
+        }
         setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.resources.limits.memory", mem_share);
         String imageName = getContainerImageName(containerNodeTemplate);
         if (imageName == null) {
