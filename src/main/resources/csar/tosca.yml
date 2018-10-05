@@ -546,17 +546,17 @@ data_types:
         type: string
       name:
         type: string
-#      subPath:
-#        type: string
-##        description: |
-##          Path within the volume from which the container's volume should be mounted. Defaults to '' (volume's root).
-#        required: false
-#      readOnly:
-#        type: boolean
-##        description: |
-##          Mounted read-only if true, read-write otherwise (false or unspecified). Defaults to false.
-#        default: false
-#        required: false
+      subPath:
+        type: string
+        description: |
+          Path within the volume from which the container's volume should be mounted. Defaults to '' (volume's root).
+        required: false
+      readOnly:
+        type: boolean
+        description: |
+          Mounted read-only if true, read-write otherwise (false or unspecified). Defaults to false.
+        default: false
+        required: false
 
   org.alien4cloud.kubernetes.api.datatypes.ResourceRequirements:
     derived_from: tosca.datatypes.Root
@@ -903,56 +903,56 @@ data_types:
           - pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
         required: true
 
-#  org.alien4cloud.kubernetes.api.datatypes.volumes.KeyToPath:
-#    derived_from: tosca.datatypes.Root
-#    properties:
-#      key:
-#        type: string
-#        description: |
-#          The key to project.
-#        required: true
-#      mode:
-#        type: integer
-##        description: |
-##          Optional: mode bits to use on created files by default. Must be a value between 0 and 0777. Defaults to 0644. Directories within the path are not affected by this setting. This might be in conflict with other options that affect the file mode, like fsGroup, and the result can be other mode bits set.        required: false
-#        required: false
-#        constraints:
-#          - greater_or_equal: 0
-#          - less_or_equal: 777
-#      path:
-#        type: string
-##        description: |
-##          The relative path of the file to map the key to. May not be an absolute path. May not contain the path element '..'. May not start with the string '..'.
-#        required: true
+  org.alien4cloud.kubernetes.api.datatypes.volumes.KeyToPath:
+    derived_from: tosca.datatypes.Root
+    properties:
+      key:
+        type: string
+        description: |
+          The key to project.
+        required: true
+      mode:
+        type: integer
+        description: |
+          Optional: mode bits to use on created files by default. Must be a value between 0 and 0777. Defaults to 0644. Directories within the path are not affected by this setting. This might be in conflict with other options that affect the file mode, like fsGroup, and the result can be other mode bits set.        required: false
+        required: false
+        constraints:
+          - greater_or_equal: 0
+          - less_or_equal: 777
+      path:
+        type: string
+        description: |
+          The relative path of the file to map the key to. May not be an absolute path. May not contain the path element '..'. May not start with the string '..'.
+        required: true
 
-#  org.alien4cloud.kubernetes.api.datatypes.volumes.SecretVolumeSpec:
-#    derived_from: tosca.datatypes.Root
-##    description: see https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.11/#secretvolumesource-v1-core
-#    properties:
-#      defaultMode:
-#        type: integer
-##        description: |
-##          Optional: mode bits to use on created files by default. Must be a value between 0 and 0777. Defaults to 0644. Directories within the path are not affected by this setting. This might be in conflict with other options that affect the file mode, like fsGroup, and the result can be other mode bits set.        required: false
-#        required: false
-#        default: 644
-#        constraints:
-#          - greater_or_equal: 0
-#          - less_or_equal: 777
-##      items:
-##        type: list
-##        entry_schema:
-##          type: org.alien4cloud.kubernetes.api.datatypes.volumes.KeyToPath
-##        required: false
-#      optional:
-#        type: boolean
-#        default: false
-##        description: |
-##          Specify whether the Secret or it's keys must be defined
-#      secretName:
-#        type: string
-##        description: |
-##          Name of the secret in the pod's namespace to use. More info: https://kubernetes.io/docs/concepts/storage/volumes#secret
-#        required: true
+  org.alien4cloud.kubernetes.api.datatypes.volumes.SecretVolumeSpec:
+    derived_from: tosca.datatypes.Root
+    description: see https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.11/#secretvolumesource-v1-core
+    properties:
+      defaultMode:
+        type: integer
+        description: |
+          Optional: mode bits to use on created files by default. Must be a value between 0 and 0777. Defaults to 0644. Directories within the path are not affected by this setting. This might be in conflict with other options that affect the file mode, like fsGroup, and the result can be other mode bits set.        required: false
+        required: false
+        default: 644
+        constraints:
+          - greater_or_equal: 0
+          - less_or_equal: 777
+      items:
+        type: list
+        entry_schema:
+          type: org.alien4cloud.kubernetes.api.datatypes.volumes.KeyToPath
+        required: false
+      optional:
+        type: boolean
+        default: false
+        description: |
+          Specify whether the Secret or it's keys must be defined
+      secretName:
+        type: string
+        description: |
+          Name of the secret in the pod's namespace to use. More info: https://kubernetes.io/docs/concepts/storage/volumes#secret
+        required: true
 
 node_types:
 
@@ -1057,30 +1057,32 @@ node_types:
         description: may be overriden by concrete implementations
         required: false
 
-#  org.alien4cloud.kubernetes.api.types.volume.AbstractArtifactVolumeBase:
-#    abstract: true
-#    derived_from: org.alien4cloud.kubernetes.api.types.volume.AbstractVolumeBase
-##    description: |
-##      A volume linked to an artifact
-#    artifacts:
-#      - resources:
-#          type: tosca.artifacts.File
-#
-#  org.alien4cloud.kubernetes.api.types.volume.ArtifactVolumeBase:
-#    abstract: true
-#    derived_from: org.alien4cloud.kubernetes.api.types.volume.AbstractArtifactVolumeBase
-#    properties:
-#      volume_type:
-#        type: string
-#        constraints:
-#          - valid_values: [secret]
-#      spec:
-#        type: tosca.datatypes.Root
-##        description: may be overriden by concrete implementations
-#        required: false
-#    artifacts:
-#      - resources:
-#          type: tosca.artifacts.File
+  org.alien4cloud.kubernetes.api.types.volume.AbstractArtifactVolumeBase:
+    abstract: true
+    derived_from: org.alien4cloud.kubernetes.api.types.volume.AbstractVolumeBase
+    description: |
+      A volume linked to an artifact
+    artifacts:
+      - resources:
+          type: tosca.artifacts.File
+          file: README.md
+
+  org.alien4cloud.kubernetes.api.types.volume.ArtifactVolumeBase:
+    abstract: true
+    derived_from: org.alien4cloud.kubernetes.api.types.volume.AbstractArtifactVolumeBase
+    properties:
+      volume_type:
+        type: string
+        constraints:
+          - valid_values: [secret]
+      spec:
+        type: tosca.datatypes.Root
+        description: may be overriden by concrete implementations
+        required: false
+    artifacts:
+      - resources:
+          type: tosca.artifacts.File
+          file: README.md
 
   org.alien4cloud.kubernetes.api.types.volume.EmptyDirVolumeSource:
     derived_from: org.alien4cloud.kubernetes.api.types.volume.VolumeBase
@@ -1180,47 +1182,48 @@ node_types:
         type: org.alien4cloud.kubernetes.api.datatypes.volumes.ConfigMapVolumeSpec
         required: false
 
-#  org.alien4cloud.kubernetes.api.types.volume.SecretSource:
-#    derived_from: org.alien4cloud.kubernetes.api.types.volume.ArtifactVolumeBase
-##    description: |
-##      Adapts a Secret into a volume. The contents of the target Secret's Data field will be presented in a volume as files using the keys in the Data field as the file names. Secret volumes support ownership management and SELinux relabeling.
-##      More info: https://kubernetes.io/docs/concepts/configuration/secret/
-#    properties:
-#      volume_type:
-#        type: string
-#        default: secret
-#        constraints:
-#          - equal: secret
-#      spec:
-#        type: org.alien4cloud.kubernetes.api.datatypes.volumes.SecretVolumeSpec
-#        required: false
+  org.alien4cloud.kubernetes.api.types.volume.SecretSource:
+    derived_from: org.alien4cloud.kubernetes.api.types.volume.ArtifactVolumeBase
+    description: |
+      Adapts a Secret into a volume. The contents of the target Secret's Data field will be presented in a volume as files using the keys in the Data field as the file names. Secret volumes support ownership management and SELinux relabeling.
+      More info: https://kubernetes.io/docs/concepts/configuration/secret/
+    properties:
+      volume_type:
+        type: string
+        default: secret
+        constraints:
+          - equal: secret
+      spec:
+        type: org.alien4cloud.kubernetes.api.datatypes.volumes.SecretVolumeSpec
+        required: false
 
-#  org.alien4cloud.kubernetes.api.types.SecretFactory:
-#    derived_from: org.alien4cloud.kubernetes.api.types.BaseResource
-##    description: |
-##      Component in charge of creating a secret using one or more files (from an artifact).
-#    properties:
-#      name:
-#        type: string
-#        description: |
-#          The name of the secret
-#        constraints:
-#          - pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
-#    artifacts:
-#      - resources:
-#          type: tosca.artifacts.File
-#    interfaces:
-#      Standard:
-#        create:
-#          inputs:
-#            SECRET_NAME: { get_property: [SELF, name] }
-#            NAMESPACE: { get_property: [SELF, namespace] }
-#          implementation: scripts/kubectl_secret_create.sh
-#        delete:
-#          inputs:
-#            SECRET_NAME: { get_property: [SELF, name] }
-#            NAMESPACE: { get_property: [SELF, namespace] }
-#          implementation: scripts/kubectl_secret_delete.sh
+  org.alien4cloud.kubernetes.api.types.SecretFactory:
+    derived_from: org.alien4cloud.kubernetes.api.types.BaseResource
+    description: |
+      Component in charge of creating a secret using one or more files (from an artifact).
+    properties:
+      name:
+        type: string
+        description: |
+          The name of the secret
+        constraints:
+          - pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+    artifacts:
+      - resources:
+          type: tosca.artifacts.File
+          file: README.md
+    interfaces:
+      Standard:
+        create:
+          inputs:
+            SECRET_NAME: { get_property: [SELF, name] }
+            NAMESPACE: { get_property: [SELF, namespace] }
+          implementation: scripts/kubectl_secret_create.sh
+        delete:
+          inputs:
+            SECRET_NAME: { get_property: [SELF, name] }
+            NAMESPACE: { get_property: [SELF, namespace] }
+          implementation: scripts/kubectl_secret_delete.sh
 
   org.alien4cloud.kubernetes.api.types.Service:
     derived_from: org.alien4cloud.kubernetes.api.types.AbstractService

@@ -20,9 +20,6 @@ do
     command="${command} --from-file=${filename}=${file}"
 done
 
-# lookup service dependencies
-resolve_service_dependencies_variables
-
 echo "Creating secret using command: $command"
 
 cmd_output=$(echo $command | sh)

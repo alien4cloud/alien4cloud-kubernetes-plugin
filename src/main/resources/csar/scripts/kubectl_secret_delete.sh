@@ -13,7 +13,7 @@ if [ ! -z "$NAMESPACE" ]; then
     NAMESPACE_OPTION="-n ${NAMESPACE} "
 fi
 
-command="kubectl --kubeconfig ${KUBE_ADMIN_CONFIG_PATH} ${NAMESPACE_OPTION}delete configmap ${SECRET_NAME}"
+command="kubectl --kubeconfig ${KUBE_ADMIN_CONFIG_PATH} ${NAMESPACE_OPTION}delete secret ${SECRET_NAME}"
 echo "Deleting secret using command: $command"
 
 cmd_output=$(echo $command | sh)
