@@ -149,7 +149,7 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         setNodeTagValue(serviceNode, A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT, endpointName);
 
         // fill properties of service
-        String serviceName = generateUniqueKubeName(serviceNode.getName());
+        String serviceName = generateUniqueKubeName(context, serviceNode.getName());
         setNodePropertyPathValue(csar, topology, serviceNode, "metadata.name", new ScalarPropertyValue(serviceName));
         setNodePropertyPathValue(csar, topology, serviceNode, "spec.service_type", new ScalarPropertyValue("ClusterIP"));
 
@@ -267,7 +267,7 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         AbstractPropertyValue defaultInstances = TopologyNavigationUtil.getNodeCapabilityPropertyValue(nodeTemplate, "scalable", "default_instances");
         // feed the replica property
         setNodePropertyPathValue(csar, topology, nodeTemplate, "spec.replicas", defaultInstances);
-        ScalarPropertyValue deploymentName = new ScalarPropertyValue(generateUniqueKubeName(nodeTemplate.getName()));
+        ScalarPropertyValue deploymentName = new ScalarPropertyValue(generateUniqueKubeName(context, nodeTemplate.getName()));
         setNodePropertyPathValue(csar, topology, nodeTemplate, "metadata.name", deploymentName);
         setNodePropertyPathValue(csar, topology, nodeTemplate, "spec.template.metadata.labels.app", deploymentName);
     }
@@ -281,7 +281,7 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         setNodeTagValue(hostNode, A4C_KUBERNETES_MODIFIER_TAG, "Created to host " + nodeTemplate.getName());
 
         // set a generated name to the K8S object
-        ScalarPropertyValue deploymentName = new ScalarPropertyValue(generateUniqueKubeName(hostNode.getName()));
+        ScalarPropertyValue deploymentName = new ScalarPropertyValue(generateUniqueKubeName(context, hostNode.getName()));
         setNodePropertyPathValue(csar, topology, hostNode, "metadata.name", deploymentName);
         setNodePropertyPathValue(csar, topology, hostNode, "spec.template.metadata.labels.app", deploymentName);
         Set<NodeTemplate> hostedContainers = TopologyNavigationUtil.getSourceNodes(topology, nodeTemplate, "host");
@@ -334,7 +334,7 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         }
         setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.image", new ScalarPropertyValue(imageName));
         setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.name",
-                new ScalarPropertyValue(generateUniqueKubeName(containerNodeTemplate.getName())));
+                new ScalarPropertyValue(generateUniqueKubeName(context, containerNodeTemplate.getName())));
         AbstractPropertyValue docker_run_cmd = PropertyUtil.getPropertyValueFromPath(properties, "docker_run_cmd");
         if (docker_run_cmd != null) {
             List<Object> values = Lists.newArrayList();
@@ -416,7 +416,7 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         }
 
         // fill properties of service
-        setNodePropertyPathValue(csar, topology, serviceNode, "metadata.name", new ScalarPropertyValue(generateUniqueKubeName(serviceNode.getName())));
+        setNodePropertyPathValue(csar, topology, serviceNode, "metadata.name", new ScalarPropertyValue(generateUniqueKubeName(context, serviceNode.getName())));
         setNodePropertyPathValue(csar, topology, serviceNode, "spec.service_type", new ScalarPropertyValue("NodePort"));
         // get the "pod name"
         AbstractPropertyValue podName = PropertyUtil.getPropertyValueFromPath(safe(deploymentNodeTemplate.getProperties()), "metadata.name");

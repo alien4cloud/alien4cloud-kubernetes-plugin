@@ -95,13 +95,6 @@ public class KubeTopologyUtils {
         return candidate.toLowerCase().replaceAll("_", "-");
     }
 
-    public static String generateUniqueKubeName(String prefix) {
-        // TODO: length should be < 63 ??
-        // TODO: better unique generation
-        // we hashCode the UUID, we know that we have some collision risk, but for the moment we accept
-        return generateKubeName(prefix + "-" + UUID.randomUUID().toString().hashCode());
-    }
-
     /**
      * Recursively get the root Object value eventually hosted by a PropertyValue. If the value is a collection (ListPropertyValue, AbstractPropertyValue) then
      * returns a collection of Objects.

@@ -103,7 +103,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
 
         // for each volume node, populate the 'volumes' property of the corresponding deployment resource
         Set<NodeTemplate> volumeNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_VOLUME_BASE, true);
-        volumeNodes.forEach(nodeTemplate -> manageVolume(csar, topology, nodeTemplate, nodeReplacementMap, resourceNodeYamlStructures));
+        volumeNodes.forEach(nodeTemplate -> manageVolume(context, csar, topology, nodeTemplate, nodeReplacementMap, resourceNodeYamlStructures));
 
         // check auto-scaling policies and build the equiv node
         Set<PolicyTemplate> policies = TopologyNavigationUtil.getPoliciesOfType(topology, K8S_POLICIES_AUTO_SCALING, true);
@@ -119,7 +119,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         Set<NodeTemplate> containers = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_APPLICATION_DOCKER_CONTAINER, true, false);
         safe(containers).forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
 
-        String providedNamespace = getProvidedNamespace(context);
+        String providedNamespace = getProvidedMetaproperty(context, K8S_NAMESPACE_METAPROP_NAME);
         if (providedNamespace != null) {
             context.getLog().info("All resources will be created into the namespace <" + providedNamespace + ">");
         }
@@ -202,7 +202,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         setNodePropertyPathValue(csar, topology, endpointNode, "subsets", subsets);
     }
 
-    private void manageVolume(Csar csar, Topology topology, NodeTemplate volumeNode, Map<String, NodeTemplate> nodeReplacementMap,
+    private void manageVolume(FlowExecutionContext ctx, Csar csar, Topology topology, NodeTemplate volumeNode, Map<String, NodeTemplate> nodeReplacementMap,
             Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures) {
 
         // FIXME : doesn't support many attachement (1 volume -> many containers) ?)
@@ -216,7 +216,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         // get the deployment resource corresponding to this deployment
         NodeTemplate deploymentResourceNode = nodeReplacementMap.get(deploymentContainer.getName());
 
-        managePersistentVolumeClaim(csar, topology, volumeNode, resourceNodeYamlStructures, deploymentResourceNode);
+        managePersistentVolumeClaim(ctx, csar, topology, volumeNode, resourceNodeYamlStructures, deploymentResourceNode);
 
         Map<String, AbstractPropertyValue> deploymentResourceNodeProperties = resourceNodeYamlStructures.get(deploymentResourceNode.getName());
         Map<String, Object> volumeEntry = Maps.newHashMap();
@@ -238,7 +238,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
             // we must create a secret, the deployment should depend on it
             NodeTemplate secretFactory = addNodeTemplate(csar, topology, volumeNode.getName() + "_Secret", KubeTopologyUtils.K8S_TYPES_SECRET_FACTORY,
                     K8S_CSAR_VERSION);
-            String secretName = generateUniqueKubeName(volumeNode.getName());
+            String secretName = generateUniqueKubeName(ctx, volumeNode.getName());
             setNodePropertyPathValue(csar, topology, secretFactory, "name", new ScalarPropertyValue(secretName));
             // we must also define the secretName of the secret
             TopologyModifierSupport.feedMapOrComplexPropertyEntry(volumeSpecObject, "secretName", secretName);
@@ -254,7 +254,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         }
     }
 
-    private void managePersistentVolumeClaim(Csar csar, Topology topology, NodeTemplate volumeNode,
+    private void managePersistentVolumeClaim(FlowExecutionContext ctx, Csar csar, Topology topology, NodeTemplate volumeNode,
             Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures, NodeTemplate deploymentResourceNode) {
         // in case of empty claimName for a PersistentVolumeClaimSource then create a node of type PersistentVolumeClaim
         NodeType volumeNodeType = ToscaContext.get(NodeType.class, volumeNode.getType());
@@ -267,7 +267,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                 Map<String, AbstractPropertyValue> volumeClaimResourceNodeProperties = Maps.newHashMap();
                 resourceNodeYamlStructures.put(volumeClaimResource.getName(), volumeClaimResourceNodeProperties);
 
-                String claimName = generateUniqueKubeName(volumeNode.getName());
+                String claimName = generateUniqueKubeName(ctx, volumeNode.getName());
                 // fill the node properties
                 feedPropertyValue(volumeClaimResource.getProperties(), "resource_type", new ScalarPropertyValue("pvc"), false);
                 feedPropertyValue(volumeClaimResource.getProperties(), "resource_id", new ScalarPropertyValue(claimName), false);
@@ -321,12 +321,12 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                         K8S_TYPES_DEPLOYMENT));
 
         // for each target, add a SimpleResource for HorizontaPodAutoScaler, targeting the related DeploymentResource
-        validTargets.forEach(nodeTemplate -> addHorizontalPodAutoScalingResource(csar, topology, policyTemplate, nodeTemplate, nodeReplacementMap,
+        validTargets.forEach(nodeTemplate -> addHorizontalPodAutoScalingResource(context, csar, topology, policyTemplate, nodeTemplate, nodeReplacementMap,
                 resourceNodeYamlStructures));
 
     }
 
-    private void addHorizontalPodAutoScalingResource(Csar csar, Topology topology, PolicyTemplate policyTemplate, NodeTemplate target,
+    private void addHorizontalPodAutoScalingResource(FlowExecutionContext ctx, Csar csar, Topology topology, PolicyTemplate policyTemplate, NodeTemplate target,
             Map<String, NodeTemplate> nodeReplacementMap, Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures) {
         String resourceBaseName = target.getName() + "_" + policyTemplate.getName();
         NodeTemplate podAutoScalerResourceNode = addNodeTemplate(csar, topology, resourceBaseName + "_Resource", K8S_TYPES_SIMPLE_RESOURCE, K8S_CSAR_VERSION);
@@ -336,7 +336,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
 
         NodeTemplate targetDeploymentResourceNode = nodeReplacementMap.get(target.getName());
         Map<String, AbstractPropertyValue> targetDeploymentResourceNodeProps = resourceNodeYamlStructures.get(targetDeploymentResourceNode.getName());
-        String podAutoScalerName = generateUniqueKubeName(resourceBaseName);
+        String podAutoScalerName = generateUniqueKubeName(ctx, resourceBaseName);
 
         feedPropertyValue(podAutoScalerResourceNode.getProperties(), "resource_type", new ScalarPropertyValue("hpa"), false);
         feedPropertyValue(podAutoScalerResourceNode.getProperties(), "resource_id", new ScalarPropertyValue(podAutoScalerName), false);
@@ -771,11 +771,11 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         }
 
         if (serviceNode.getType().equals(K8S_TYPES_SERVICE_INGRESS)) {
-            createIngress(csar, topology, serviceNode, serviceResourceNode, portName, namePropertyValue, resourceNodeYamlStructures, context);
+            createIngress(context, csar, topology, serviceNode, serviceResourceNode, portName, namePropertyValue, resourceNodeYamlStructures, context);
         }
     }
 
-    private void createIngress(Csar csar, Topology topology, NodeTemplate serviceNode, NodeTemplate serviceResourcesNode, String portName, AbstractPropertyValue serviceName, Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures, FlowExecutionContext context) {
+    private void createIngress(FlowExecutionContext ctx, Csar csar, Topology topology, NodeTemplate serviceNode, NodeTemplate serviceResourcesNode, String portName, AbstractPropertyValue serviceName, Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures, FlowExecutionContext context) {
         AbstractPropertyValue ingressHost = PropertyUtil.getPropertyValueFromPath(safe(serviceNode.getProperties()), "host");
 
         NodeTemplate ingressResourceNode = addNodeTemplate(csar, topology, serviceNode.getName() + "_Ingress", K8S_TYPES_SIMPLE_RESOURCE, K8S_CSAR_VERSION);
@@ -783,7 +783,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         Map<String, AbstractPropertyValue> ingressResourceNodeProperties = Maps.newHashMap();
         resourceNodeYamlStructures.put(ingressResourceNode.getName(), ingressResourceNodeProperties);
 
-        String ingressName = generateUniqueKubeName(ingressResourceNode.getName());
+        String ingressName = generateUniqueKubeName(ctx, ingressResourceNode.getName());
 
         feedPropertyValue(ingressResourceNode.getProperties(), "resource_type", new ScalarPropertyValue("ing"), false);
         feedPropertyValue(ingressResourceNode.getProperties(), "resource_id", new ScalarPropertyValue(ingressName), false);
@@ -847,7 +847,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
             Map<String, AbstractPropertyValue> ingressSecretResourceNodeProperties = Maps.newHashMap();
             resourceNodeYamlStructures.put(secretResourceNode.getName(), ingressSecretResourceNodeProperties);
 
-            String ingressSecretName = generateUniqueKubeName(secretResourceNode.getName());
+            String ingressSecretName = generateUniqueKubeName(ctx, secretResourceNode.getName());
 
             feedPropertyValue(secretResourceNode.getProperties(), "resource_type", new ScalarPropertyValue("secrets"), false);
             feedPropertyValue(secretResourceNode.getProperties(), "resource_id", new ScalarPropertyValue(ingressSecretName), false);
