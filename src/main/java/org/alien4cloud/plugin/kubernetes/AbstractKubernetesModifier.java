@@ -167,20 +167,23 @@ public abstract class AbstractKubernetesModifier extends TopologyModifierSupport
 
     protected String generateUniqueKubeName(FlowExecutionContext ctx, String prefix) {
         // if a metaprop is defined at application or location level, use it as a prefix.
-        String k8sPrefix = "";
+        String k8sPrefix = null;
         Object o = ctx.getExecutionCache().get(FLOW_CACHE_KEY_K8S_PREFIX);
         if (o == null) {
             k8sPrefix = getProvidedMetaproperty(ctx, K8S_PREFIX_METAPROP_NAME);
+            if (k8sPrefix == null) {
+                // No meteprop is defined but to avoid futur search, let's put an empty string in the cache
+                k8sPrefix = "";
+            }
             ctx.getExecutionCache().put(FLOW_CACHE_KEY_K8S_PREFIX, k8sPrefix);
         } else {
             k8sPrefix = o.toString();
         }
+        // TODO: better unique generation (we hashCode the UUID, we know that we have some collision risk, but for the moment we accept)
         String kubeName = KubeTopologyUtils.generateKubeName(k8sPrefix + prefix + "-" + UUID.randomUUID().toString().hashCode());
         // length should be < 63 (Kube rule)
-        org.apache.commons.lang3.StringUtils.abbreviateMiddle(kubeName, "-", 63);
-        // TODO: better unique generation
-        // we hashCode the UUID, we know that we have some collision risk, but for the moment we accept
-        return KubeTopologyUtils.generateKubeName(k8sPrefix + prefix + "-" + UUID.randomUUID().toString().hashCode());
+        kubeName = org.apache.commons.lang3.StringUtils.abbreviateMiddle(kubeName, "-", 63);
+        return kubeName;
     }
 
     private static abstract class Parser {
