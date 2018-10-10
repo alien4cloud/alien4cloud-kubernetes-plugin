@@ -313,21 +313,28 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         NodeTemplate deploymentNodeTemplate = TopologyNavigationUtil.getImmediateHostTemplate(topology, containerRuntimeNodeTemplate);
 
         // fill properties on the hosting K8S container
-        Map<String, AbstractPropertyValue> properties = safe(containerNodeTemplate.getProperties());
+        Map<String, AbstractPropertyValue> properties = containerNodeTemplate.getProperties();
+        if (properties == null) {
+            properties = Maps.newHashMap();
+            containerNodeTemplate.setProperties(properties);
+        }
         AbstractPropertyValue cpu_share = PropertyUtil.getPropertyValueFromPath(properties, "cpu_share");
-        setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.resources.requests.cpu", cpu_share);
+        if (cpu_share != null) {
+            setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.resources.requests.cpu", cpu_share);
+        }
         AbstractPropertyValue cpu_share_limit = PropertyUtil.getPropertyValueFromPath(properties, "cpu_share_limit");
-        if (cpu_share_limit == null) {
-            cpu_share_limit = cpu_share;
+        if (cpu_share_limit != null) {
+            setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.resources.limits.cpu", cpu_share_limit);
         }
-        setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.resources.limits.cpu", cpu_share);
         AbstractPropertyValue mem_share = PropertyUtil.getPropertyValueFromPath(properties, "mem_share");
-        setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.resources.requests.memory", mem_share);
-        AbstractPropertyValue mem_share_limit = PropertyUtil.getPropertyValueFromPath(properties, "mem_share_limit");
-        if (mem_share_limit == null) {
-            mem_share_limit = mem_share;
+        if (mem_share != null) {
+            setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.resources.requests.memory", mem_share);
         }
-        setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.resources.limits.memory", mem_share);
+        AbstractPropertyValue mem_share_limit = PropertyUtil.getPropertyValueFromPath(properties, "mem_share_limit");
+        if (mem_share_limit != null) {
+            setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.resources.limits.memory", mem_share_limit);
+        }
+
         String imageName = getContainerImageName(containerNodeTemplate);
         if (imageName == null) {
             context.getLog().error("Image is not set for container <" + containerNodeTemplate.getName() + ">");
