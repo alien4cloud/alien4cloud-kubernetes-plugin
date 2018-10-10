@@ -82,6 +82,8 @@ data_types:
 
   org.alien4cloud.kubernetes.api.datatypes.EndpointSubsets:
     derived_from: tosca.datatypes.Root
+    description: >
+      c.f. https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#endpointsubset-v1-core
     properties:
       addresses:
         type: list
@@ -100,6 +102,8 @@ data_types:
 
   org.alien4cloud.kubernetes.api.datatypes.Port:
     derived_from: tosca.datatypes.Root
+    description: >
+      c.f. https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#endpointport-v1-core
     properties:
 #      name:
 #        type: string
@@ -305,6 +309,8 @@ data_types:
 
   org.alien4cloud.kubernetes.api.datatypes.PodSpec:
     derived_from: tosca.datatypes.Root
+    description: >
+      c.f. hhttps://kubernetes.io/docs/api-reference/v1.6/#podtspec-v1-core
     properties:
       activeDeadlineSeconds:
         type: integer
@@ -417,6 +423,8 @@ data_types:
 
   org.alien4cloud.kubernetes.api.datatypes.ContainerPort:
     derived_from: tosca.datatypes.Root
+    description: >
+      c.f. hhttps://kubernetes.io/docs/api-reference/v1.6/#containerport-v1-core
     properties:
       containerPort:
         type: integer
@@ -465,6 +473,8 @@ data_types:
 
   org.alien4cloud.kubernetes.api.datatypes.ContainerSpec:
     derived_from: tosca.datatypes.Root
+    description: >
+      c.f. hhttps://kubernetes.io/docs/api-reference/v1.6/#container-v1-core
     properties:
       args:
         type: string
@@ -574,6 +584,8 @@ data_types:
 
   org.alien4cloud.kubernetes.api.datatypes.VolumeMount:
     derived_from: tosca.datatypes.Root
+    description: >
+      c.f. hhttps://kubernetes.io/docs/api-reference/v1.6/#volumemount-v1-core
     properties:
       mountPath:
         type: string
@@ -582,6 +594,8 @@ data_types:
 
   org.alien4cloud.kubernetes.api.datatypes.ResourceRequirements:
     derived_from: tosca.datatypes.Root
+    description: >
+      c.f. hhttps://kubernetes.io/docs/api-reference/v1.6/#resourcerequirements-v1-core
     properties:
       limits:
         type: org.alien4cloud.kubernetes.api.datatypes.ResourceRequest
