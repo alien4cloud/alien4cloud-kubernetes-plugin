@@ -459,8 +459,9 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
             Map<String, AbstractPropertyValue> deploymentResourceNodeProperties = resourceNodeYamlStructures.get(deploymentResource.getName());
 
             // if the container if of type ConfigurableDockerContainer we must create a ConfigMapFactory per config_settings entry
-            // a map of input_prefix -> NodeTemplate (where NodeTemplate is an instance of ConfigMapFactory)
-            Map<String, NodeTemplate> configMapFactories = Maps.newHashMap();
+            // a map of input_prefix -> List<NodeTemplate> (where NodeTemplate is an instance of ConfigMapFactory)
+            // we can have several configMapFactory using the same prefix
+            Map<String, List<NodeTemplate>> configMapFactories = Maps.newHashMap();
 
             // resolve env variables
             Set<NodeTemplate> hostedContainers = TopologyNavigationUtil.getSourceNodes(topology, containerNode, "host");
@@ -485,6 +486,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                             if (config_setting_obj instanceof Map) {
                                 Map<String, String> config_setting_map = (Map<String, String>)config_setting_obj;
                                 String mount_path = config_setting_map.get("mount_path");
+                                String mount_subPath = config_setting_map.get("mount_subPath");
                                 String input_prefix = config_setting_map.get("input_prefix");
                                 String config_path = config_setting_map.get("config_path");
 
@@ -492,7 +494,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                                         K8S_CSAR_VERSION);
                                 AbstractPropertyValue containerNameAPV = PropertyUtil.getPropertyValueFromPath(safe(containerNode.getProperties()), "container.name");
                                 String containerName = ((ScalarPropertyValue)containerNameAPV).getValue();
-                                String configMapName = KubeTopologyUtils.generateKubeName(containerName + "_ConfigMap_" + input_prefix);
+                                String configMapName = generateUniqueKubeName(context, containerName + "_ConfigMap_" + input_prefix);
                                 configMapName = configMapName.replaceAll("--", "-");
                                 configMapName = configMapName.replaceAll("\\.", "-");
                                 if (configMapName.endsWith("-")) {
@@ -505,7 +507,12 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                                 configsArtifact.setArtifactRepository(ArtifactRepositoryConstants.ALIEN_TOPOLOGY_REPOSITORY);
                                 // the artifact ref using the value found in setting
                                 configsArtifact.setArtifactRef(config_path);
-                                configMapFactories.put(input_prefix, configMapFactoryNode);
+
+                                List<NodeTemplate> configMapFactoryList = configMapFactories.get(input_prefix);
+                                if (!configMapFactories.containsKey(input_prefix)) {
+                                    configMapFactories.put(input_prefix, Lists.newArrayList());
+                                }
+                                configMapFactories.get(input_prefix).add(configMapFactoryNode);
 
                                 // add the configMap to the deployment
                                 Map<String, Object> volumeEntry = Maps.newHashMap();
@@ -519,6 +526,9 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                                 Map<String, Object> containerVolumeEntry = Maps.newHashMap();
                                 containerVolumeEntry.put("name", configMapName);
                                 containerVolumeEntry.put("mountPath", mount_path);
+                                if (StringUtils.isNotEmpty(mount_subPath)) {
+                                    containerVolumeEntry.put("subPath", mount_subPath);
+                                }
                                 appendNodePropertyPathValue(csar, topology, containerNode, "container.volumeMounts", new ComplexPropertyValue(containerVolumeEntry));
 
                                 // add all a dependsOn relationship between the configMapFactory and each dependsOn target of deploymentResource
@@ -558,7 +568,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                                     }
                                 } else if (!configMapFactories.isEmpty()) {
                                     // maybe it's a config that should be associated with a configMap
-                                    for (Map.Entry<String, NodeTemplate> configMapFactoryEntry : configMapFactories.entrySet()) {
+                                    for (Map.Entry<String, List<NodeTemplate>> configMapFactoryEntry : configMapFactories.entrySet()) {
                                         String inputPrefix = configMapFactoryEntry.getKey();
                                         if (inputName.startsWith(inputPrefix)) {
                                             // ok this input is related to this configMapFactory
@@ -566,11 +576,13 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                                             if (!(v instanceof ScalarPropertyValue)) {
                                                 context.getLog().warn("Ignoring INPUT named <" + inputName + "> for container <" + nodeTemplate.getName() + "> because the value is not a scalar (" + serializePropertyValue(v) + ") and cannot be added to a configMap");
                                             } else {
-                                                try {
-                                                    setNodePropertyPathValue(csar, topology, configMapFactoryEntry.getValue(), "input_variables." + varName, v);
-                                                    context.getLog().info("Successfully set INPUT named <" + inputName + "> with value <" + serializePropertyValue(v) + "> to configMap <" + configMapFactoryEntry.getValue().getName() + "> for container <" + nodeTemplate.getName() + ">");
-                                                } catch(Exception e) {
-                                                    context.getLog().warn("Not able to set INPUT named <" + inputName + "> with value <" + serializePropertyValue(v) + "> to configMap, <" + configMapFactoryEntry.getValue().getName() + "> for container <" + nodeTemplate.getName() + ">, error was : " + e.getMessage());
+                                                for (NodeTemplate configMapFactory : configMapFactoryEntry.getValue()) {
+                                                    try {
+                                                        setNodePropertyPathValue(csar, topology, configMapFactory, "input_variables." + varName, v);
+                                                        context.getLog().info("Successfully set INPUT named <" + inputName + "> with value <" + serializePropertyValue(v) + "> to configMap <" + configMapFactory.getName() + "> for container <" + nodeTemplate.getName() + ">");
+                                                    } catch(Exception e) {
+                                                        context.getLog().warn("Not able to set INPUT named <" + inputName + "> with value <" + serializePropertyValue(v) + "> to configMap, <" + configMapFactory.getName() + "> for container <" + nodeTemplate.getName() + ">, error was : " + e.getMessage());
+                                                    }
                                                 }
                                             }
                                             break;
@@ -602,8 +614,10 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                         new ScalarPropertyValue(serviceDependencyDefinitionsValue.toString()));
                 // we set the same property for each configMapFactory if any
                 configMapFactories.forEach((input_prefix, configMapFactoryNodeTemplate) -> {
-                    setNodePropertyPathValue(csar, topology, configMapFactoryNodeTemplate, "service_dependency_lookups",
-                            new ScalarPropertyValue(serviceDependencyDefinitionsValue.toString()));
+                    configMapFactoryNodeTemplate.iterator().forEachRemaining(nodeTemplate -> {
+                        setNodePropertyPathValue(csar, topology, nodeTemplate, "service_dependency_lookups",
+                                new ScalarPropertyValue(serviceDependencyDefinitionsValue.toString()));
+                    });
                 });
             });
 
