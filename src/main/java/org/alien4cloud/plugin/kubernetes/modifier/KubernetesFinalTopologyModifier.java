@@ -1,9 +1,13 @@
 package org.alien4cloud.plugin.kubernetes.modifier;
 
 import alien4cloud.component.repository.ArtifactRepositoryConstants;
+import alien4cloud.paas.wf.TopologyContext;
+import alien4cloud.paas.wf.WorkflowSimplifyService;
+import alien4cloud.paas.wf.WorkflowsBuilderService;
 import alien4cloud.paas.wf.validation.WorkflowValidator;
 import alien4cloud.tosca.context.ToscaContext;
 import alien4cloud.tosca.context.ToscaContextual;
+import alien4cloud.tosca.parser.ToscaParser;
 import alien4cloud.tosca.serializer.ToscaPropertySerializerUtils;
 import alien4cloud.utils.CloneUtil;
 import alien4cloud.utils.MapUtil;
@@ -18,6 +22,7 @@ import org.alien4cloud.plugin.kubernetes.AbstractKubernetesModifier;
 import org.alien4cloud.tosca.model.Csar;
 import org.alien4cloud.tosca.model.definitions.*;
 import org.alien4cloud.tosca.model.templates.*;
+import org.alien4cloud.tosca.model.types.AbstractToscaType;
 import org.alien4cloud.tosca.model.types.NodeType;
 import org.alien4cloud.tosca.model.types.PolicyType;
 import org.alien4cloud.tosca.normative.constants.AlienCapabilityTypes;
@@ -27,6 +32,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.Resource;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -50,6 +56,12 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
 
     public static final String A4C_KUBERNETES_MODIFIER_TAG = "a4c_kubernetes-final-modifier";
 
+    @Resource
+    private WorkflowSimplifyService workflowSimplifyService;
+
+    @Resource
+    private WorkflowsBuilderService workflowBuilderService;
+
     @Override
     @ToscaContextual
     public void process(Topology topology, FlowExecutionContext context) {
@@ -58,6 +70,24 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         try {
             WorkflowValidator.disableValidationThreadLocal.set(true);
             doProcess(topology, context);
+            TopologyContext topologyContext = workflowBuilderService.buildCachedTopologyContext(new TopologyContext() {
+                @Override
+                public String getDSLVersion() {
+                    return ToscaParser.LATEST_DSL;
+                }
+
+                @Override
+                public Topology getTopology() {
+                    return topology;
+                }
+
+                @Override
+                public <T extends AbstractToscaType> T findElement(Class<T> clazz, String elementId) {
+                    return ToscaContext.get(clazz, elementId);
+                }
+            });
+            // TODO: should be done in the deployment flow instead of here
+            workflowSimplifyService.reentrantSimplifyWorklow(topologyContext, topology.getWorkflows().keySet());
         } catch (Exception e) {
             context.getLog().error("Couldn't process " + A4C_KUBERNETES_MODIFIER_TAG);
             log.log(Level.WARNING, "Couldn't process " + A4C_KUBERNETES_MODIFIER_TAG, e);
@@ -142,6 +172,19 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                 setNodePropertyPathValue(csar, topology, resourceNode, "namespace", new ScalarPropertyValue(providedNamespace));
             }
         }
+
+        // remove services that are no more target of relationships
+        Set<NodeTemplate> servicesToRemove = Sets.newHashSet();
+        for (NodeTemplate node : topology.getNodeTemplates().values()) {
+            if (node instanceof ServiceNodeTemplate) {
+                Set<NodeTemplate> sourceNodes = TopologyNavigationUtil.getSourceNodesByRelationshipType(topology, node, NormativeRelationshipConstants.ROOT);
+                if (sourceNodes.isEmpty()) {
+                    servicesToRemove.add(node);
+                }
+            }
+        }
+        servicesToRemove.stream().forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
+
     }
 
     private void manageEndpoints(FlowExecutionContext context, Csar csar, Topology topology, NodeTemplate endpointNode) {
