@@ -33,11 +33,9 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.Resource;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.logging.Level;
+import java.util.stream.Stream;
 
 import static alien4cloud.utils.AlienUtils.safe;
 import static org.alien4cloud.plugin.kubernetes.csar.Version.K8S_CSAR_VERSION;
@@ -112,6 +110,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
 
         // for each Service create a node of type ServiceResource
         Set<NodeTemplate> serviceNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_SERVICE, true);
+        serviceNodes = demultiplexServices(csar, topology, serviceNodes, context);
         serviceNodes.forEach(nodeTemplate -> createServiceResource(csar, topology, nodeTemplate, nodeReplacementMap, resourceNodeYamlStructures, context));
 
         // for each Deployment create a node of type DeploymentResource
@@ -185,6 +184,82 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         }
         servicesToRemove.stream().forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
 
+    }
+
+    /**
+     * When several abstract services have been matched to the same named service (service with a fixed service name), we only want one to be created.
+     */
+    private Set<NodeTemplate> demultiplexServices(Csar csar, Topology topology, Set<NodeTemplate> serviceNodes, FlowExecutionContext context) {
+
+        // feed a map of service_name -> nodes
+        Map<String, Set<NodeTemplate>> servicesNamesByName = Maps.newHashMap();
+        for (NodeTemplate serviceNode : serviceNodes) {
+            AbstractPropertyValue serviceNamePV = PropertyUtil.getPropertyValueFromPath(safe(serviceNode.getProperties()), "service_name");
+            if (serviceNamePV != null && serviceNamePV instanceof ScalarPropertyValue) {
+                String serviceName = ((ScalarPropertyValue)serviceNamePV).getValue();
+                if (StringUtils.isNoneEmpty(serviceName)) {
+                    Set<NodeTemplate> namedNodes = servicesNamesByName.get(serviceName);
+                    if (namedNodes == null) {
+                        namedNodes = Sets.newHashSet();
+                        servicesNamesByName.put(serviceName, namedNodes);
+                    }
+                    namedNodes.add(serviceNode);
+                }
+            }
+        }
+        // remove all entries that only contains 1 element
+        Stream<Map.Entry<String, Set<NodeTemplate>>> servicesToDemultiplex = servicesNamesByName.entrySet().stream().filter(e -> e.getValue().size() > 1);
+        // if services for a same node target a different container this is wrong
+        final Set<NodeTemplate> nodesToRemove = Sets.newHashSet();
+        servicesToDemultiplex.forEach(e -> {
+            Iterator<NodeTemplate> iterator = e.getValue().iterator();
+            // we well know we have more than 1 node in this iterator
+            NodeTemplate nodeToKeep = iterator.next();
+            String nodeToKeepServiceType = PropertyUtil.getScalarPropertyValueFromPath(safe(nodeToKeep.getProperties()), "spec.service_type");
+
+            Set<RelationshipTemplate> relationships = TopologyNavigationUtil.getTargetRelationships(nodeToKeep, "dependency");
+            // we know we have 1 and only 1 relationship (1 service per endpoint)
+            RelationshipTemplate relationshipTemplate = relationships.stream().findFirst().get();
+            String deploymentUnitNodeName = relationshipTemplate.getTarget();
+            while(iterator.hasNext()) {
+                NodeTemplate nodeToRemove = iterator.next();
+                // check that services with same service name target the same deployment container
+                RelationshipTemplate relationshipToRemove = TopologyNavigationUtil.getTargetRelationships(nodeToKeep, "dependency").iterator().next();
+                if (!relationshipToRemove.getTarget().equals(deploymentUnitNodeName)) {
+                    String msg = String.format("Same service name (%s) used for services that target different deployment units (at least %s and %s), please review your matching !", e.getKey(), nodeToKeep.getName(), nodeToRemove.getName());
+                    context.getLog().error(msg);
+                    throw new UnsupportedOperationException();
+                }
+                // check that services with same service name are of the same type
+                String nodeToRemoveServiceType = PropertyUtil.getScalarPropertyValueFromPath(safe(nodeToRemove.getProperties()), "spec.service_type");
+                if (!StringUtils.equals(nodeToKeepServiceType, nodeToRemoveServiceType)) {
+                    String msg = String.format("Same service name (%s) used for services that are different service types (%s (%s) != %s (%s)), please review your matching !", e.getKey(), nodeToKeep.getName(), nodeToKeepServiceType, nodeToRemove.getName(), nodeToRemoveServiceType);
+                    context.getLog().error(msg);
+                    throw new UnsupportedOperationException();
+                }
+
+                AbstractPropertyValue serviceNamePV = PropertyUtil.getPropertyValueFromPath(safe(nodeToRemove.getProperties()), "spec.ports");
+                if (serviceNamePV instanceof ListPropertyValue) {
+                    List<Object> ports = ((ListPropertyValue)serviceNamePV).getValue();
+                    if (!ports.isEmpty()) {
+                        Object port = ports.iterator().next();
+                        feedPropertyValue(nodeToKeep.getProperties(), "spec.ports", port, true);
+                        nodesToRemove.add(nodeToRemove);
+                        // if the node to remove is the target of dependsOn relationship (a consumer), let's move it to the node we keep
+                        Set<NodeTemplate> consumers = TopologyNavigationUtil.getSourceNodesByRelationshipType(topology, nodeToRemove, NormativeRelationshipConstants.DEPENDS_ON);
+                        consumers.forEach(consumer -> {
+                            addRelationshipTemplate(csar, topology, consumer, nodeToKeep.getName(), NormativeRelationshipConstants.DEPENDS_ON,
+                                    "dependency", "feature");
+                        });
+                    }
+                }
+            }
+        });
+        nodesToRemove.stream().forEach(s -> {
+            removeNode(topology, s);
+            serviceNodes.remove(s);
+        });
+        return serviceNodes;
     }
 
     private void manageEndpoints(FlowExecutionContext context, Csar csar, Topology topology, NodeTemplate endpointNode) {
