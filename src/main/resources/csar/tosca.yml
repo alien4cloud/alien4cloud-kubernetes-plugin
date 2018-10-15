@@ -240,7 +240,7 @@ data_types:
             app: nginx
     properties:
       metadata:
-        type: org.alien4cloud.kubernetes.api.datatypes.PodTemplateMetadata
+        type: org.alien4cloud.kubernetes.api.datatypes.Metadata
         required: false
         description: |
           Standard object's metadata. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata
@@ -250,7 +250,7 @@ data_types:
         description: |
           Specification of the desired behavior of the pod. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#spec-and-status
 
-  org.alien4cloud.kubernetes.api.datatypes.PodTemplateMetadata:
+  org.alien4cloud.kubernetes.api.datatypes.Metadata:
     derived_from: tosca.datatypes.Root
     description: >
       c.f. hhttps://kubernetes.io/docs/api-reference/v1.6/#podtemplatespec-v1-core
@@ -261,7 +261,12 @@ data_types:
     properties:
       labels:
         type: map
-        required: true
+        required: false
+        entry_schema:
+          type: string
+      annotations:
+        type: map
+        required: false
         entry_schema:
           type: string
 
@@ -1069,11 +1074,11 @@ node_types:
         constraints:
           - valid_values: [Deployment, Service, HorizontalPodAutoscaler]
       metadata:
-        type: map
+        type: org.alien4cloud.kubernetes.api.datatypes.Metadata
+        required: false
         description: |
-          Standard object metadata.
-        entry_schema:
-          type: string
+          Standard object's metadata. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata
+
 
   org.alien4cloud.kubernetes.api.types.volume.AbstractVolumeBase:
     abstract: true
