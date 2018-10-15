@@ -273,6 +273,10 @@ public class KubeTopologyUtils {
                     if (tag.getValue().equals(endpointName)) {
                         return sourceNode;
                     }
+                } else if (tag.getName().equals(AbstractKubernetesModifier.A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINTS)) {
+                    if (tag.getValue().contains(endpointName)) {
+                        return sourceNode;
+                    }
                 }
             }
         }

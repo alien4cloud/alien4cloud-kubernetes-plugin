@@ -197,7 +197,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
             AbstractPropertyValue serviceNamePV = PropertyUtil.getPropertyValueFromPath(safe(serviceNode.getProperties()), "service_name");
             if (serviceNamePV != null && serviceNamePV instanceof ScalarPropertyValue) {
                 String serviceName = ((ScalarPropertyValue)serviceNamePV).getValue();
-                if (StringUtils.isNoneEmpty(serviceName)) {
+                if (StringUtils.isNotEmpty(serviceName)) {
                     Set<NodeTemplate> namedNodes = servicesNamesByName.get(serviceName);
                     if (namedNodes == null) {
                         namedNodes = Sets.newHashSet();
@@ -209,20 +209,40 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         }
         // remove all entries that only contains 1 element
         Stream<Map.Entry<String, Set<NodeTemplate>>> servicesToDemultiplex = servicesNamesByName.entrySet().stream().filter(e -> e.getValue().size() > 1);
-        // if services for a same node target a different container this is wrong
-        final Set<NodeTemplate> nodesToRemove = Sets.newHashSet();
+
         servicesToDemultiplex.forEach(e -> {
-            Iterator<NodeTemplate> iterator = e.getValue().iterator();
+            // if services for a same node target a different container this is wrong
+            final Set<NodeTemplate> nodesToRemove = Sets.newHashSet();
+
             // we well know we have more than 1 node in this iterator
-            NodeTemplate nodeToKeep = iterator.next();
+            NodeTemplate nodeToKeep = null;
+            for (NodeTemplate nodeToKeepCandidate : e.getValue()) {
+                // we prefer to keep a node that have consumer since we are not able to move relationship
+                Set<NodeTemplate> consumers = TopologyNavigationUtil.getSourceNodesByRelationshipType(topology, nodeToKeepCandidate, NormativeRelationshipConstants.DEPENDS_ON);
+                if (consumers != null && !consumers.isEmpty()) {
+                    nodeToKeep = nodeToKeepCandidate;
+                    break;
+                }
+            }
+            if (nodeToKeep == null) {
+                nodeToKeep = e.getValue().stream().findFirst().get();
+            }
+
             String nodeToKeepServiceType = PropertyUtil.getScalarPropertyValueFromPath(safe(nodeToKeep.getProperties()), "spec.service_type");
 
             Set<RelationshipTemplate> relationships = TopologyNavigationUtil.getTargetRelationships(nodeToKeep, "dependency");
             // we know we have 1 and only 1 relationship (1 service per endpoint)
             RelationshipTemplate relationshipTemplate = relationships.stream().findFirst().get();
             String deploymentUnitNodeName = relationshipTemplate.getTarget();
-            while(iterator.hasNext()) {
-                NodeTemplate nodeToRemove = iterator.next();
+            StringBuilder nodeToKeepServiceEndpointTag = new StringBuilder("");
+
+            for (NodeTemplate nodeToRemoveCandidate : e.getValue()) {
+
+                if (nodeToRemoveCandidate == nodeToKeep) {
+                    continue;
+                }
+
+                NodeTemplate nodeToRemove = nodeToRemoveCandidate;
                 // check that services with same service name target the same deployment container
                 RelationshipTemplate relationshipToRemove = TopologyNavigationUtil.getTargetRelationships(nodeToKeep, "dependency").iterator().next();
                 if (!relationshipToRemove.getTarget().equals(deploymentUnitNodeName)) {
@@ -245,21 +265,35 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                         Object port = ports.iterator().next();
                         feedPropertyValue(nodeToKeep.getProperties(), "spec.ports", port, true);
                         nodesToRemove.add(nodeToRemove);
-                        // if the node to remove is the target of dependsOn relationship (a consumer), let's move it to the node we keep
-                        Set<NodeTemplate> consumers = TopologyNavigationUtil.getSourceNodesByRelationshipType(topology, nodeToRemove, NormativeRelationshipConstants.DEPENDS_ON);
-                        consumers.forEach(consumer -> {
-                            addRelationshipTemplate(csar, topology, consumer, nodeToKeep.getName(), NormativeRelationshipConstants.DEPENDS_ON,
-                                    "dependency", "feature");
-                        });
+                        // since this tag is used by modifier elsewhere, we use it's value to set a tag on the node we keep
+                        String serviceEndpointTag = getNodeTagValueOrNull(nodeToRemove, A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT);
+                        nodeToKeepServiceEndpointTag.append(",").append(serviceEndpointTag);
+
                     }
                 }
             }
+            nodesToRemove.stream().forEach(s -> {
+                serviceNodes.remove(s);
+                // if the node to remove is the target of dependsOn relationship (a consumer), let's move it to the node we keep
+                removeNode(topology, s);
+            });
+
+            setNodeTagValue(nodeToKeep, A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINTS, nodeToKeepServiceEndpointTag.toString());
         });
-        nodesToRemove.stream().forEach(s -> {
-            removeNode(topology, s);
-            serviceNodes.remove(s);
-        });
+
         return serviceNodes;
+    }
+
+    protected RelationshipTemplate addRelationshipTemplate(Csar csar, Topology topology, NodeTemplate sourceNode, String targetNodeName,
+                                                           String relationshipTypeName, String requirementName, String capabilityName) {
+
+        Set<RelationshipTemplate> targetRelationships = TopologyNavigationUtil.getTargetRelationships(sourceNode, requirementName);
+        for (RelationshipTemplate relationshipTemplate : targetRelationships) {
+            if (relationshipTemplate.getTarget().equals(targetNodeName) && relationshipTemplate.getTargetedCapabilityName().equals(capabilityName)) {
+                return relationshipTemplate;
+            }
+        }
+        return super.addRelationshipTemplate(csar, topology, sourceNode, targetNodeName, relationshipTypeName, requirementName, capabilityName);
     }
 
     private void manageEndpoints(FlowExecutionContext context, Csar csar, Topology topology, NodeTemplate endpointNode) {

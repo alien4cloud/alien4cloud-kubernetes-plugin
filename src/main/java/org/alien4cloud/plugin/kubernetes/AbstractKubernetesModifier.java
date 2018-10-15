@@ -36,6 +36,7 @@ public abstract class AbstractKubernetesModifier extends TopologyModifierSupport
 
     public static final String A4C_KUBERNETES_MODIFIER_TAG = "a4c_kubernetes-modifier";
     public static final String A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT = A4C_KUBERNETES_MODIFIER_TAG + "_service_endpoint";
+    public static final String A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINTS = A4C_KUBERNETES_MODIFIER_TAG + "_service_endpoints";
     protected static final String A4C_KUBERNETES_MODIFIER_TAG_EXPOSED_AS_CAPA = AbstractKubernetesModifier.A4C_KUBERNETES_MODIFIER_TAG + "_exposedAs";
     protected static final String A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT_PORT = A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT + "_port";
     protected static final String A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT_PORT_NAME = A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT + "_portName";
