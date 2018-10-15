@@ -1074,8 +1074,10 @@ node_types:
         constraints:
           - valid_values: [Deployment, Service, HorizontalPodAutoscaler]
       metadata:
-        type: org.alien4cloud.kubernetes.api.datatypes.Metadata
+        type: map
         required: false
+        entry_schema:
+          type: string
         description: |
           Standard object's metadata. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata
 
