@@ -37,13 +37,15 @@ public class KubeTopologyUtils {
     public static final String A4C_TYPES_APPLICATION_DOCKER_CONTAINER = "tosca.nodes.Container.Application.DockerContainer";
     public static final String A4C_TYPES_APPLICATION_CONFIGURABLE_DOCKER_CONTAINER = "tosca.nodes.Container.Application.ConfigurableDockerContainer";
     public static final String A4C_TYPES_DOCKER_VOLUME = "org.alien4cloud.nodes.DockerExtVolume";
+    public static final String A4C_TYPES_DOCKER_ARTIFACT_VOLUME = "org.alien4cloud.nodes.DockerArtifactVolume";
     // K8S abstract types
     public static final String K8S_TYPES_ABSTRACT_CONTAINER = "org.alien4cloud.kubernetes.api.types.AbstractContainer";
     public static final String K8S_TYPES_ABSTRACT_DEPLOYMENT = "org.alien4cloud.kubernetes.api.types.AbstractDeployment";
     public static final String K8S_TYPES_ABSTRACT_JOB = "org.alien4cloud.kubernetes.api.types.AbstractJob";
     public static final String K8S_TYPES_ABSTRACT_SERVICE = "org.alien4cloud.kubernetes.api.types.AbstractService";
     public static final String K8S_TYPES_ABSTRACT_VOLUME_BASE = "org.alien4cloud.kubernetes.api.types.volume.AbstractVolumeBase";
-    public static final String K8S_TYPES_VOLUME_BASE = "org.alien4cloud.kubernetes.api.types.volume.VolumeBase";
+    public static final String K8S_TYPES_ABSTRACT_ARTIFACT_VOLUME_BASE = "org.alien4cloud.kubernetes.api.types.volume.AbstractArtifactVolumeBase";
+    public static final String K8S_TYPES_VOLUME_BASE = "org.alien4cloud.kubernetes.api.types.volume.AbstractVolumeBase";
     // K8S concrete types
     public static final String K8S_TYPES_CONTAINER = "org.alien4cloud.kubernetes.api.types.Container";
     public static final String K8S_TYPES_DEPLOYMENT = "org.alien4cloud.kubernetes.api.types.Deployment";
@@ -53,6 +55,7 @@ public class KubeTopologyUtils {
     // K8S volume types
     public static final String K8S_TYPES_VOLUMES_CLAIM = "org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimSource";
     public static final String K8S_TYPES_VOLUMES_CLAIM_SC = "org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimStorageClassSource";
+    public static final String K8S_TYPES_SECRET_VOLUME = "org.alien4cloud.kubernetes.api.types.volume.SecretSource";
     // K8S resource types
     public static final String K8S_TYPES_DEPLOYMENT_RESOURCE = "org.alien4cloud.kubernetes.api.types.DeploymentResource";
     public static final String K8S_TYPES_JOB_RESOURCE = "org.alien4cloud.kubernetes.api.types.JobResource";
@@ -62,6 +65,7 @@ public class KubeTopologyUtils {
     public static final String K8S_TYPES_SIMPLE_RESOURCE = "org.alien4cloud.kubernetes.api.types.SimpleResource";
     public static final String K8S_TYPES_ENDPOINT_RESOURCE = "org.alien4cloud.kubernetes.api.types.EndpointResource";
     public static final String K8S_TYPES_CONFIG_MAP_FACTORY = "org.alien4cloud.kubernetes.api.types.ConfigMapFactory";
+    public static final String K8S_TYPES_SECRET_FACTORY = "org.alien4cloud.kubernetes.api.types.SecretFactory";
     // K8S relationships
     public static final String K8S_TYPES_RSENDPOINT = "org.alien4cloud.kubernetes.api.relationships.K8SEndpointConnectToEndpoint";
 
@@ -94,13 +98,6 @@ public class KubeTopologyUtils {
      */
     public static String generateKubeName(String candidate) {
         return candidate.toLowerCase().replaceAll("_", "-");
-    }
-
-    public static String generateUniqueKubeName(String prefix) {
-        // TODO: length should be < 63 ??
-        // TODO: better unique generation
-        // we hashCode the UUID, we know that we have some collision risk, but for the moment we accept
-        return generateKubeName(prefix + "-" + UUID.randomUUID().toString().hashCode());
     }
 
     /**
@@ -279,6 +276,10 @@ public class KubeTopologyUtils {
             for (Tag tag : sourceNodeTags) {
                 if (tag.getName().equals(AbstractKubernetesModifier.A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT)) {
                     if (tag.getValue().equals(endpointName)) {
+                        return sourceNode;
+                    }
+                } else if (tag.getName().equals(AbstractKubernetesModifier.A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINTS)) {
+                    if (tag.getValue().contains(endpointName)) {
                         return sourceNode;
                     }
                 }

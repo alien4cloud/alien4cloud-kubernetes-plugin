@@ -38,6 +38,8 @@ import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_T
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_CONTAINER_JOB_UNIT;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_CONTAINER_RUNTIME;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_DOCKER_VOLUME;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_DOCKER_ARTIFACT_VOLUME;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ABSTRACT_ARTIFACT_VOLUME_BASE;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ABSTRACT_CONTAINER;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ABSTRACT_DEPLOYMENT;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ABSTRACT_JOB;
@@ -46,7 +48,6 @@ import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_T
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ENDPOINT_RESOURCE;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_RSENDPOINT;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.generateKubeName;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.generateUniqueKubeName;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.getContainerImageName;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.getValue;
 
@@ -107,7 +108,7 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
 
         // replace all ContainerJobUnit by org.alien4cloud.kubernetes.api.types.AbstractJob
         Set<NodeTemplate> containerJobUnitNodes = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_CONTAINER_JOB_UNIT, false);
-        containerJobUnitNodes.forEach(nodeTemplate -> transformContainerJobUnit(csar, topology, nodeTemplate));
+        containerJobUnitNodes.forEach(nodeTemplate -> transformContainerJobUnit(csar, topology, context, nodeTemplate));
 
         // for each container capability of type endpoint
         // - add a org.alien4cloud.kubernetes.api.types.ServiceResource and weave depends_on relationships
@@ -171,7 +172,7 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         setNodeTagValue(serviceNode, A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT, endpointName);
 
         // fill properties of service
-        String serviceName = generateUniqueKubeName(serviceNode.getName());
+        String serviceName = generateUniqueKubeName(context, serviceNode.getName());
         setNodePropertyPathValue(csar, topology, serviceNode, "metadata.name", new ScalarPropertyValue(serviceName));
         setNodePropertyPathValue(csar, topology, serviceNode, "spec.service_type", new ScalarPropertyValue("ClusterIP"));
 
@@ -216,12 +217,22 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
      * <code>org.alien4cloud.kubernetes.api.types.volume.AbstractVolumeBase</code>.
      */
     private void manageVolumes(Csar csar, Topology topology, NodeTemplate nodeTemplate) {
-        NodeTemplate volumeNodeTemplate = replaceNode(csar, topology, nodeTemplate, K8S_TYPES_ABSTRACT_VOLUME_BASE, K8S_CSAR_VERSION);
+
+        NodeTemplate volumeNodeTemplate = null;
+
+        NodeType nodeType = ToscaContext.get(NodeType.class, nodeTemplate.getType());
+        if (isOfType(nodeType, A4C_TYPES_DOCKER_ARTIFACT_VOLUME)) {
+            volumeNodeTemplate = replaceNode(csar, topology, nodeTemplate, K8S_TYPES_ABSTRACT_ARTIFACT_VOLUME_BASE, K8S_CSAR_VERSION);
+        } else {
+            volumeNodeTemplate = replaceNode(csar, topology, nodeTemplate, K8S_TYPES_ABSTRACT_VOLUME_BASE, K8S_CSAR_VERSION);
+        }
+        NodeTemplate _volumeNodeTemplate = volumeNodeTemplate;
+
         String name = generateKubeName(volumeNodeTemplate.getName());
         setNodePropertyPathValue(csar, topology, volumeNodeTemplate, "name", new ScalarPropertyValue(name));
 
         Set<RelationshipTemplate> relationships = TopologyNavigationUtil.getTargetRelationships(volumeNodeTemplate, "attachment");
-        relationships.forEach(relationshipTemplate -> manageVolumeAttachment(csar, topology, volumeNodeTemplate, relationshipTemplate));
+        relationships.forEach(relationshipTemplate -> manageVolumeAttachment(csar, topology, _volumeNodeTemplate, relationshipTemplate));
     }
 
     /**
@@ -234,6 +245,11 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         NodeTemplate containerNode = TopologyNavigationUtil.getImmediateHostTemplate(topology, targetNode);
         // get the container_path property from the relationship
         AbstractPropertyValue mountPath = PropertyUtil.getPropertyValueFromPath(relationshipTemplate.getProperties(), "container_path");
+        // get the container_subPath property from the relationship
+        AbstractPropertyValue mountSubPath = PropertyUtil.getPropertyValueFromPath(relationshipTemplate.getProperties(), "container_subPath");
+        // get the readonly property from the relationship
+        AbstractPropertyValue readonly = PropertyUtil.getPropertyValueFromPath(relationshipTemplate.getProperties(), "readonly");
+
         // get the volume name
         AbstractPropertyValue name = PropertyUtil.getPropertyValueFromPath(volumeNodeTemplate.getProperties(), "name");
         if (mountPath != null && name != null) {
@@ -241,6 +257,12 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
             volumeMount.setValue(Maps.newHashMap());
             volumeMount.getValue().put("mountPath", mountPath);
             volumeMount.getValue().put("name", name);
+            if (mountSubPath != null) {
+                volumeMount.getValue().put("subPath", mountSubPath);
+            }
+            if (readonly != null) {
+                volumeMount.getValue().put("readOnly", readonly);
+            }
             appendNodePropertyPathValue(csar, topology, containerNode, "container.volumeMounts", volumeMount);
         }
     }
@@ -268,7 +290,7 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         AbstractPropertyValue defaultInstances = TopologyNavigationUtil.getNodeCapabilityPropertyValue(nodeTemplate, "scalable", "default_instances");
         // feed the replica property
         setNodePropertyPathValue(csar, topology, nodeTemplate, "spec.replicas", defaultInstances);
-        ScalarPropertyValue deploymentName = new ScalarPropertyValue(generateUniqueKubeName(nodeTemplate.getName()));
+        ScalarPropertyValue deploymentName = new ScalarPropertyValue(generateUniqueKubeName(context, nodeTemplate.getName()));
         setNodePropertyPathValue(csar, topology, nodeTemplate, "metadata.name", deploymentName);
         setNodePropertyPathValue(csar, topology, nodeTemplate, "spec.template.metadata.labels.app", deploymentName);
     }
@@ -277,11 +299,11 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
     /**
      * Replace this node of type ContainerJobUnit by a node of type AbstractJob.
      */
-    private void transformContainerJobUnit(Csar csar, Topology topology, NodeTemplate nodeTemplate) {
+    private void transformContainerJobUnit(Csar csar, Topology topology, FlowExecutionContext context, NodeTemplate nodeTemplate) {
         nodeTemplate = replaceNode(csar, topology, nodeTemplate, K8S_TYPES_ABSTRACT_JOB, K8S_CSAR_VERSION);
         setNodeTagValue(nodeTemplate, A4C_KUBERNETES_MODIFIER_TAG, "Replacement of a " + A4C_TYPES_CONTAINER_JOB_UNIT);
 
-        ScalarPropertyValue jobName = new ScalarPropertyValue(generateUniqueKubeName(nodeTemplate.getName()));
+        ScalarPropertyValue jobName = new ScalarPropertyValue(generateUniqueKubeName(context, nodeTemplate.getName()));
         setNodePropertyPathValue(csar, topology, nodeTemplate, "metadata.name", jobName);
         setNodePropertyPathValue(csar, topology, nodeTemplate, "spec.template.metadata.labels.app", jobName);
     }
@@ -294,7 +316,7 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         setNodeTagValue(hostNode, A4C_KUBERNETES_MODIFIER_TAG, "Created to host " + nodeTemplate.getName());
 
         // set a generated name to the K8S object
-        ScalarPropertyValue deploymentName = new ScalarPropertyValue(generateUniqueKubeName(hostNode.getName()));
+        ScalarPropertyValue deploymentName = new ScalarPropertyValue(generateUniqueKubeName(context, hostNode.getName()));
         setNodePropertyPathValue(csar, topology, hostNode, "metadata.name", deploymentName);
         setNodePropertyPathValue(csar, topology, hostNode, "spec.template.metadata.labels.app", deploymentName);
         Set<NodeTemplate> hostedContainers = TopologyNavigationUtil.getSourceNodes(topology, nodeTemplate, "host");
@@ -326,17 +348,35 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         NodeTemplate deploymentNodeTemplate = TopologyNavigationUtil.getImmediateHostTemplate(topology, containerRuntimeNodeTemplate);
 
         // fill properties on the hosting K8S container
-        Map<String, AbstractPropertyValue> properties = safe(containerNodeTemplate.getProperties());
+        Map<String, AbstractPropertyValue> properties = containerNodeTemplate.getProperties();
+        if (properties == null) {
+            properties = Maps.newHashMap();
+            containerNodeTemplate.setProperties(properties);
+        }
         AbstractPropertyValue cpu_share = PropertyUtil.getPropertyValueFromPath(properties, "cpu_share");
-        setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.resources.requests.cpu", cpu_share);
-        setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.resources.limits.cpu", cpu_share);
+        if (cpu_share != null) {
+            setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.resources.requests.cpu", cpu_share);
+        }
+        AbstractPropertyValue cpu_share_limit = PropertyUtil.getPropertyValueFromPath(properties, "cpu_share_limit");
+        if (cpu_share_limit != null) {
+            setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.resources.limits.cpu", cpu_share_limit);
+        }
         AbstractPropertyValue mem_share = PropertyUtil.getPropertyValueFromPath(properties, "mem_share");
-        setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.resources.requests.memory", mem_share);
-        setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.resources.limits.memory", mem_share);
+        if (mem_share != null) {
+            setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.resources.requests.memory", mem_share);
+        }
+        AbstractPropertyValue mem_share_limit = PropertyUtil.getPropertyValueFromPath(properties, "mem_share_limit");
+        if (mem_share_limit != null) {
+            setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.resources.limits.memory", mem_share_limit);
+        }
+
         String imageName = getContainerImageName(containerNodeTemplate);
+        if (imageName == null) {
+            context.getLog().error("Image is not set for container <" + containerNodeTemplate.getName() + ">");
+        }
         setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.image", new ScalarPropertyValue(imageName));
         setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.name",
-                new ScalarPropertyValue(generateUniqueKubeName(containerNodeTemplate.getName())));
+                new ScalarPropertyValue(generateUniqueKubeName(context, containerNodeTemplate.getName())));
         AbstractPropertyValue docker_run_cmd = PropertyUtil.getPropertyValueFromPath(properties, "docker_run_cmd");
         if (docker_run_cmd != null) {
             List<Object> values = Lists.newArrayList();
@@ -418,7 +458,7 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         }
 
         // fill properties of service
-        setNodePropertyPathValue(csar, topology, serviceNode, "metadata.name", new ScalarPropertyValue(generateUniqueKubeName(serviceNode.getName())));
+        setNodePropertyPathValue(csar, topology, serviceNode, "metadata.name", new ScalarPropertyValue(generateUniqueKubeName(context, serviceNode.getName())));
         setNodePropertyPathValue(csar, topology, serviceNode, "spec.service_type", new ScalarPropertyValue("NodePort"));
         // get the "pod name"
         AbstractPropertyValue podName = PropertyUtil.getPropertyValueFromPath(safe(deploymentNodeTemplate.getProperties()), "metadata.name");

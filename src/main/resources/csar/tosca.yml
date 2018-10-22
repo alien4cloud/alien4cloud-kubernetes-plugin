@@ -11,7 +11,7 @@ description: |
 
 imports:
   - tosca-normative-types:1.0.0-ALIEN20
-  # these version will be changed at build time (see maven-replacer-plugin in pom.xml)
+  # these versions will be changed at build time (see maven-replacer-plugin in pom.xml)
   - docker-types:2.1.0-SNAPSHOT
   - alien-base-types:2.1.0-SNAPSHOT
 
@@ -282,7 +282,7 @@ data_types:
             app: nginx
     properties:
       metadata:
-        type: org.alien4cloud.kubernetes.api.datatypes.PodTemplateMetadata
+        type: org.alien4cloud.kubernetes.api.datatypes.Metadata
         required: false
         description: |
           Standard object's metadata. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata
@@ -292,7 +292,7 @@ data_types:
         description: |
           Specification of the desired behavior of the pod. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#spec-and-status
 
-  org.alien4cloud.kubernetes.api.datatypes.PodTemplateMetadata:
+  org.alien4cloud.kubernetes.api.datatypes.Metadata:
     derived_from: tosca.datatypes.Root
     description: >
       c.f. hhttps://kubernetes.io/docs/api-reference/v1.6/#podtemplatespec-v1-core
@@ -303,7 +303,12 @@ data_types:
     properties:
       labels:
         type: map
-        required: true
+        required: false
+        entry_schema:
+          type: string
+      annotations:
+        type: map
+        required: false
         entry_schema:
           type: string
 
@@ -473,6 +478,58 @@ data_types:
         type: string
         required: true
 
+  org.alien4cloud.kubernetes.api.datatypes.Lifecycle:
+    derived_from: tosca.datatypes.Root
+    description: |
+      Lifecycle describes actions that the management system should take in response to container lifecycle events.
+      For the PostStart and PreStop lifecycle handlers, management of the container blocks until the action is complete, unless the container process fails, in which case the handler is aborted.
+    properties:
+      postStart:
+        type: org.alien4cloud.kubernetes.api.datatypes.Handler
+        description: |
+          PostStart is called immediately after a container is created.
+          If the handler fails, the container is terminated and restarted according to its restart policy.
+          Other management of the container blocks until the hook completes.
+          More info: https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/#container-hooks
+        required: false
+      preStop:
+        type: org.alien4cloud.kubernetes.api.datatypes.Handler
+        description: |
+          PreStop is called immediately before a container is terminated.
+          The container is terminated after the handler completes.
+          The reason for termination is passed to the handler.
+          Regardless of the outcome of the handler, the container is eventually terminated.
+          Other management of the container blocks until the hook completes.
+          More info: https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/#container-hooks
+        required: false
+
+  org.alien4cloud.kubernetes.api.datatypes.Handler:
+    derived_from: tosca.datatypes.Root
+    description: |
+      Handler defines a specific action that should be taken.
+      One and only one of the following should be specified.
+    properties:
+      exec:
+        type: org.alien4cloud.kubernetes.api.datatypes.ExecAction
+        description: Exec specifies the action to take.
+        required: false
+#      httpGet: TODO
+#      tcpSocket: TODO
+
+  org.alien4cloud.kubernetes.api.datatypes.ExecAction:
+    derived_from: tosca.datatypes.Root
+    properties:
+      command:
+        type: list
+        required: false
+        description: |
+          Command is the command line to execute inside the container, the working directory for the command is root ('/') in the container's filesystem.
+          The command is simply exec'd, it is not run inside a shell, so traditional shell instructions ('|', etc) won't work.
+          To use a shell, you need to explicitly call out to that shell.
+          Exit status of 0 is treated as live/healthy and non-zero is unhealthy.
+        entry_schema:
+          type: string
+
   org.alien4cloud.kubernetes.api.datatypes.ContainerSpec:
     derived_from: tosca.datatypes.Root
     description: >
@@ -516,10 +573,11 @@ data_types:
           - valid_values: [Always, Never, IfNotPresent]
         description: |
           Image pull policy. One of Always, Never, IfNotPresent. Defaults to Always if :latest tag is specified, or IfNotPresent otherwise. Cannot be updated. More info: http://kubernetes.io/docs/user-guide/images#updating-images
-      # lifecycle:
-      #   type: Lifecycle
-      #   description: |
-      #     Actions that the management system should take in response to container lifecycle events. Cannot be updated.
+      lifecycle:
+        type: org.alien4cloud.kubernetes.api.datatypes.Lifecycle
+        description: |
+          Actions that the management system should take in response to container lifecycle events. Cannot be updated.
+        required: false
       # livenessProbe:
       #   type: Probe
       #   description: |
@@ -596,6 +654,17 @@ data_types:
         type: string
       name:
         type: string
+      subPath:
+        type: string
+        description: |
+          Path within the volume from which the container's volume should be mounted. Defaults to '' (volume's root).
+        required: false
+      readOnly:
+        type: boolean
+        description: |
+          Mounted read-only if true, read-write otherwise (false or unspecified). Defaults to false.
+        default: false
+        required: false
 
   org.alien4cloud.kubernetes.api.datatypes.ResourceRequirements:
     derived_from: tosca.datatypes.Root
@@ -944,12 +1013,63 @@ data_types:
           - pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
         required: true
 
+  org.alien4cloud.kubernetes.api.datatypes.volumes.KeyToPath:
+    derived_from: tosca.datatypes.Root
+    properties:
+      key:
+        type: string
+        description: |
+          The key to project.
+        required: true
+      mode:
+        type: integer
+        description: |
+          Optional: mode bits to use on created files by default. Must be a value between 0 and 0777. Defaults to 0644. Directories within the path are not affected by this setting. This might be in conflict with other options that affect the file mode, like fsGroup, and the result can be other mode bits set.        required: false
+        required: false
+        constraints:
+          - greater_or_equal: 0
+          - less_or_equal: 777
+      path:
+        type: string
+        description: |
+          The relative path of the file to map the key to. May not be an absolute path. May not contain the path element '..'. May not start with the string '..'.
+        required: true
+
+  org.alien4cloud.kubernetes.api.datatypes.volumes.SecretVolumeSpec:
+    derived_from: tosca.datatypes.Root
+    description: see https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.11/#secretvolumesource-v1-core
+    properties:
+      defaultMode:
+        type: integer
+        description: |
+          Optional: mode bits to use on created files by default. Must be a value between 0 and 0777. Defaults to 0644. Directories within the path are not affected by this setting. This might be in conflict with other options that affect the file mode, like fsGroup, and the result can be other mode bits set.        required: false
+        required: false
+        default: 644
+        constraints:
+          - greater_or_equal: 0
+          - less_or_equal: 777
+      items:
+        type: list
+        entry_schema:
+          type: org.alien4cloud.kubernetes.api.datatypes.volumes.KeyToPath
+        required: false
+      optional:
+        type: boolean
+        default: false
+        description: |
+          Specify whether the Secret or it's keys must be defined
+      secretName:
+        type: string
+        description: |
+          Name of the secret in the pod's namespace to use. More info: https://kubernetes.io/docs/concepts/storage/volumes#secret
+        required: true
+
 node_types:
 
   # HOWTO: How about relationships and capabilities ?
 
   org.alien4cloud.kubernetes.api.types.ConfigMapFactory:
-    derived_from: tosca.nodes.Root
+    derived_from: org.alien4cloud.kubernetes.api.types.BaseResource
     description: |
       Component in charge of creating a configMap using a container (of type ConfigurableDockerContainer) inputs.
     properties:
@@ -1007,10 +1127,12 @@ node_types:
           - valid_values: [Deployment, Service, HorizontalPodAutoscaler]
       metadata:
         type: map
-        description: |
-          Standard object metadata.
+        required: false
         entry_schema:
           type: string
+        description: |
+          Standard object's metadata. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata
+
 
   org.alien4cloud.kubernetes.api.types.volume.AbstractVolumeBase:
     abstract: true
@@ -1046,6 +1168,33 @@ node_types:
         type: tosca.datatypes.Root
         description: may be overriden by concrete implementations
         required: false
+
+  org.alien4cloud.kubernetes.api.types.volume.AbstractArtifactVolumeBase:
+    abstract: true
+    derived_from: org.alien4cloud.kubernetes.api.types.volume.AbstractVolumeBase
+    description: |
+      A volume linked to an artifact
+    artifacts:
+      - resources:
+          type: tosca.artifacts.File
+          file: README.md
+
+  org.alien4cloud.kubernetes.api.types.volume.ArtifactVolumeBase:
+    abstract: true
+    derived_from: org.alien4cloud.kubernetes.api.types.volume.AbstractArtifactVolumeBase
+    properties:
+      volume_type:
+        type: string
+        constraints:
+          - valid_values: [secret]
+      spec:
+        type: tosca.datatypes.Root
+        description: may be overriden by concrete implementations
+        required: false
+    artifacts:
+      - resources:
+          type: tosca.artifacts.File
+          file: README.md
 
   org.alien4cloud.kubernetes.api.types.volume.EmptyDirVolumeSource:
     derived_from: org.alien4cloud.kubernetes.api.types.volume.VolumeBase
@@ -1145,14 +1294,57 @@ node_types:
         type: org.alien4cloud.kubernetes.api.datatypes.volumes.ConfigMapVolumeSpec
         required: false
 
+  org.alien4cloud.kubernetes.api.types.volume.SecretSource:
+    derived_from: org.alien4cloud.kubernetes.api.types.volume.ArtifactVolumeBase
+    description: |
+      Adapts a Secret into a volume. The contents of the target Secret's Data field will be presented in a volume as files using the keys in the Data field as the file names. Secret volumes support ownership management and SELinux relabeling.
+      More info: https://kubernetes.io/docs/concepts/configuration/secret/
+    properties:
+      volume_type:
+        type: string
+        default: secret
+        constraints:
+          - equal: secret
+      spec:
+        type: org.alien4cloud.kubernetes.api.datatypes.volumes.SecretVolumeSpec
+        required: false
+
+  org.alien4cloud.kubernetes.api.types.SecretFactory:
+    derived_from: org.alien4cloud.kubernetes.api.types.BaseResource
+    description: |
+      Component in charge of creating a secret using one or more files (from an artifact).
+    properties:
+      name:
+        type: string
+        description: |
+          The name of the secret
+        constraints:
+          - pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+    artifacts:
+      - resources:
+          type: tosca.artifacts.File
+          file: README.md
+    interfaces:
+      Standard:
+        create:
+          inputs:
+            SECRET_NAME: { get_property: [SELF, name] }
+            NAMESPACE: { get_property: [SELF, namespace] }
+          implementation: scripts/kubectl_secret_create.sh
+        delete:
+          inputs:
+            SECRET_NAME: { get_property: [SELF, name] }
+            NAMESPACE: { get_property: [SELF, namespace] }
+          implementation: scripts/kubectl_secret_delete.sh
+
   org.alien4cloud.kubernetes.api.types.Service:
     derived_from: org.alien4cloud.kubernetes.api.types.AbstractService
-
 
   org.alien4cloud.kubernetes.api.types.IngressService:
     derived_from: org.alien4cloud.kubernetes.api.types.Service
     description: |
-      This kind of service can be used of you want to expose your service using the Ingress controler
+      This kind of service can be used of you want to expose your service using the Ingress controler.
+      If tls_crt AND tls_key are set, the Ingress will be secured using a secret.
     properties:
       host:
         type: string
@@ -1161,6 +1353,16 @@ node_types:
         required: true
         constraints:
           - pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+      tls_crt:
+        type: string
+        description: |
+          Optionnal base64 encoded certificate (if TLS need to be set for the ingress)
+        required: false
+      tls_key:
+        type: string
+        description: |
+          Optionnal base64 encoded key (if TLS need to be set for the ingress)
+        required: false
 
   org.alien4cloud.kubernetes.api.types.AbstractService:
     abstract: true
@@ -1306,6 +1508,11 @@ node_types:
     description: >
       Represent a kubernetes final resource after node matching (Pod, ReplicaSet or Deployment)
     properties:
+      namespace:
+        type: string
+        required: false
+        description: |
+          The namespace where the resource is deployed.
       resource_spec:
         type: string
         description: |
@@ -1343,6 +1550,7 @@ node_types:
           inputs:
             KUBE_SERVICE_DEPENDENCIES: { get_property: [SELF, service_dependency_lookups] }
             KUBE_RESOURCE_DEPLOYMENT_CONFIG: { get_property: [SELF, resource_spec] }
+            NAMESPACE: { get_property: [SELF, namespace] }
           implementation: scripts/kubectl_deployment_create.sh
           description: |
             - filter variable in the artifact file
@@ -1351,11 +1559,13 @@ node_types:
         delete:
           inputs:
             KUBE_DEPLOYMENT_ID: { get_property: [SELF, resource_id] }
+            NAMESPACE: { get_property: [SELF, namespace] }
           implementation: scripts/kubectl_deployment_delete.sh
       org.alien4cloud.management.ClusterControl:
         scale:
           inputs:
             KUBE_DEPLOYMENT_ID: { get_attribute: [SELF, deployment_id] }
+            NAMESPACE: { get_property: [SELF, namespace] }
             EXPECTED_INSTANCES:
               type: integer
             INSTANCES_DELTA:
@@ -1409,16 +1619,19 @@ node_types:
         create:
           inputs:
             KUBE_RESOURCE_CONFIG: { get_property: [SELF, resource_spec] }
+            NAMESPACE: { get_property: [SELF, namespace] }
           implementation: scripts/kubectl_endpoint_create.sh
         start:
           inputs:
             KUBE_RESOURCE_ID: { get_property: [SELF, resource_id] }
             KUBE_SPEC_PATH: { get_attribute: [SELF, spec_path] }
+            NAMESPACE: { get_property: [SELF, namespace] }
           implementation: scripts/kubectl_endpoint_start.sh
         delete:
           inputs:
             KUBE_RESOURCE_TYPE: endpoints
             KUBE_RESOURCE_ID: { get_attribute: [SELF, resource_id] }
+            NAMESPACE: { get_property: [SELF, namespace] }
           implementation: scripts/kubectl_resource_wrapper_uninstall.sh
 
   org.alien4cloud.kubernetes.api.types.ServiceResource:
@@ -1440,6 +1653,7 @@ node_types:
           input:
             KUBE_SERVICE_NAME: { get_property: [SELF, service_name] }
             KUBE_SERVICE_CONFIG: { get_property: [SELF, resource_spec] }
+            NAMESPACE: { get_property: [SELF, namespace] }
           implementation: scripts/kubectl_service_wrapper.sh
           description: |
             - Deploy the service onto kubernetes
@@ -1447,6 +1661,7 @@ node_types:
         delete:
           inputs:
             KUBE_SERVICE_NAME: { get_property: [SELF, service_name] }
+            NAMESPACE: { get_property: [SELF, namespace] }
           implementation: scripts/kubectl_service_wrapper_uninstall.sh
 
   org.alien4cloud.kubernetes.api.types.SimpleResource:
@@ -1481,16 +1696,18 @@ node_types:
       Standard:
         create:
           input:
-            KUBE_RESOURCE_TYPE: { get_attribute: [SELF, resource_type] }
-            KUBE_RESOURCE_ID: { get_attribute: [SELF, resource_id] }
+            KUBE_RESOURCE_TYPE: { get_property: [SELF, resource_type] }
+            KUBE_RESOURCE_ID: { get_property: [SELF, resource_id] }
             KUBE_RESOURCE_CONFIG: { get_property: [SELF, resource_spec] }
             KUBE_JSON_PATH_EXPR: { get_property: [SELF, json_path_expr] }
             KUBE_JSON_PATH_VALUE: { get_property: [SELF, json_path_value] }
+            NAMESPACE: { get_property: [SELF, namespace] }
           implementation: scripts/kubectl_resource_wrapper.sh
         delete:
           inputs:
-            KUBE_RESOURCE_TYPE: { get_attribute: [SELF, resource_type] }
-            KUBE_RESOURCE_ID: { get_attribute: [SELF, resource_id] }
+            KUBE_RESOURCE_TYPE: { get_property: [SELF, resource_type] }
+            KUBE_RESOURCE_ID: { get_property: [SELF, resource_id] }
+            NAMESPACE: { get_property: [SELF, namespace] }
           implementation: scripts/kubectl_resource_wrapper_uninstall.sh
 
 relationship_types:

@@ -6,6 +6,11 @@ KUBE_ADMIN_CONFIG_PATH=/etc/kubernetes/admin.conf
 # Provided variables:
 # KUBE_SERVICE_DEPENDENCIES: contains a list of key values VARIABLE_WHERE_TO_STORE_SERVICE_IP:service-name,VAR2:service-name2
 
+NAMESPACE_OPTION=""
+if [ ! -z "$NAMESPACE" ]; then
+   NAMESPACE_OPTION="-n $NAMESPACE "
+fi
+
 function string_replace {
   echo "$1" | sed -e "s/$2/$3/g"
 }
@@ -17,7 +22,7 @@ function resolve_service_dependencies_variables(){
 	do
         var_name=$(echo $service_dependency | cut -d ':' -f 1)
         var_service_name=$(echo $service_dependency | cut -d ':' -f 2)
-        var_value=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" get services "${var_service_name}" -o=jsonpath={.spec.clusterIP})
+        var_value=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" ${NAMESPACE_OPTION}get services "${var_service_name}" -o=jsonpath={.spec.clusterIP})
 		echo "${var_name} : ${var_value}"
         eval "${var_name}=${var_value}"
         # Update the configuration to inject the service dependency variable
@@ -40,7 +45,7 @@ function deploy_resource(){
 
     exit_if_error
 
-    command="kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" get deployment ${KUBE_DEPLOYMENT_ID} -o=jsonpath='{.status.conditions[?(@.type==\"Available\")].status}'"
+    command="kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" ${NAMESPACE_OPTION}get deployment ${KUBE_DEPLOYMENT_ID} -o=jsonpath='{.status.conditions[?(@.type==\"Available\")].status}'"
 
     wait_until_done_or_exit "$command" 60
 }

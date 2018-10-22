@@ -13,13 +13,13 @@ if [ ! -z "$NAMESPACE" ]; then
     NAMESPACE_OPTION="-n ${NAMESPACE} "
 fi
 
-command="kubectl --kubeconfig ${KUBE_ADMIN_CONFIG_PATH} ${NAMESPACE_OPTION}delete configmap ${CONFIGMAP_NAME}"
-echo "Deleting configmap using command: $command"
+command="kubectl --kubeconfig ${KUBE_ADMIN_CONFIG_PATH} ${NAMESPACE_OPTION}delete secret ${SECRET_NAME}"
+echo "Deleting secret using command: $command"
 
 cmd_output=$(echo $command | sh)
 cmd_code=$?
 if [ "${cmd_code}" -ne 0 ]; then
-    echo "Failed to delete configmap: $cmd_output"
+    echo "Failed to delete secret: $cmd_output"
     exit "${cmd_code}"
 fi
 echo "Config map successfully deleted : $cmd_output"

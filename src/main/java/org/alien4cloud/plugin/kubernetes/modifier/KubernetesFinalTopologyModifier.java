@@ -1,15 +1,13 @@
 package org.alien4cloud.plugin.kubernetes.modifier;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.logging.Level;
-
 import alien4cloud.component.repository.ArtifactRepositoryConstants;
+import alien4cloud.paas.wf.TopologyContext;
+import alien4cloud.paas.wf.WorkflowSimplifyService;
+import alien4cloud.paas.wf.WorkflowsBuilderService;
 import alien4cloud.paas.wf.validation.WorkflowValidator;
 import alien4cloud.tosca.context.ToscaContext;
 import alien4cloud.tosca.context.ToscaContextual;
+import alien4cloud.tosca.parser.ToscaParser;
 import alien4cloud.tosca.serializer.ToscaPropertySerializerUtils;
 import alien4cloud.utils.CloneUtil;
 import alien4cloud.utils.MapUtil;
@@ -19,11 +17,12 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import lombok.extern.java.Log;
 import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
+import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
 import org.alien4cloud.plugin.kubernetes.AbstractKubernetesModifier;
 import org.alien4cloud.tosca.model.Csar;
 import org.alien4cloud.tosca.model.definitions.*;
 import org.alien4cloud.tosca.model.templates.*;
-import org.alien4cloud.tosca.model.types.CapabilityType;
+import org.alien4cloud.tosca.model.types.AbstractToscaType;
 import org.alien4cloud.tosca.model.types.NodeType;
 import org.alien4cloud.tosca.model.types.PolicyType;
 import org.alien4cloud.tosca.normative.constants.AlienCapabilityTypes;
@@ -32,6 +31,11 @@ import org.alien4cloud.tosca.utils.*;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
+
+import javax.annotation.Resource;
+import java.util.*;
+import java.util.logging.Level;
+import java.util.stream.Stream;
 
 import static alien4cloud.utils.AlienUtils.safe;
 import static org.alien4cloud.plugin.kubernetes.csar.Version.K8S_CSAR_VERSION;
@@ -49,7 +53,6 @@ import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_T
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SERVICE_RESOURCE;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SIMPLE_RESOURCE;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_VOLUME_BASE;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.generateUniqueKubeName;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.getValue;
 import static org.alien4cloud.plugin.kubernetes.policies.KubePoliciesConstants.K8S_POLICIES_AUTO_SCALING;
 
@@ -65,6 +68,12 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
 
     public static final String A4C_KUBERNETES_MODIFIER_TAG = "a4c_kubernetes-final-modifier";
 
+    @Resource
+    private WorkflowSimplifyService workflowSimplifyService;
+
+    @Resource
+    private WorkflowsBuilderService workflowBuilderService;
+
     @Override
     @ToscaContextual
     public void process(Topology topology, FlowExecutionContext context) {
@@ -73,6 +82,24 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         try {
             WorkflowValidator.disableValidationThreadLocal.set(true);
             doProcess(topology, context);
+            TopologyContext topologyContext = workflowBuilderService.buildCachedTopologyContext(new TopologyContext() {
+                @Override
+                public String getDSLVersion() {
+                    return ToscaParser.LATEST_DSL;
+                }
+
+                @Override
+                public Topology getTopology() {
+                    return topology;
+                }
+
+                @Override
+                public <T extends AbstractToscaType> T findElement(Class<T> clazz, String elementId) {
+                    return ToscaContext.get(clazz, elementId);
+                }
+            });
+            // TODO: should be done in the deployment flow instead of here
+            workflowSimplifyService.reentrantSimplifyWorklow(topologyContext, topology.getWorkflows().keySet());
         } catch (Exception e) {
             context.getLog().error("Couldn't process " + A4C_KUBERNETES_MODIFIER_TAG);
             log.log(Level.WARNING, "Couldn't process " + A4C_KUBERNETES_MODIFIER_TAG, e);
@@ -97,7 +124,8 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
 
         // for each Service create a node of type ServiceResource
         Set<NodeTemplate> serviceNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_SERVICE, true);
-        serviceNodes.forEach(nodeTemplate -> createServiceResource(csar, topology, nodeTemplate, nodeReplacementMap, resourceNodeYamlStructures));
+        serviceNodes = demultiplexServices(csar, topology, serviceNodes, context);
+        serviceNodes.forEach(nodeTemplate -> createServiceResource(csar, topology, nodeTemplate, nodeReplacementMap, resourceNodeYamlStructures, context));
 
         // for each Deployment create a node of type DeploymentResource
         Set<NodeTemplate> deploymentNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_DEPLOYMENT, false);
@@ -122,7 +150,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
 
         // for each volume node, populate the 'volumes' property of the corresponding deployment resource
         Set<NodeTemplate> volumeNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_VOLUME_BASE, true);
-        volumeNodes.forEach(nodeTemplate -> manageVolume(csar, topology, nodeTemplate, nodeReplacementMap, resourceNodeYamlStructures));
+        volumeNodes.forEach(nodeTemplate -> manageVolume(context, csar, topology, nodeTemplate, nodeReplacementMap, resourceNodeYamlStructures));
 
         // check auto-scaling policies and build the equiv node
         Set<PolicyTemplate> policies = TopologyNavigationUtil.getPoliciesOfType(topology, K8S_POLICIES_AUTO_SCALING, true);
@@ -139,7 +167,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         Set<NodeTemplate> containers = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_APPLICATION_DOCKER_CONTAINER, true, false);
         safe(containers).forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
 
-        String providedNamespace = getProvidedNamespace(context);
+        String providedNamespace = getProvidedMetaproperty(context, K8S_NAMESPACE_METAPROP_NAME);
         if (providedNamespace != null) {
             context.getLog().info("All resources will be created into the namespace <" + providedNamespace + ">");
         }
@@ -151,22 +179,141 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
             if (resourceNodeProperties != null && resourceNodeProperties.containsKey("resource_def")) {
                 if (providedNamespace != null) {
                     feedPropertyValue(resourceNodeProperties, "resource_def.metadata.namespace", providedNamespace, false);
+                    setNodePropertyPathValue(csar, topology, resourceNode, "namespace", new ScalarPropertyValue(providedNamespace));
                 }
                 Object propertyValue = getValue(resourceNodeProperties.get("resource_def"));
                 String serializedPropertyValue = PropertyUtil.serializePropertyValue(propertyValue);
                 setNodePropertyPathValue(csar, topology, resourceNode, "resource_spec", new ScalarPropertyValue(serializedPropertyValue));
+            } else {
+                setNodePropertyPathValue(csar, topology, resourceNode, "resource_spec", new ScalarPropertyValue("N/A"));
+            }
+            if (providedNamespace != null) {
+                setNodePropertyPathValue(csar, topology, resourceNode, "namespace", new ScalarPropertyValue(providedNamespace));
             }
         }
-        // job resources
-        Set<NodeTemplate> jobResourceNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_BASE_JOB_RESOURCE, true);
-        for (NodeTemplate resourceNode : jobResourceNodes) {
-            Map<String, AbstractPropertyValue> resourceNodeProperties = resourceNodeYamlStructures.get(resourceNode.getName());
-            if (resourceNodeProperties != null && resourceNodeProperties.containsKey("resource_def")) {
-                Object propertyValue = getValue(resourceNodeProperties.get("resource_def"));
-                String serializedPropertyValue = PropertyUtil.serializePropertyValue(propertyValue);
-                setNodePropertyPathValue(csar, topology, resourceNode, "resource_spec", new ScalarPropertyValue(serializedPropertyValue));
+
+        // remove services that are no more target of relationships
+        Set<NodeTemplate> servicesToRemove = Sets.newHashSet();
+        for (NodeTemplate node : topology.getNodeTemplates().values()) {
+            if (node instanceof ServiceNodeTemplate) {
+                Set<NodeTemplate> sourceNodes = TopologyNavigationUtil.getSourceNodesByRelationshipType(topology, node, NormativeRelationshipConstants.ROOT);
+                if (sourceNodes.isEmpty()) {
+                    servicesToRemove.add(node);
+                }
             }
         }
+        servicesToRemove.stream().forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
+
+    }
+
+    /**
+     * When several abstract services have been matched to the same named service (service with a fixed service name), we only want one to be created.
+     */
+    private Set<NodeTemplate> demultiplexServices(Csar csar, Topology topology, Set<NodeTemplate> serviceNodes, FlowExecutionContext context) {
+
+        // feed a map of service_name -> nodes
+        Map<String, Set<NodeTemplate>> servicesNamesByName = Maps.newHashMap();
+        for (NodeTemplate serviceNode : serviceNodes) {
+            AbstractPropertyValue serviceNamePV = PropertyUtil.getPropertyValueFromPath(safe(serviceNode.getProperties()), "service_name");
+            if (serviceNamePV != null && serviceNamePV instanceof ScalarPropertyValue) {
+                String serviceName = ((ScalarPropertyValue)serviceNamePV).getValue();
+                if (StringUtils.isNotEmpty(serviceName)) {
+                    Set<NodeTemplate> namedNodes = servicesNamesByName.get(serviceName);
+                    if (namedNodes == null) {
+                        namedNodes = Sets.newHashSet();
+                        servicesNamesByName.put(serviceName, namedNodes);
+                    }
+                    namedNodes.add(serviceNode);
+                }
+            }
+        }
+        // remove all entries that only contains 1 element
+        Stream<Map.Entry<String, Set<NodeTemplate>>> servicesToDemultiplex = servicesNamesByName.entrySet().stream().filter(e -> e.getValue().size() > 1);
+
+        servicesToDemultiplex.forEach(e -> {
+            // if services for a same node target a different container this is wrong
+            final Set<NodeTemplate> nodesToRemove = Sets.newHashSet();
+
+            // we well know we have more than 1 node in this iterator
+            NodeTemplate nodeToKeep = null;
+            for (NodeTemplate nodeToKeepCandidate : e.getValue()) {
+                // we prefer to keep a node that have consumer since we are not able to move relationship
+                Set<NodeTemplate> consumers = TopologyNavigationUtil.getSourceNodesByRelationshipType(topology, nodeToKeepCandidate, NormativeRelationshipConstants.DEPENDS_ON);
+                if (consumers != null && !consumers.isEmpty()) {
+                    nodeToKeep = nodeToKeepCandidate;
+                    break;
+                }
+            }
+            if (nodeToKeep == null) {
+                nodeToKeep = e.getValue().stream().findFirst().get();
+            }
+
+            String nodeToKeepServiceType = PropertyUtil.getScalarPropertyValueFromPath(safe(nodeToKeep.getProperties()), "spec.service_type");
+
+            Set<RelationshipTemplate> relationships = TopologyNavigationUtil.getTargetRelationships(nodeToKeep, "dependency");
+            // we know we have 1 and only 1 relationship (1 service per endpoint)
+            RelationshipTemplate relationshipTemplate = relationships.stream().findFirst().get();
+            String deploymentUnitNodeName = relationshipTemplate.getTarget();
+            StringBuilder nodeToKeepServiceEndpointTag = new StringBuilder("");
+
+            for (NodeTemplate nodeToRemoveCandidate : e.getValue()) {
+
+                if (nodeToRemoveCandidate == nodeToKeep) {
+                    continue;
+                }
+
+                NodeTemplate nodeToRemove = nodeToRemoveCandidate;
+                // check that services with same service name target the same deployment container
+                RelationshipTemplate relationshipToRemove = TopologyNavigationUtil.getTargetRelationships(nodeToKeep, "dependency").iterator().next();
+                if (!relationshipToRemove.getTarget().equals(deploymentUnitNodeName)) {
+                    String msg = String.format("Same service name (%s) used for services that target different deployment units (at least %s and %s), please review your matching !", e.getKey(), nodeToKeep.getName(), nodeToRemove.getName());
+                    context.getLog().error(msg);
+                    throw new UnsupportedOperationException();
+                }
+                // check that services with same service name are of the same type
+                String nodeToRemoveServiceType = PropertyUtil.getScalarPropertyValueFromPath(safe(nodeToRemove.getProperties()), "spec.service_type");
+                if (!StringUtils.equals(nodeToKeepServiceType, nodeToRemoveServiceType)) {
+                    String msg = String.format("Same service name (%s) used for services that are different service types (%s (%s) != %s (%s)), please review your matching !", e.getKey(), nodeToKeep.getName(), nodeToKeepServiceType, nodeToRemove.getName(), nodeToRemoveServiceType);
+                    context.getLog().error(msg);
+                    throw new UnsupportedOperationException();
+                }
+
+                AbstractPropertyValue serviceNamePV = PropertyUtil.getPropertyValueFromPath(safe(nodeToRemove.getProperties()), "spec.ports");
+                if (serviceNamePV instanceof ListPropertyValue) {
+                    List<Object> ports = ((ListPropertyValue)serviceNamePV).getValue();
+                    if (!ports.isEmpty()) {
+                        Object port = ports.iterator().next();
+                        feedPropertyValue(nodeToKeep.getProperties(), "spec.ports", port, true);
+                        nodesToRemove.add(nodeToRemove);
+                        // since this tag is used by modifier elsewhere, we use it's value to set a tag on the node we keep
+                        String serviceEndpointTag = getNodeTagValueOrNull(nodeToRemove, A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT);
+                        nodeToKeepServiceEndpointTag.append(",").append(serviceEndpointTag);
+
+                    }
+                }
+            }
+            nodesToRemove.stream().forEach(s -> {
+                serviceNodes.remove(s);
+                // if the node to remove is the target of dependsOn relationship (a consumer), let's move it to the node we keep
+                removeNode(topology, s);
+            });
+
+            setNodeTagValue(nodeToKeep, A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINTS, nodeToKeepServiceEndpointTag.toString());
+        });
+
+        return serviceNodes;
+    }
+
+    protected RelationshipTemplate addRelationshipTemplate(Csar csar, Topology topology, NodeTemplate sourceNode, String targetNodeName,
+                                                           String relationshipTypeName, String requirementName, String capabilityName) {
+
+        Set<RelationshipTemplate> targetRelationships = TopologyNavigationUtil.getTargetRelationships(sourceNode, requirementName);
+        for (RelationshipTemplate relationshipTemplate : targetRelationships) {
+            if (relationshipTemplate.getTarget().equals(targetNodeName) && relationshipTemplate.getTargetedCapabilityName().equals(capabilityName)) {
+                return relationshipTemplate;
+            }
+        }
+        return super.addRelationshipTemplate(csar, topology, sourceNode, targetNodeName, relationshipTypeName, requirementName, capabilityName);
     }
 
     private void manageEndpoints(FlowExecutionContext context, Csar csar, Topology topology, NodeTemplate endpointNode) {
@@ -227,8 +374,10 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         setNodePropertyPathValue(csar, topology, endpointNode, "subsets", subsets);
     }
 
-    private void manageVolume(Csar csar, Topology topology, NodeTemplate volumeNode, Map<String, NodeTemplate> nodeReplacementMap,
+    private void manageVolume(FlowExecutionContext ctx, Csar csar, Topology topology, NodeTemplate volumeNode, Map<String, NodeTemplate> nodeReplacementMap,
             Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures) {
+
+        // FIXME : doesn't support many attachement (1 volume -> many containers) ?)
         Optional<RelationshipTemplate> relationshipTemplate = TopologyNavigationUtil.getTargetRelationships(volumeNode, "attachment").stream().findFirst();
         if (!relationshipTemplate.isPresent()) {
             return;
@@ -239,7 +388,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         // get the deployment resource corresponding to this deployment
         NodeTemplate deploymentResourceNode = nodeReplacementMap.get(deploymentContainer.getName());
 
-        managePersistentVolumeClaim(csar, topology, volumeNode, resourceNodeYamlStructures, deploymentResourceNode);
+        managePersistentVolumeClaim(ctx, csar, topology, volumeNode, resourceNodeYamlStructures, deploymentResourceNode);
 
         Map<String, AbstractPropertyValue> deploymentResourceNodeProperties = resourceNodeYamlStructures.get(deploymentResourceNode.getName());
         Map<String, Object> volumeEntry = Maps.newHashMap();
@@ -255,9 +404,29 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         }
         volumeEntry.put(PropertyUtil.getScalarValue(volume_type), volumeSpecObject);
         feedPropertyValue(deploymentResourceNodeProperties, "resource_def.spec.template.spec.volumes", volumeEntry, true);
+
+        NodeType volumeNodeType = ToscaContext.get(NodeType.class, volumeNode.getType());
+        if (ToscaTypeUtils.isOfType(volumeNodeType, KubeTopologyUtils.K8S_TYPES_SECRET_VOLUME)) {
+            // we must create a secret, the deployment should depend on it
+            NodeTemplate secretFactory = addNodeTemplate(csar, topology, volumeNode.getName() + "_Secret", KubeTopologyUtils.K8S_TYPES_SECRET_FACTORY,
+                    K8S_CSAR_VERSION);
+            String secretName = generateUniqueKubeName(ctx, volumeNode.getName());
+            setNodePropertyPathValue(csar, topology, secretFactory, "name", new ScalarPropertyValue(secretName));
+            // we must also define the secretName of the secret
+            TopologyModifierSupport.feedMapOrComplexPropertyEntry(volumeSpecObject, "secretName", secretName);
+
+            Map<String, DeploymentArtifact> artifacts = secretFactory.getArtifacts();
+            if (artifacts == null) {
+                artifacts = Maps.newHashMap();
+                secretFactory.setArtifacts(artifacts);
+            }
+            artifacts.put("resources", volumeNode.getArtifacts().get("resources"));
+            addRelationshipTemplate(csar, topology, deploymentResourceNode, secretFactory.getName(), NormativeRelationshipConstants.DEPENDS_ON,
+                    "dependency", "feature");
+        }
     }
 
-    private void managePersistentVolumeClaim(Csar csar, Topology topology, NodeTemplate volumeNode,
+    private void managePersistentVolumeClaim(FlowExecutionContext ctx, Csar csar, Topology topology, NodeTemplate volumeNode,
             Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures, NodeTemplate deploymentResourceNode) {
         // in case of empty claimName for a PersistentVolumeClaimSource then create a node of type PersistentVolumeClaim
         NodeType volumeNodeType = ToscaContext.get(NodeType.class, volumeNode.getType());
@@ -270,7 +439,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                 Map<String, AbstractPropertyValue> volumeClaimResourceNodeProperties = Maps.newHashMap();
                 resourceNodeYamlStructures.put(volumeClaimResource.getName(), volumeClaimResourceNodeProperties);
 
-                String claimName = generateUniqueKubeName(volumeNode.getName());
+                String claimName = generateUniqueKubeName(ctx, volumeNode.getName());
                 // fill the node properties
                 feedPropertyValue(volumeClaimResource.getProperties(), "resource_type", new ScalarPropertyValue("pvc"), false);
                 feedPropertyValue(volumeClaimResource.getProperties(), "resource_id", new ScalarPropertyValue(claimName), false);
@@ -324,12 +493,12 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                         K8S_TYPES_DEPLOYMENT));
 
         // for each target, add a SimpleResource for HorizontaPodAutoScaler, targeting the related DeploymentResource
-        validTargets.forEach(nodeTemplate -> addHorizontalPodAutoScalingResource(csar, topology, policyTemplate, nodeTemplate, nodeReplacementMap,
+        validTargets.forEach(nodeTemplate -> addHorizontalPodAutoScalingResource(context, csar, topology, policyTemplate, nodeTemplate, nodeReplacementMap,
                 resourceNodeYamlStructures));
 
     }
 
-    private void addHorizontalPodAutoScalingResource(Csar csar, Topology topology, PolicyTemplate policyTemplate, NodeTemplate target,
+    private void addHorizontalPodAutoScalingResource(FlowExecutionContext ctx, Csar csar, Topology topology, PolicyTemplate policyTemplate, NodeTemplate target,
             Map<String, NodeTemplate> nodeReplacementMap, Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures) {
         String resourceBaseName = target.getName() + "_" + policyTemplate.getName();
         NodeTemplate podAutoScalerResourceNode = addNodeTemplate(csar, topology, resourceBaseName + "_Resource", K8S_TYPES_SIMPLE_RESOURCE, K8S_CSAR_VERSION);
@@ -339,7 +508,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
 
         NodeTemplate targetDeploymentResourceNode = nodeReplacementMap.get(target.getName());
         Map<String, AbstractPropertyValue> targetDeploymentResourceNodeProps = resourceNodeYamlStructures.get(targetDeploymentResourceNode.getName());
-        String podAutoScalerName = generateUniqueKubeName(resourceBaseName);
+        String podAutoScalerName = generateUniqueKubeName(ctx, resourceBaseName);
 
         feedPropertyValue(podAutoScalerResourceNode.getProperties(), "resource_type", new ScalarPropertyValue("hpa"), false);
         feedPropertyValue(podAutoScalerResourceNode.getProperties(), "resource_id", new ScalarPropertyValue(podAutoScalerName), false);
@@ -462,8 +631,9 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
             Map<String, AbstractPropertyValue> controllerResourceNodeProperties = resourceNodeYamlStructures.get(controllerResource.getName());
 
             // if the container if of type ConfigurableDockerContainer we must create a ConfigMapFactory per config_settings entry
-            // a map of input_prefix -> NodeTemplate (where NodeTemplate is an instance of ConfigMapFactory)
-            Map<String, NodeTemplate> configMapFactories = Maps.newHashMap();
+            // a map of input_prefix -> List<NodeTemplate> (where NodeTemplate is an instance of ConfigMapFactory)
+            // we can have several configMapFactory using the same prefix
+            Map<String, List<NodeTemplate>> configMapFactories = Maps.newHashMap();
 
             // resolve env variables
             Set<NodeTemplate> hostedContainers = TopologyNavigationUtil.getSourceNodes(topology, containerNode, "host");
@@ -488,6 +658,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                             if (config_setting_obj instanceof Map) {
                                 Map<String, String> config_setting_map = (Map<String, String>)config_setting_obj;
                                 String mount_path = config_setting_map.get("mount_path");
+                                String mount_subPath = config_setting_map.get("mount_subPath");
                                 String input_prefix = config_setting_map.get("input_prefix");
                                 String config_path = config_setting_map.get("config_path");
 
@@ -495,7 +666,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                                         K8S_CSAR_VERSION);
                                 AbstractPropertyValue containerNameAPV = PropertyUtil.getPropertyValueFromPath(safe(containerNode.getProperties()), "container.name");
                                 String containerName = ((ScalarPropertyValue)containerNameAPV).getValue();
-                                String configMapName = KubeTopologyUtils.generateKubeName(containerName + "_ConfigMap_" + input_prefix);
+                                String configMapName = generateUniqueKubeName(context, containerName + "_ConfigMap_" + input_prefix);
                                 configMapName = configMapName.replaceAll("--", "-");
                                 configMapName = configMapName.replaceAll("\\.", "-");
                                 if (configMapName.endsWith("-")) {
@@ -508,7 +679,12 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                                 configsArtifact.setArtifactRepository(ArtifactRepositoryConstants.ALIEN_TOPOLOGY_REPOSITORY);
                                 // the artifact ref using the value found in setting
                                 configsArtifact.setArtifactRef(config_path);
-                                configMapFactories.put(input_prefix, configMapFactoryNode);
+
+                                List<NodeTemplate> configMapFactoryList = configMapFactories.get(input_prefix);
+                                if (!configMapFactories.containsKey(input_prefix)) {
+                                    configMapFactories.put(input_prefix, Lists.newArrayList());
+                                }
+                                configMapFactories.get(input_prefix).add(configMapFactoryNode);
 
                                 // add the configMap to the deployment
                                 Map<String, Object> volumeEntry = Maps.newHashMap();
@@ -522,6 +698,9 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                                 Map<String, Object> containerVolumeEntry = Maps.newHashMap();
                                 containerVolumeEntry.put("name", configMapName);
                                 containerVolumeEntry.put("mountPath", mount_path);
+                                if (StringUtils.isNotEmpty(mount_subPath)) {
+                                    containerVolumeEntry.put("subPath", mount_subPath);
+                                }
                                 appendNodePropertyPathValue(csar, topology, containerNode, "container.volumeMounts", new ComplexPropertyValue(containerVolumeEntry));
 
                                 // add all a dependsOn relationship between the configMapFactory and each dependsOn target of deploymentResource
@@ -561,7 +740,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                                     }
                                 } else if (!configMapFactories.isEmpty()) {
                                     // maybe it's a config that should be associated with a configMap
-                                    for (Map.Entry<String, NodeTemplate> configMapFactoryEntry : configMapFactories.entrySet()) {
+                                    for (Map.Entry<String, List<NodeTemplate>> configMapFactoryEntry : configMapFactories.entrySet()) {
                                         String inputPrefix = configMapFactoryEntry.getKey();
                                         if (inputName.startsWith(inputPrefix)) {
                                             // ok this input is related to this configMapFactory
@@ -569,11 +748,13 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                                             if (!(v instanceof ScalarPropertyValue)) {
                                                 context.getLog().warn("Ignoring INPUT named <" + inputName + "> for container <" + nodeTemplate.getName() + "> because the value is not a scalar (" + serializePropertyValue(v) + ") and cannot be added to a configMap");
                                             } else {
-                                                try {
-                                                    setNodePropertyPathValue(csar, topology, configMapFactoryEntry.getValue(), "input_variables." + varName, v);
-                                                    context.getLog().info("Successfully set INPUT named <" + inputName + "> with value <" + serializePropertyValue(v) + "> to configMap <" + configMapFactoryEntry.getValue().getName() + "> for container <" + nodeTemplate.getName() + ">");
-                                                } catch(Exception e) {
-                                                    context.getLog().warn("Not able to set INPUT named <" + inputName + "> with value <" + serializePropertyValue(v) + "> to configMap, <" + configMapFactoryEntry.getValue().getName() + "> for container <" + nodeTemplate.getName() + ">, error was : " + e.getMessage());
+                                                for (NodeTemplate configMapFactory : configMapFactoryEntry.getValue()) {
+                                                    try {
+                                                        setNodePropertyPathValue(csar, topology, configMapFactory, "input_variables." + varName, v);
+                                                        context.getLog().info("Successfully set INPUT named <" + inputName + "> with value <" + serializePropertyValue(v) + "> to configMap <" + configMapFactory.getName() + "> for container <" + nodeTemplate.getName() + ">");
+                                                    } catch(Exception e) {
+                                                        context.getLog().warn("Not able to set INPUT named <" + inputName + "> with value <" + serializePropertyValue(v) + "> to configMap, <" + configMapFactory.getName() + "> for container <" + nodeTemplate.getName() + ">, error was : " + e.getMessage());
+                                                    }
                                                 }
                                             }
                                             break;
@@ -605,8 +786,10 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                         new ScalarPropertyValue(serviceDependencyDefinitionsValue.toString()));
                 // we set the same property for each configMapFactory if any
                 configMapFactories.forEach((input_prefix, configMapFactoryNodeTemplate) -> {
-                    setNodePropertyPathValue(csar, topology, configMapFactoryNodeTemplate, "service_dependency_lookups",
-                            new ScalarPropertyValue(serviceDependencyDefinitionsValue.toString()));
+                    configMapFactoryNodeTemplate.iterator().forEachRemaining(nodeTemplate -> {
+                        setNodePropertyPathValue(csar, topology, nodeTemplate, "service_dependency_lookups",
+                                new ScalarPropertyValue(serviceDependencyDefinitionsValue.toString()));
+                    });
                 });
             });
 
@@ -717,7 +900,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
     }
 
     private void createServiceResource(Csar csar, Topology topology, NodeTemplate serviceNode, Map<String, NodeTemplate> nodeReplacementMap,
-            Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures) {
+            Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures, FlowExecutionContext context) {
 
         // if the matched service has a property service_name, then we replace the autogenerated name by it
         AbstractPropertyValue serviceNamePV = PropertyUtil.getPropertyValueFromPath(safe(serviceNode.getProperties()), "service_name");
@@ -796,11 +979,11 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         }
 
         if (serviceNode.getType().equals(K8S_TYPES_SERVICE_INGRESS)) {
-            createIngress(csar, topology, serviceNode, serviceResourceNode, portName, namePropertyValue, resourceNodeYamlStructures);
+            createIngress(context, csar, topology, serviceNode, serviceResourceNode, portName, namePropertyValue, resourceNodeYamlStructures, context);
         }
     }
 
-    private void createIngress(Csar csar, Topology topology, NodeTemplate serviceNode, NodeTemplate serviceResourcesNode, String portName, AbstractPropertyValue serviceName, Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures) {
+    private void createIngress(FlowExecutionContext ctx, Csar csar, Topology topology, NodeTemplate serviceNode, NodeTemplate serviceResourcesNode, String portName, AbstractPropertyValue serviceName, Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures, FlowExecutionContext context) {
         AbstractPropertyValue ingressHost = PropertyUtil.getPropertyValueFromPath(safe(serviceNode.getProperties()), "host");
 
         NodeTemplate ingressResourceNode = addNodeTemplate(csar, topology, serviceNode.getName() + "_Ingress", K8S_TYPES_SIMPLE_RESOURCE, K8S_CSAR_VERSION);
@@ -808,7 +991,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         Map<String, AbstractPropertyValue> ingressResourceNodeProperties = Maps.newHashMap();
         resourceNodeYamlStructures.put(ingressResourceNode.getName(), ingressResourceNodeProperties);
 
-        String ingressName = generateUniqueKubeName(ingressResourceNode.getName());
+        String ingressName = generateUniqueKubeName(ctx, ingressResourceNode.getName());
 
         feedPropertyValue(ingressResourceNode.getProperties(), "resource_type", new ScalarPropertyValue("ing"), false);
         feedPropertyValue(ingressResourceNode.getProperties(), "resource_id", new ScalarPropertyValue(ingressName), false);
@@ -853,6 +1036,65 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         // add a dependency between the ingress and the service
         addRelationshipTemplate(csar, topology, ingressResourceNode, serviceResourcesNode.getName(), NormativeRelationshipConstants.DEPENDS_ON,
                 "dependency", "feature");
+
+        // if the Ingress service has both tls_crt and tls_key then we should create a secret and activate TLS on Ingress
+        AbstractPropertyValue ingressCrtPV = PropertyUtil.getPropertyValueFromPath(safe(serviceNode.getProperties()), "tls_crt");
+        String ingressCrt = null;
+        if (ingressCrtPV != null && ingressCrtPV instanceof ScalarPropertyValue) {
+            ingressCrt = ((ScalarPropertyValue)ingressCrtPV).getValue();
+        }
+        AbstractPropertyValue ingressKeyPV = PropertyUtil.getPropertyValueFromPath(safe(serviceNode.getProperties()), "tls_key");
+        String ingressKey = null;
+        if (ingressKeyPV != null && ingressKeyPV instanceof ScalarPropertyValue) {
+            ingressKey = ((ScalarPropertyValue)ingressKeyPV).getValue();
+        }
+        if (StringUtils.isNoneEmpty(ingressCrt) && StringUtils.isNoneEmpty(ingressKey)) {
+            // create the secret
+            NodeTemplate secretResourceNode = addNodeTemplate(csar, topology, serviceNode.getName() + "_IngressSecret", K8S_TYPES_SIMPLE_RESOURCE, K8S_CSAR_VERSION);
+
+            Map<String, AbstractPropertyValue> ingressSecretResourceNodeProperties = Maps.newHashMap();
+            resourceNodeYamlStructures.put(secretResourceNode.getName(), ingressSecretResourceNodeProperties);
+
+            String ingressSecretName = generateUniqueKubeName(ctx, secretResourceNode.getName());
+
+            feedPropertyValue(secretResourceNode.getProperties(), "resource_type", new ScalarPropertyValue("secrets"), false);
+            feedPropertyValue(secretResourceNode.getProperties(), "resource_id", new ScalarPropertyValue(ingressSecretName), false);
+
+            /* here we are creating something like that:
+                apiVersion: v1
+                data:
+                  tls.crt: base64 encoded cert
+                  tls.key: base64 encoded key
+                kind: Secret
+                metadata:
+                  name: testsecret
+                  namespace: default
+                type: Opaque
+             */
+
+            Map<String, String> data = Maps.newHashMap();
+            data.put("tls.crt", ingressCrt);
+            data.put("tls.key", ingressKey);
+
+            // fill the future JSON spec
+            feedPropertyValue(ingressSecretResourceNodeProperties, "resource_def.kind", "Secret", false);
+            feedPropertyValue(ingressSecretResourceNodeProperties, "resource_def.apiVersion", "v1", false);
+            feedPropertyValue(ingressSecretResourceNodeProperties, "resource_def.metadata.name", ingressSecretName, false);
+            feedPropertyValue(ingressSecretResourceNodeProperties, "resource_def.metadata.labels.a4c_id", ingressSecretName, false);
+            feedPropertyValue(ingressSecretResourceNodeProperties, "resource_def.type", "Opaque", false);
+            feedPropertyValue(ingressSecretResourceNodeProperties, "resource_def.data", data, false);
+
+            // add the TLS config to the Ingress
+            Map<String, Object> tls = Maps.newHashMap();
+            tls.put("secretName", ingressSecretName);
+            feedPropertyValue(ingressResourceNodeProperties, "resource_def.spec.tls", tls, true);
+
+            // add a relation between the Ingress and the secret
+            addRelationshipTemplate(csar, topology, ingressResourceNode, secretResourceNode.getName(), NormativeRelationshipConstants.DEPENDS_ON,
+                    "dependency", "feature");
+        } else if (StringUtils.isNoneEmpty(ingressCrt) || StringUtils.isNoneEmpty(ingressKey)) {
+            context.log().warn("tls_crt or tls_key is provided for service  <" + serviceNode + "> but both are needed in order to create a secured Ingress. A non secured Ingress is created !");
+        }
 
     }
 

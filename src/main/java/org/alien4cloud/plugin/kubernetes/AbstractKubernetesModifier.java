@@ -15,6 +15,7 @@ import com.google.common.collect.Maps;
 import org.alien4cloud.alm.deployment.configuration.flow.EnvironmentContext;
 import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
 import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
+import org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils;
 import org.alien4cloud.tosca.exceptions.InvalidPropertyValueException;
 import org.alien4cloud.tosca.model.definitions.PropertyDefinition;
 import org.alien4cloud.tosca.model.definitions.PropertyValue;
@@ -35,11 +36,15 @@ public abstract class AbstractKubernetesModifier extends TopologyModifierSupport
 
     public static final String A4C_KUBERNETES_MODIFIER_TAG = "a4c_kubernetes-modifier";
     public static final String A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT = A4C_KUBERNETES_MODIFIER_TAG + "_service_endpoint";
+    public static final String A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINTS = A4C_KUBERNETES_MODIFIER_TAG + "_service_endpoints";
     protected static final String A4C_KUBERNETES_MODIFIER_TAG_EXPOSED_AS_CAPA = AbstractKubernetesModifier.A4C_KUBERNETES_MODIFIER_TAG + "_exposedAs";
     protected static final String A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT_PORT = A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT + "_port";
     protected static final String A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT_PORT_NAME = A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT + "_portName";
     private static Map<String, AbstractKubernetesModifier.Parser> k8sParsers = Maps.newHashMap();
     protected static final String K8S_NAMESPACE_METAPROP_NAME = "K8S_NAMESPACE";
+    protected static final String K8S_PREFIX_METAPROP_NAME = "K8S_PREFIX";
+
+    private static String FLOW_CACHE_KEY_K8S_PREFIX = AbstractKubernetesModifier.class.getName() + "K8S_PREFIX";
 
     @Resource
     protected MetaPropertiesService metaPropertiesService;
@@ -54,10 +59,10 @@ public abstract class AbstractKubernetesModifier extends TopologyModifierSupport
      * @param context Execution context that allows modifiers to access some useful contextual information
      * @return the value of a meta-property corresponding to a namespace specification ("K8S_NAMESPACE").
      */
-    protected String getProvidedNamespace(FlowExecutionContext context) {
+    protected String getProvidedMetaproperty(FlowExecutionContext context, String metaPropertyName) {
         Optional<EnvironmentContext> ec = context.getEnvironmentContext();
-        String applicationNamespaceMetaPropertyKey = this.metaPropertiesService.getMetapropertykeyByName(K8S_NAMESPACE_METAPROP_NAME, MetaPropertyTarget.APPLICATION);
-        String locationNamespaceMetaPropertyKey = this.metaPropertiesService.getMetapropertykeyByName(K8S_NAMESPACE_METAPROP_NAME, MetaPropertyTarget.LOCATION);
+        String applicationNamespaceMetaPropertyKey = this.metaPropertiesService.getMetapropertykeyByName(metaPropertyName, MetaPropertyTarget.APPLICATION);
+        String locationNamespaceMetaPropertyKey = this.metaPropertiesService.getMetapropertykeyByName(metaPropertyName, MetaPropertyTarget.LOCATION);
 
         // first, get the namespace using the value of a meta property on application
         String providedNamespace = null;
@@ -69,7 +74,7 @@ public abstract class AbstractKubernetesModifier extends TopologyModifierSupport
                 providedNamespace = applicationProvidedNamespace;
             }
         }
-        // if defined, use the the value pf a meta property of the targeted location
+        // if defined, use the the value of a meta property of the targeted location
         if (locationNamespaceMetaPropertyKey != null) {
             Object deploymentLocation = context.getExecutionCache().get(FlowExecutionContext.DEPLOYMENT_LOCATIONS_MAP_CACHE_KEY);
             if (deploymentLocation != null && deploymentLocation instanceof Map) {
@@ -161,6 +166,26 @@ public abstract class AbstractKubernetesModifier extends TopologyModifierSupport
         }
     }
 
+    protected String generateUniqueKubeName(FlowExecutionContext ctx, String prefix) {
+        // if a metaprop is defined at application or location level, use it as a prefix.
+        String k8sPrefix = null;
+        Object o = ctx.getExecutionCache().get(FLOW_CACHE_KEY_K8S_PREFIX);
+        if (o == null) {
+            k8sPrefix = getProvidedMetaproperty(ctx, K8S_PREFIX_METAPROP_NAME);
+            if (k8sPrefix == null) {
+                // No meteprop is defined but to avoid futur search, let's put an empty string in the cache
+                k8sPrefix = "";
+            }
+            ctx.getExecutionCache().put(FLOW_CACHE_KEY_K8S_PREFIX, k8sPrefix);
+        } else {
+            k8sPrefix = o.toString();
+        }
+        // TODO: better unique generation (we hashCode the UUID, we know that we have some collision risk, but for the moment we accept)
+        String kubeName = KubeTopologyUtils.generateKubeName(k8sPrefix + prefix + "-" + UUID.randomUUID().toString().hashCode());
+        // length should be < 63 (Kube rule)
+        kubeName = org.apache.commons.lang3.StringUtils.abbreviateMiddle(kubeName, "-", 63);
+        return kubeName;
+    }
 
     private static abstract class Parser {
         private String type;
