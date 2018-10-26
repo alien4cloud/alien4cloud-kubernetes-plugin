@@ -1099,10 +1099,12 @@ node_types:
             CONFIGMAP_NAME: { get_property: [SELF, name] }
             INPUT_VARIABLES: { get_property: [SELF, input_variables] }
             KUBE_SERVICE_DEPENDENCIES: { get_property: [SELF, service_dependency_lookups] }
+            NAMESPACE: { get_property: [SELF, namespace] }
           implementation: scripts/kubectl_configmap_create.sh
         delete:
           inputs:
             CONFIGMAP_NAME: { get_attribute: [SELF, name] }
+            NAMESPACE: { get_property: [SELF, namespace] }
           implementation: scripts/kubectl_configmap_delete.sh
     artifacts:
       - configs:
