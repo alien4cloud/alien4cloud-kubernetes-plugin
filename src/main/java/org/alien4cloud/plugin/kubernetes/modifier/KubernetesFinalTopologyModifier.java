@@ -172,8 +172,12 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
             context.getLog().info("All resources will be created into the namespace <" + providedNamespace + ">");
         }
         // finally set the 'resource_spec' property with the JSON content of the resource specification
-        // Different resource types, but not job resources
         Set<NodeTemplate> resourceNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_BASE_RESOURCE, true);
+        // also treat job resources
+        Set<NodeTemplate> jobResourceNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_BASE_JOB_RESOURCE, true);
+        for (NodeTemplate jobResourceNode : jobResourceNodes) {
+            resourceNodes.add(jobResourceNode);
+        }
         for (NodeTemplate resourceNode : resourceNodes) {
             Map<String, AbstractPropertyValue> resourceNodeProperties = resourceNodeYamlStructures.get(resourceNode.getName());
             if (resourceNodeProperties != null && resourceNodeProperties.containsKey("resource_def")) {
