@@ -467,8 +467,16 @@ data_types:
         type: org.alien4cloud.kubernetes.api.datatypes.ExecAction
         description: Exec specifies the action to take.
         required: false
-#      httpGet: TODO
-#      tcpSocket: TODO
+      httpGet:
+        type: org.alien4cloud.kubernetes.api.datatypes.HTTPGetAction
+        required: false
+        description: |
+          HTTPGet specifies the http request to perform.
+      tcpSocket:
+        type: org.alien4cloud.kubernetes.api.datatypes.TCPSocketAction
+        required: false
+        description: |
+          TCPSocket specifies an action involving a TCP port. TCP hooks not yet supported
 
   org.alien4cloud.kubernetes.api.datatypes.ExecAction:
     derived_from: tosca.datatypes.Root
@@ -483,6 +491,127 @@ data_types:
           Exit status of 0 is treated as live/healthy and non-zero is unhealthy.
         entry_schema:
           type: string
+
+  org.alien4cloud.kubernetes.api.datatypes.HTTPHeader:
+    derived_from: tosca.datatypes.Root
+    description: HTTPHeader describes a custom header to be used in HTTP probes
+    properties:
+      name:
+        type: string
+        description: The header field name
+      value:
+        type: string
+        description: The header field value
+
+  org.alien4cloud.kubernetes.api.datatypes.HTTPGetAction:
+    derived_from: tosca.datatypes.Root
+    description: HTTPGetAction describes an action based on HTTP Get requests.
+    properties:
+      host:
+        type: string
+        required: false
+        description: |
+          Host name to connect to, defaults to the pod IP. You probably want to set "Host" in httpHeaders instead.
+      httpHeaders:
+        type: list
+        required: false
+        description: |
+          Custom headers to set in the request. HTTP allows repeated headers.
+        entry_schema:
+          type: org.alien4cloud.kubernetes.api.datatypes.HTTPHeader
+      path:
+        type: string
+        required: false
+        description: |
+          Path to access on the HTTP server.
+      port:
+        type: integer
+        description: |
+          Name or number of the port to access on the container. Number must be in the range 1 to 65535. Name must be an IANA_SVC_NAME.
+        required: false
+        constraints:
+          - greater_or_equal: 1
+          - less_or_equal: 65535
+      scheme:
+        type: string
+        required: false
+        description: |
+          Scheme to use for connecting to the host. Defaults to HTTP.
+
+  org.alien4cloud.kubernetes.api.datatypes.TCPSocketAction:
+    derived_from: tosca.datatypes.Root
+    description: TCPSocketAction describes an action based on opening a socket
+    properties:
+      host:
+        type: string
+        required: false
+        description: |
+          Host name to connect to, defaults to the pod IP. You probably want to set "Host" in httpHeaders instead.
+      port:
+        type: integer
+        description: |
+          Name or number of the port to access on the container. Number must be in the range 1 to 65535. Name must be an IANA_SVC_NAME.
+        required: false
+        constraints:
+          - greater_or_equal: 1
+          - less_or_equal: 65535
+
+  org.alien4cloud.kubernetes.api.datatypes.Probe:
+    derived_from: tosca.datatypes.Root
+    description: Probe describes a health check to be performed against a container to determine whether it is alive or ready to receive traffic.
+    properties:
+      exec:
+        type: org.alien4cloud.kubernetes.api.datatypes.ExecAction
+        required: false
+        description: |
+          Exec specifies the action to take.
+      httpGet:
+        type: org.alien4cloud.kubernetes.api.datatypes.HTTPGetAction
+        required: false
+        description: |
+          HTTPGet specifies the http request to perform.
+      tcpSocket:
+        type: org.alien4cloud.kubernetes.api.datatypes.TCPSocketAction
+        required: false
+        description: |
+          TCPSocket specifies an action involving a TCP port. TCP hooks not yet supported
+      failureThreshold:
+        type: integer
+        required: false
+#        default: 3
+        constraints:
+          - greater_or_equal: 1
+        description: |
+          Minimum consecutive failures for the probe to be considered failed after having succeeded. Defaults to 3. Minimum value is 1.
+      initialDelaySeconds:
+        type: integer
+        required: false
+        description: |
+          Number of seconds after the container has started before liveness probes are initiated. More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes
+      periodSeconds:
+        type: integer
+        required: false
+#        default: 10
+        constraints:
+          - greater_or_equal: 1
+        description: |
+          How often (in seconds) to perform the probe. Default to 10 seconds. Minimum value is 1.
+      successThreshold:
+        type: integer
+        required: false
+#        default: 1
+        constraints:
+          - greater_or_equal: 1
+        description: |
+          Minimum consecutive successes for the probe to be considered successful after having failed. Defaults to 1. Must be 1 for liveness. Minimum value is 1.
+      timeoutSeconds:
+        type: integer
+        required: false
+#        default: 1
+        constraints:
+          - greater_or_equal: 1
+        description: |
+          Number of seconds after which the probe times out. Defaults to 1 second. Minimum value is 1. More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes
 
   org.alien4cloud.kubernetes.api.datatypes.ContainerSpec:
     derived_from: tosca.datatypes.Root
@@ -530,10 +659,11 @@ data_types:
         description: |
           Actions that the management system should take in response to container lifecycle events. Cannot be updated.
         required: false
-      # livenessProbe:
-      #   type: Probe
-      #   description: |
-      #     Periodic probe of container liveness. Container will be restarted if the probe fails. Cannot be updated. More info: http://kubernetes.io/docs/user-guide/pod-states#container-probes
+      livenessProbe:
+        type: org.alien4cloud.kubernetes.api.datatypes.Probe
+        required: false
+        description: |
+          Periodic probe of container liveness. Container will be restarted if the probe fails. Cannot be updated. More info: http://kubernetes.io/docs/user-guide/pod-states#container-probes
       name:
         type: string
         required: false
@@ -546,10 +676,11 @@ data_types:
           type: org.alien4cloud.kubernetes.api.datatypes.ContainerPort
         description: |
           array List of ports to expose from the container. Exposing a port here gives the system additional information about the network connections a container uses, but is primarily informational. Not specifying a port here DOES NOT prevent that port from being exposed. Any port which is listening on the default "0.0.0.0" address inside a container will be accessible from the network. Cannot be updated.
-      # readinessProbe:
-      #   type: Probe
-      #   description: |
-      #     Periodic probe of container service readiness. Container will be removed from service endpoints if the probe fails. Cannot be updated. More info: http://kubernetes.io/docs/user-guide/pod-states#container-probes
+      readinessProbe:
+        type: org.alien4cloud.kubernetes.api.datatypes.Probe
+        required: false
+        description: |
+          Periodic probe of container service readiness. Container will be removed from service endpoints if the probe fails. Cannot be updated. More info: http://kubernetes.io/docs/user-guide/pod-states#container-probes
       resources:
         type: org.alien4cloud.kubernetes.api.datatypes.ResourceRequirements
         required: false
