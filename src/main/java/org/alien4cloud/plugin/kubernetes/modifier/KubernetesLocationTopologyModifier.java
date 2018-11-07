@@ -454,7 +454,8 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
                     // we need to add a depends_on between the source deployment and the service (if not already exist)
                     NodeTemplate sourceDeploymentHost = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology, containerSourceCandidateNodeTemplate,
                             K8S_TYPES_ABSTRACT_DEPLOYMENT);
-                    if (!TopologyNavigationUtil.hasRelationship(sourceDeploymentHost, serviceNode.getName(), "dependency", "feature")) {
+                    // exclude if source and target containers are hosted on the same deployment
+                    if (sourceDeploymentHost != deploymentNodeTemplate && !TopologyNavigationUtil.hasRelationship(sourceDeploymentHost, serviceNode.getName(), "dependency", "feature")) {
                         addRelationshipTemplate(csar, topology, sourceDeploymentHost, serviceNode.getName(), NormativeRelationshipConstants.DEPENDS_ON,
                                 "dependency", "feature");
                     }

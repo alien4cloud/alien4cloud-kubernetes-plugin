@@ -557,24 +557,9 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         if (KubeTopologyUtils.isTargetedEndpointProperty(topology, nodeTemplate, iValue)) {
             return KubeTopologyUtils.getTargetedEndpointProperty(topology, nodeTemplate, iValue);
         }
-        if (KubeTopologyUtils.isServiceIpAddress(topology, nodeTemplate, iValue)) {
-            NodeTemplate serviceTemplate = KubeTopologyUtils.getServiceDependency(topology, nodeTemplate, iValue);
-            if (serviceTemplate != null) {
-                AbstractPropertyValue serviceNameValue = PropertyUtil
-                        .getPropertyValueFromPath(serviceTemplate.getProperties(), "metadata.name");
-                String serviceName = PropertyUtil.getScalarValue(serviceNameValue);
-
-                List<String> serviceIpAddresses = serviceIpAddressesPerDeploymentResource.get(deploymentResource.getName());
-                if (serviceIpAddresses == null) {
-                    serviceIpAddresses = Lists.newArrayList();
-                    serviceIpAddressesPerDeploymentResource.put(deploymentResource.getName(), serviceIpAddresses);
-                }
-                serviceIpAddresses.add(serviceName);
-
-                return new ScalarPropertyValue("${SERVICE_IP_LOOKUP" + (serviceIpAddresses.size() - 1) + "}");
-            } else {
-                context.getLog().warn("Can not resolve service dependency for input <" + inputName + "> (" + serializePropertyValue(iValue)+ ") of container <" + nodeTemplate.getName() + ">");
-            }
+        Optional<String> dependencyIpAddress = KubeTopologyUtils.getDependencyIpAddress(topology, nodeTemplate, iValue, serviceIpAddressesPerDeploymentResource, deploymentResource.getName());
+        if (dependencyIpAddress.isPresent()) {
+            return new ScalarPropertyValue(dependencyIpAddress.get());
         }
         try {
             AbstractPropertyValue propertyValue =
