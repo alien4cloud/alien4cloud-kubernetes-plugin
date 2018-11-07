@@ -639,6 +639,9 @@ data_types:
       cpu:
         type: float
         required: false
+      nvidia.com/gpu:
+        type: integer
+        required: false
 
   org.alien4cloud.kubernetes.api.datatypes.Affinity:
     derived_from: tosca.datatypes.Root
