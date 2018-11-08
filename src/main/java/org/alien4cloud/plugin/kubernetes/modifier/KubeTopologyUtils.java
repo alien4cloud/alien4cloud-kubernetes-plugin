@@ -29,6 +29,7 @@ public class KubeTopologyUtils {
     // A4C & normatives types
     public static final String A4C_TYPES_CONTAINER_RUNTIME = "org.alien4cloud.extended.container.types.ContainerRuntime";
     public static final String A4C_TYPES_CONTAINER_DEPLOYMENT_UNIT = "org.alien4cloud.extended.container.types.ContainerDeploymentUnit";
+    public static final String A4C_TYPES_CONTAINER_JOB_UNIT = "org.alien4cloud.extended.container.types.ContainerJobUnit";
     public static final String A4C_TYPES_APPLICATION_DOCKER_CONTAINER = "tosca.nodes.Container.Application.DockerContainer";
     public static final String A4C_TYPES_APPLICATION_CONFIGURABLE_DOCKER_CONTAINER = "tosca.nodes.Container.Application.ConfigurableDockerContainer";
     public static final String A4C_TYPES_DOCKER_VOLUME = "org.alien4cloud.nodes.DockerExtVolume";
@@ -36,6 +37,7 @@ public class KubeTopologyUtils {
     // K8S abstract types
     public static final String K8S_TYPES_ABSTRACT_CONTAINER = "org.alien4cloud.kubernetes.api.types.AbstractContainer";
     public static final String K8S_TYPES_ABSTRACT_DEPLOYMENT = "org.alien4cloud.kubernetes.api.types.AbstractDeployment";
+    public static final String K8S_TYPES_ABSTRACT_JOB = "org.alien4cloud.kubernetes.api.types.AbstractJob";
     public static final String K8S_TYPES_ABSTRACT_SERVICE = "org.alien4cloud.kubernetes.api.types.AbstractService";
     public static final String K8S_TYPES_ABSTRACT_VOLUME_BASE = "org.alien4cloud.kubernetes.api.types.volume.AbstractVolumeBase";
     public static final String K8S_TYPES_ABSTRACT_ARTIFACT_VOLUME_BASE = "org.alien4cloud.kubernetes.api.types.volume.AbstractArtifactVolumeBase";
@@ -43,6 +45,7 @@ public class KubeTopologyUtils {
     // K8S concrete types
     public static final String K8S_TYPES_CONTAINER = "org.alien4cloud.kubernetes.api.types.Container";
     public static final String K8S_TYPES_DEPLOYMENT = "org.alien4cloud.kubernetes.api.types.Deployment";
+    public static final String K8S_TYPES_JOB = "org.alien4cloud.kubernetes.api.types.Job";
     public static final String K8S_TYPES_SERVICE = "org.alien4cloud.kubernetes.api.types.Service";
     public static final String K8S_TYPES_SERVICE_INGRESS = "org.alien4cloud.kubernetes.api.types.IngressService";
     // K8S volume types
@@ -51,7 +54,9 @@ public class KubeTopologyUtils {
     public static final String K8S_TYPES_SECRET_VOLUME = "org.alien4cloud.kubernetes.api.types.volume.SecretSource";
     // K8S resource types
     public static final String K8S_TYPES_DEPLOYMENT_RESOURCE = "org.alien4cloud.kubernetes.api.types.DeploymentResource";
-    public static final String K8S_TYPES_RESOURCE = "org.alien4cloud.kubernetes.api.types.BaseResource";
+    public static final String K8S_TYPES_JOB_RESOURCE = "org.alien4cloud.kubernetes.api.types.JobResource";
+    public static final String K8S_TYPES_BASE_JOB_RESOURCE = "org.alien4cloud.kubernetes.api.types.BaseJobResource";
+    public static final String K8S_TYPES_BASE_RESOURCE = "org.alien4cloud.kubernetes.api.types.BaseResource";
     public static final String K8S_TYPES_SERVICE_RESOURCE = "org.alien4cloud.kubernetes.api.types.ServiceResource";
     public static final String K8S_TYPES_SIMPLE_RESOURCE = "org.alien4cloud.kubernetes.api.types.SimpleResource";
     public static final String K8S_TYPES_ENDPOINT_RESOURCE = "org.alien4cloud.kubernetes.api.types.EndpointResource";

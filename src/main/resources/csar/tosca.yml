@@ -7,7 +7,7 @@ metadata:
   template_author: alien4cloud
 
 description: |
-  Kubernetes types that fit to K8S api, used by K8S topology modifiers and describe K8S matchable resources.
+  Kubernetes types that fit to K8S api, used by K8S topology modifiers and describe K8S matchable resources ; modified for Jobs support.
 
 imports:
   - tosca-normative-types:1.0.0-ALIEN20
@@ -82,6 +82,8 @@ data_types:
 
   org.alien4cloud.kubernetes.api.datatypes.EndpointSubsets:
     derived_from: tosca.datatypes.Root
+    description: >
+      c.f. https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#endpointsubset-v1-core
     properties:
       addresses:
         type: list
@@ -100,6 +102,8 @@ data_types:
 
   org.alien4cloud.kubernetes.api.datatypes.Port:
     derived_from: tosca.datatypes.Root
+    description: >
+      c.f. https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#endpointport-v1-core
     properties:
 #      name:
 #        type: string
@@ -179,8 +183,19 @@ data_types:
         constraints:
           valid_values: [ 'ExternalName', 'ClusterIP', 'NodePort', 'LoadBalancer' ]
 
-  org.alien4cloud.kubernetes.api.datatypes.DeploymentSpec:
+  org.alien4cloud.kubernetes.api.datatypes.ControllerSpec:
     derived_from: tosca.datatypes.Root
+    description: >
+      Used to provied template of PodTemplateSpec to controllers as Job, Deployment, and in the future, StatefulSet
+    properties:
+      template:
+        type: org.alien4cloud.kubernetes.api.datatypes.PodTemplateSpec
+        required: false
+        description: |
+          Template describes the pods that will be created.
+
+  org.alien4cloud.kubernetes.api.datatypes.DeploymentSpec:
+    derived_from: org.alien4cloud.kubernetes.api.datatypes.ControllerSpec
     description: >
       c.f. https://kubernetes.io/docs/api-reference/v1.6/#deploymentspec-v1beta1-apps
     properties:
@@ -224,11 +239,38 @@ data_types:
         required: false
         description: |
           The deployment strategy to use to replace existing pods with new ones.
-      template:
-        type: org.alien4cloud.kubernetes.api.datatypes.PodTemplateSpec
+
+  # in version 1.10 there is another property : backoffLimit (integer) that specifies the number of retries before making this job failed (set to 6 by default)
+  org.alien4cloud.kubernetes.api.datatypes.JobSpec:
+    derived_from: org.alien4cloud.kubernetes.api.datatypes.ControllerSpec
+    description: >
+      c.f. https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#jobspec-v1-batch
+    properties:
+      activeDeadlineSeconds:
+        type: integer
         required: false
         description: |
-          Template describes the pods that will be created.
+          Optional duration in seconds relative to the startTime that the job may be active before the system tries to terminate it; value must be positive integer
+      completions:
+        type: integer
+        required: false
+        description: |
+          Completions specifies the desired number of successfully finished pods the job should be run with.
+      manualSelector:
+        type: boolean
+        required: false
+        description: |
+          ManualSelector controls generation of pod labels and pod selectors. When false or unset, the system pick labels unique to this job and appends those labels to the pod template.
+      parallelism:
+        type: integer
+        required: false
+        description: |
+          Parallelism specifies the maximum desired number of pods the job should run at any given time.
+      selector:
+        type: string # datetype: org.alien4cloud.kubernetes.api.datatypes.LabelSelector
+        required: false
+        description: |
+          Label query over pods that should match the pod count. Normally, the system sets this field for you
 
   org.alien4cloud.kubernetes.api.datatypes.PodTemplateSpec:
     derived_from: tosca.datatypes.Root
@@ -272,6 +314,8 @@ data_types:
 
   org.alien4cloud.kubernetes.api.datatypes.PodSpec:
     derived_from: tosca.datatypes.Root
+    description: >
+      c.f. hhttps://kubernetes.io/docs/api-reference/v1.6/#podtspec-v1-core
     properties:
       activeDeadlineSeconds:
         type: integer
@@ -386,6 +430,8 @@ data_types:
 
   org.alien4cloud.kubernetes.api.datatypes.ContainerPort:
     derived_from: tosca.datatypes.Root
+    description: >
+      c.f. hhttps://kubernetes.io/docs/api-reference/v1.6/#containerport-v1-core
     properties:
       containerPort:
         type: integer
@@ -615,6 +661,8 @@ data_types:
 
   org.alien4cloud.kubernetes.api.datatypes.ContainerSpec:
     derived_from: tosca.datatypes.Root
+    description: >
+      c.f. hhttps://kubernetes.io/docs/api-reference/v1.6/#container-v1-core
     properties:
       args:
         type: list
@@ -730,6 +778,8 @@ data_types:
 
   org.alien4cloud.kubernetes.api.datatypes.VolumeMount:
     derived_from: tosca.datatypes.Root
+    description: >
+      c.f. hhttps://kubernetes.io/docs/api-reference/v1.6/#volumemount-v1-core
     properties:
       mountPath:
         type: string
@@ -749,6 +799,8 @@ data_types:
 
   org.alien4cloud.kubernetes.api.datatypes.ResourceRequirements:
     derived_from: tosca.datatypes.Root
+    description: >
+      c.f. hhttps://kubernetes.io/docs/api-reference/v1.6/#resourcerequirements-v1-core
     properties:
       limits:
         type: org.alien4cloud.kubernetes.api.datatypes.ResourceRequest
@@ -1479,6 +1531,17 @@ node_types:
       spec:
         type: org.alien4cloud.kubernetes.api.datatypes.ServiceSpec
 
+  # Could define an AbstractCrontroller type, super-type for AbstractDeployment and for AbstractJob
+  # [This could allow to choose between Job and Deployment when matching ContainerDeploymentUnit]
+  # org.alien4cloud.kubernetes.api.types.AbstractDeployment:
+  #  abstract: true
+  #  derived_from: org.alien4cloud.kubernetes.api.types.Base
+  # could define spec property here, type could be org.alien4cloud.kubernetes.api.datatypes.ControllerSpec
+  #  properties:
+  #    spec:
+  #      type: org.alien4cloud.kubernetes.api.datatypes.ControllerSpec
+  # in this case don't need to define spec property in AbstractDeployment and AbstractJobe
+
   org.alien4cloud.kubernetes.api.types.Deployment:
     derived_from: org.alien4cloud.kubernetes.api.types.AbstractDeployment
 
@@ -1505,8 +1568,38 @@ node_types:
         default: Deployment
         constraints:
           - equal: Deployment
+      # Could remove this if we derive AbstractDeployment from AbstractController
       spec:
         type: org.alien4cloud.kubernetes.api.datatypes.DeploymentSpec
+
+  org.alien4cloud.kubernetes.api.types.Job:
+    derived_from: org.alien4cloud.kubernetes.api.types.AbstractJob
+
+  org.alien4cloud.kubernetes.api.types.AbstractJob:
+    abstract: true
+    derived_from: org.alien4cloud.kubernetes.api.types.Base
+    description: >
+      Represent a kubernetes Job
+    capabilities:
+      host: tosca.capabilities.Container.Docker
+    properties:
+      apiVersion:
+        type: string
+        description: |
+          APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#resources
+        default: batch/v1
+        constraints:
+          - equal: batch/v1
+      kind:
+        type: string
+        description: |
+          Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#types-kinds
+        default: Job
+        constraints:
+          - equal: Job
+      # Could remove this if we derive AbstractJob from AbstractController
+      spec:
+        type: org.alien4cloud.kubernetes.api.datatypes.JobSpec
 
   org.alien4cloud.kubernetes.api.types.HorizontalPodAutoscaler:
     derived_from: org.alien4cloud.kubernetes.api.types.Base
@@ -1614,6 +1707,28 @@ node_types:
             INSTANCES_DELTA:
               type: integer
           implementation: scripts/kubectl_deployment_scale.sh
+
+  org.alien4cloud.kubernetes.api.types.BaseJobResource:
+    abstract: true
+    derived_from: org.alien4cloud.nodes.Job
+    description: >
+      Represent a Job kubernetes final resource after node matching
+    properties:
+      resource_spec:
+        type: string
+        description: |
+          The the JSON serialization (and eventually transformation) of initial node properties.
+          This JSON can be used to instanciate the resource on the K8S cluster.
+
+  org.alien4cloud.kubernetes.api.types.JobResource:
+    derived_from: org.alien4cloud.kubernetes.api.types.BaseJobResource
+    interfaces:
+      tosca.interfaces.node.lifecycle.Runnable:
+        run:
+          inputs:
+            KUBE_RESOURCE_JOB_CONFIG: { get_property: [SELF, resource_spec] }
+          implementation: scripts/kubectl_job_run.sh
+          description: Standard lifecycle run operation.
 
   org.alien4cloud.kubernetes.api.types.EndpointResource:
     derived_from: org.alien4cloud.kubernetes.api.types.BaseResource
