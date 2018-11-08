@@ -132,7 +132,7 @@ public class KubeTopologyUtils {
         // a get_attribute that searchs an ip_address on a requirement that targets a Docker Container should return true
         if (inputParameterValue instanceof FunctionPropertyValue) {
             FunctionPropertyValue evaluatedFunction = (FunctionPropertyValue) inputParameterValue;
-            if (evaluatedFunction.getFunction().equals(ToscaFunctionConstants.GET_ATTRIBUTE) && evaluatedFunction.getTemplateName().equals(ToscaFunctionConstants.R_TARGET) && evaluatedFunction.getElementNameToFetch().equals("ip_address")) {
+            if (evaluatedFunction.getFunction().equals(ToscaFunctionConstants.GET_ATTRIBUTE) && evaluatedFunction.getTemplateName().equals(ToscaFunctionConstants.R_TARGET)) {
                 String requirement = evaluatedFunction.getCapabilityOrRequirementName();
                 if (requirement != null) {
                     Set<RelationshipTemplate> targetRelationships = TopologyNavigationUtil.getTargetRelationships(sourceNodeTemplate, requirement);
