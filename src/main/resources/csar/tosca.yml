@@ -1714,6 +1714,11 @@ node_types:
     description: >
       Represent a Job kubernetes final resource after node matching
     properties:
+      namespace:
+        type: string
+        required: false
+        description: |
+          The namespace where the resource is deployed.
       resource_spec:
         type: string
         description: |
