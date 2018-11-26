@@ -1,26 +1,56 @@
 #!/bin/bash
-
+set -e
 # configuration
 KUBE_ADMIN_CONFIG_PATH=/etc/kubernetes/admin.conf
 
-function create_resource(){
-    DEPLOYMENT_TMP_FILE=$(mktemp)
+# Get active logs
+activeJobs=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}"  get "${KUBE_JOB_ID}" -o=jsonpath={.status.active})
 
-    # create resource deployment definition
-    echo "${KUBE_RESOURCE_JOB_CONFIG}" > "${JOB_TMP_FILE}"
+# Get failed jobs
+failedJobs=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}"  get "${KUBE_JOB_ID}" -o=jsonpath={.status.failed})
+if [[ -z "${failedJobs}" ]] ; then 
+    failedJobs=0
+fi
 
-    # deploy
-    export KUBE_JOB_ID=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" create -f "${JOB_TMP_FILE}" | sed -r 's/job "([a-zA-Z0-9\-]*)" created/\1/')
-    export JOB_STATUS=$?
+# Get succeeded jobs
+succeededJobs=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}"  get "${KUBE_JOB_ID}" -o=jsonpath={.status.succeeded})
+if [[ -z "${succeededJobs}" ]] ; then 
+    succeededJobs=0
+fi
 
-    # cleanup
-    rm "${JOB_TMP_FILE}"
+# Get expected completions
+expectedCompletions=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}"  get "${KUBE_JOB_ID}" -o=jsonpath={.spec.completions})
 
-    exit_if_error
+if [[ -n "${activeJobs}" ]] || ( [[ "${succeededJobs}" == "0" ]] && [[ "${failedJobs}" == "0" ]] ); then
+    # Some jobs are still running
+    echo "${succeededJobs}/${expectedCompletions} succeeded completions (${activeJobs} still running, ${failedJobs} failed)"
+    export TOSCA_JOB_STATUS="RUNNING"
+    exit 0
+fi
 
-    command="kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" get job ${KUBE_JOB_ID} -o=jsonpath={.status.conditions[*].status}"
+# We are done retrieve logs
+pods=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}"  get pods --selector=job-name=${KUBE_JOB_ID##*/} --output=jsonpath={.items..metadata.name})
+for pod in ${pods} ; do
+    echo "logs from pod: ${pod}"
+    kubectl logs ${pod}
+done
 
-    #wait_until_done_or_exit "$command" 60
-}
+echo
+echo
 
-create_resource
+if [[ ${succeededJobs} -ge ${expectedCompletions} ]] ; then 
+    # We reached the minimum number of completions
+    echo "Job succeeded"
+    echo "${succeededJobs}/${expectedCompletions} succeeded completions, ${failedJobs} failed"
+    export TOSCA_JOB_STATUS="COMPLETED"
+
+    kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" delete "${KUBE_JOB_ID}"
+
+    exit 0
+fi
+
+# Not enougth successful completions
+echo "Job failed"
+echo "${succeededJobs}/${expectedCompletions} succeeded completions, ${failedJobs} failed"
+export TOSCA_JOB_STATUS="FAILED"
+kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" delete "${KUBE_JOB_ID}"
