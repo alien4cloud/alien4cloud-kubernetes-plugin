@@ -1722,8 +1722,6 @@ node_types:
 
   org.alien4cloud.kubernetes.api.types.JobResource:
     derived_from: org.alien4cloud.kubernetes.api.types.BaseJobResource
-    attributes:
-      job_id: {get_operation_output: [SELF, tosca.interfaces.node.lifecycle.Runnable, submit, KUBE_JOB_ID]}
     interfaces:
       tosca.interfaces.node.lifecycle.Runnable:
         submit:
@@ -1732,13 +1730,9 @@ node_types:
           implementation: scripts/kubectl_job_submit.sh
           description: Standard lifecycle submit operation.
         run:
-          inputs:
-            KUBE_JOB_ID: { get_attribute: [SELF, job_id] }
           implementation: scripts/kubectl_job_run.sh
           description: Standard lifecycle run operation.
         cancel:
-          inputs:
-            KUBE_JOB_ID: { get_attribute: [SELF, job_id] }
           implementation: scripts/kubectl_job_cancel.sh
           description: Standard lifecycle cancel operation.
 
