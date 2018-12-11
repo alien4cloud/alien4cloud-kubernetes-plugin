@@ -1729,11 +1729,17 @@ node_types:
     derived_from: org.alien4cloud.kubernetes.api.types.BaseJobResource
     interfaces:
       tosca.interfaces.node.lifecycle.Runnable:
-        run:
+        submit:
           inputs:
             KUBE_RESOURCE_JOB_CONFIG: { get_property: [SELF, resource_spec] }
+          implementation: scripts/kubectl_job_submit.sh
+          description: Standard lifecycle submit operation.
+        run:
           implementation: scripts/kubectl_job_run.sh
           description: Standard lifecycle run operation.
+        cancel:
+          implementation: scripts/kubectl_job_cancel.sh
+          description: Standard lifecycle cancel operation.
 
   org.alien4cloud.kubernetes.api.types.EndpointResource:
     derived_from: org.alien4cloud.kubernetes.api.types.BaseResource
