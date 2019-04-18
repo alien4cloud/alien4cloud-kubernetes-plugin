@@ -272,6 +272,45 @@ data_types:
         description: |
           Label query over pods that should match the pod count. Normally, the system sets this field for you
 
+  org.alien4cloud.kubernetes.api.datatypes.StatefulSetSpec:
+    derived_from: org.alien4cloud.kubernetes.api.datatypes.ControllerSpec
+    description: >
+      c.f. https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.12/#statefulsetspec-v1-apps
+    properties:
+      replicas:
+        type: integer
+        required: false
+        description: |
+          Desired number of replicas of the given Template. These are replicas in the sense that they are instantiations of the same Template, but individual replicas also have a consistent identity. If unspecified, defaults to 1.
+      revisionHistoryLimit:
+        type: integer
+        required: false
+        description: |
+          Maximum number of revisions that will be maintained in the StatefulSet's revision history. The revision history consists of all revisions not represented by a currently applied StatefulSetSpec version. The default value is 10.
+      selector:
+        type: string # datetype: org.alien4cloud.kubernetes.api.datatypes.LabelSelector
+        required: false
+        description: |
+          Label query over pods that should match the pod count. Normally, the system sets this field for you
+      serviceName:
+        type: string
+        required: false
+        description: |-
+          Name of the service that governs this StatefulSet. This service must exist before the StatefulSet, and is responsible for the network identity of the set. Pods get DNS/hostnames that follow the pattern: pod-specific-string.serviceName.default.svc.cluster.local where "pod-specific-string" is managed by the StatefulSet controller.
+      updateStrategy:
+        type: string # datetype: StatefulSetUpdateStrategy
+        required: false
+        description: |
+          The deployment strategy to use to replace existing pods with new ones.
+      volumeClaimTemplates:
+        type: map
+        required: false
+        description: |
+          List of claims that pods are allowed to reference. The StatefulSet controller is responsible for mapping network identities to claims in a way that maintains the identity of a pod. Every claim in this list must have at least one matching (by name) volumeMount in one container in the template. A claim in this list takes precedence over any volumes in the template, with the same name.
+        entry_schema:
+          type: org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimSource
+
+
   org.alien4cloud.kubernetes.api.datatypes.PodTemplateSpec:
     derived_from: tosca.datatypes.Root
     description: >
