@@ -186,7 +186,7 @@ data_types:
   org.alien4cloud.kubernetes.api.datatypes.ControllerSpec:
     derived_from: tosca.datatypes.Root
     description: >
-      Used to provied template of PodTemplateSpec to controllers as Job, Deployment, and in the future, StatefulSet
+      Used to provied template of PodTemplateSpec to controllers as Job, Deployment, and StatefulSet
     properties:
       template:
         type: org.alien4cloud.kubernetes.api.datatypes.PodTemplateSpec
@@ -295,7 +295,7 @@ data_types:
       serviceName:
         type: string
         required: false
-        description: |-
+        description: |
           Name of the service that governs this StatefulSet. This service must exist before the StatefulSet, and is responsible for the network identity of the set. Pods get DNS/hostnames that follow the pattern: pod-specific-string.serviceName.default.svc.cluster.local where "pod-specific-string" is managed by the StatefulSet controller.
       updateStrategy:
         type: string # datetype: StatefulSetUpdateStrategy
@@ -303,7 +303,7 @@ data_types:
         description: |
           The deployment strategy to use to replace existing pods with new ones.
       volumeClaimTemplates:
-        type: map
+        type: list
         required: false
         description: |
           List of claims that pods are allowed to reference. The StatefulSet controller is responsible for mapping network identities to claims in a way that maintains the identity of a pod. Every claim in this list must have at least one matching (by name) volumeMount in one container in the template. A claim in this list takes precedence over any volumes in the template, with the same name.
@@ -1580,6 +1580,26 @@ node_types:
   #    spec:
   #      type: org.alien4cloud.kubernetes.api.datatypes.ControllerSpec
   # in this case don't need to define spec property in AbstractDeployment and AbstractJobe
+  
+  org.alien4cloud.kubernetes.api.types.StatefulSet:
+    derived_from: org.alien4cloud.kubernetes.api.types.AbstractStatefulSet
+
+  org.alien4cloud.kubernetes.api.types.AbstractStatefulSet:
+    abstract: true
+    derived_from: org.alien4cloud.kubernetes.api.types.Base
+    description: >
+      Represent a kubernetes StatefulSet
+    properties:
+      apiVersion:
+        default: apps/v1
+        constraints:
+          - equal: apps/v1
+      kind:
+        default: StatefulSet
+        constraints:
+          - equal: StatefulSet
+      spec:
+        type: org.alien4cloud.kubernetes.api.datatypes.StatefulSetSpec
 
   org.alien4cloud.kubernetes.api.types.Deployment:
     derived_from: org.alien4cloud.kubernetes.api.types.AbstractDeployment
