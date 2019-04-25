@@ -1766,6 +1766,47 @@ node_types:
             INSTANCES_DELTA:
               type: integer
           implementation: scripts/kubectl_deployment_scale.sh
+  
+  org.alien4cloud.kubernetes.api.types.StatefulSetResource:
+    derived_from: org.alien4cloud.kubernetes.api.types.BaseResource
+    properties:
+      resource_id:
+        type: string
+        required: true
+        description: |
+          a unique id set by a4c to identify a resource. it should be added as a label named 'a4c_id'
+      service_dependency_lookups:
+        type: string
+        required: false
+        description: |
+          A CSV key:value pairs where key should be replaced by the interpretation of value in the JSON.
+          The value is the Kube name of the service for which the scheduler will need to find the ClusterIP and
+          replace the key in the JSON with the found value.
+    capabilities:
+      # Manage scalability of instances
+      scalable: org.alien4cloud.capabilities.ClusterController
+    attributes:
+      statefulset_id: { get_operation_output: [SELF, Standard, create, KUBE_STATEFULSET_ID] }
+    interfaces:
+      Standard:
+        create:
+          inputs:
+            #KUBE_SERVICE_DEPENDENCIES: { get_property: [SELF, service_dependency_lookups] }
+            KUBE_RESOURCE_STATEFULSET_CONFIG: { get_property: [SELF, resource_spec] }
+            NAMESPACE: { get_property: [SELF, namespace] }
+        delete:
+          inputs:
+            KUBE_STATEFULSET_ID: { get_property: [SELF, resource_id] }
+            NAMESPACE: { get_property: [SELF, namespace] }
+      org.alien4cloud.management.ClusterControl:
+        scale:
+          inputs:
+            KUBE_STATEFULSET_ID: { get_attribute: [SELF, statefulset_id] }
+            NAMESPACE: { get_property: [SELF, namespace] }
+            EXPECTED_INSTANCES:
+              type: integer
+            INSTANCES_DELTA:
+              type: integer
 
   org.alien4cloud.kubernetes.api.types.BaseJobResource:
     abstract: true
