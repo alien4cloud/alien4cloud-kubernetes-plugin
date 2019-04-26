@@ -302,13 +302,14 @@ data_types:
         required: false
         description: |
           The deployment strategy to use to replace existing pods with new ones.
-      volumeClaimTemplates:
-        type: list
-        required: false
-        description: |
-          List of claims that pods are allowed to reference. The StatefulSet controller is responsible for mapping network identities to claims in a way that maintains the identity of a pod. Every claim in this list must have at least one matching (by name) volumeMount in one container in the template. A claim in this list takes precedence over any volumes in the template, with the same name.
-        entry_schema:
-          type: org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimSource
+      # Maybe not useful (use directly those defined in containerSpec)
+      # volumeClaimTemplates:
+      #   type: list
+      #   required: false
+      #   description: |
+      #     List of claims that pods are allowed to reference. The StatefulSet controller is responsible for mapping network identities to claims in a way that maintains the identity of a pod. Every claim in this list must have at least one matching (by name) volumeMount in one container in the template. A claim in this list takes precedence over any volumes in the template, with the same name.
+      #   entry_schema:
+      #     type: org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimSource
 
 
   org.alien4cloud.kubernetes.api.datatypes.PodTemplateSpec:
@@ -1591,10 +1592,12 @@ node_types:
       Represent a kubernetes StatefulSet
     properties:
       apiVersion:
+        type: string
         default: apps/v1
         constraints:
           - equal: apps/v1
       kind:
+        type: string
         default: StatefulSet
         constraints:
           - equal: StatefulSet
