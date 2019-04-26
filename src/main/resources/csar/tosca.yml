@@ -1785,28 +1785,6 @@ node_types:
     capabilities:
       # Manage scalability of instances
       scalable: org.alien4cloud.capabilities.ClusterController
-    attributes:
-      statefulset_id: { get_operation_output: [SELF, Standard, create, KUBE_STATEFULSET_ID] }
-    interfaces:
-      Standard:
-        create:
-          inputs:
-            #KUBE_SERVICE_DEPENDENCIES: { get_property: [SELF, service_dependency_lookups] }
-            KUBE_RESOURCE_STATEFULSET_CONFIG: { get_property: [SELF, resource_spec] }
-            NAMESPACE: { get_property: [SELF, namespace] }
-        delete:
-          inputs:
-            KUBE_STATEFULSET_ID: { get_property: [SELF, resource_id] }
-            NAMESPACE: { get_property: [SELF, namespace] }
-      org.alien4cloud.management.ClusterControl:
-        scale:
-          inputs:
-            KUBE_STATEFULSET_ID: { get_attribute: [SELF, statefulset_id] }
-            NAMESPACE: { get_property: [SELF, namespace] }
-            EXPECTED_INSTANCES:
-              type: integer
-            INSTANCES_DELTA:
-              type: integer
 
   org.alien4cloud.kubernetes.api.types.BaseJobResource:
     abstract: true
