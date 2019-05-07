@@ -2,7 +2,7 @@ tosca_definitions_version: alien_dsl_2_0_0
 
 metadata:
   template_name: org.alien4cloud.kubernetes.api
-  template_version: 2.1.0-SNAPSHOT
+  template_version: 2.2.0-SNAPSHOT
   # this version will be changed at build time (see maven-replacer-plugin in pom.xml)
   template_author: alien4cloud
 
@@ -12,8 +12,8 @@ description: |
 imports:
   - tosca-normative-types:1.0.0-ALIEN20
   # these versions will be changed at build time (see maven-replacer-plugin in pom.xml)
-  - docker-types:2.1.0-SNAPSHOT
-  - alien-base-types:2.1.0-SNAPSHOT
+  - docker-types:2.2.0-SNAPSHOT
+  - alien-base-types:2.2.0-SNAPSHOT
 
 data_types:
 
@@ -1198,6 +1198,27 @@ data_types:
           Name of the secret in the pod's namespace to use. More info: https://kubernetes.io/docs/concepts/storage/volumes#secret
         required: true
 
+  org.alien4cloud.kubernetes.api.datatypes.internal.ConfigSetting:
+    derived_from: tosca.datatypes.Root
+    description: Setting for a set of prefixed inputs related to a given folder in the topology and for which a configMap will be mounted on the container (K8S).
+    properties:
+      mount_path:
+        type: string
+        description: where the config map will be mount onto the container.
+        required: true
+      mount_subPath:
+        type: string
+        description: where the config map will be mount onto the container.
+        required: false
+      input_prefix:
+        type: string
+        description: the prefix used for the input names.
+        required: true
+      config_path:
+        type: string
+        description: where to to find the files that will be used to create the configMap.
+        required: true
+
 node_types:
 
   # HOWTO: How about relationships and capabilities ?
@@ -1476,6 +1497,24 @@ node_types:
   org.alien4cloud.kubernetes.api.types.Service:
     derived_from: org.alien4cloud.kubernetes.api.types.AbstractService
 
+  org.alien4cloud.kubernetes.api.types.KubeService:
+    derived_from: org.alien4cloud.kubernetes.api.types.AbstractService
+    abstract: true
+    requirements:
+      - expose:
+          capability: org.alien4cloud.kubernetes.api.capabilities.KubeEndpoint
+          # use a RouteTo relationship ?
+          relationship: tosca.relationships.ConnectsTo
+          occurrences: [1, 1]
+
+  org.alien4cloud.kubernetes.api.types.KubeNodeportService:
+    derived_from: org.alien4cloud.kubernetes.api.types.KubeService
+    properties:
+      spec:
+        type: org.alien4cloud.kubernetes.api.datatypes.ServiceSpec
+        default:
+          service_type: NodePort
+
   org.alien4cloud.kubernetes.api.types.IngressService:
     derived_from: org.alien4cloud.kubernetes.api.types.Service
     description: |
@@ -1544,6 +1583,13 @@ node_types:
 
   org.alien4cloud.kubernetes.api.types.Deployment:
     derived_from: org.alien4cloud.kubernetes.api.types.AbstractDeployment
+
+  org.alien4cloud.kubernetes.api.types.KubeDeployment:
+    derived_from: org.alien4cloud.kubernetes.api.types.AbstractDeployment
+#    tags:
+#      icon: /images/kubernetes.png
+    capabilities:
+      host: org.alien4cloud.kubernetes.api.capabilities.KubeContainerHost
 
   org.alien4cloud.kubernetes.api.types.AbstractDeployment:
     abstract: true
@@ -1637,6 +1683,36 @@ node_types:
           This property can be specified to select from which repository the image will be pulled.
           The kubernetes image will be the concatenation of this property to the image property: {repository}/{image}
           Note that you may want to define imagePullSecrets references so kubernetes uses the right repository credentials. This property must be configured on the Deployment object.
+
+  org.alien4cloud.kubernetes.api.types.KubeContainer:
+    derived_from: tosca.nodes.Root
+#    tags:
+#      icon: /images/kubernetes.png
+    description: >
+      Represent a kubernetes ContainerSpec.
+    properties:
+      container:
+        type: org.alien4cloud.kubernetes.api.datatypes.ContainerSpec
+    requirements:
+      - host:
+          # a ContainerRuntime can be hosted on a ContainerDeploymentUnit
+          capability: org.alien4cloud.kubernetes.api.capabilities.KubeContainerHost
+          relationship: tosca.relationships.HostedOn
+          occurrences: [1, 1]
+    interfaces:
+      Standard:
+        create: scripts/void.sh
+
+  org.alien4cloud.kubernetes.api.types.KubeConfigurableContainer:
+    derived_from: org.alien4cloud.kubernetes.api.types.KubeContainer
+    description: >
+      A specification of a Kube Container that is configurable using configMaps.
+    properties:
+      config_settings:
+        type: list
+        required: false
+        entry_schema:
+          type: org.alien4cloud.kubernetes.api.datatypes.internal.ConfigSetting
 
   org.alien4cloud.kubernetes.api.types.BaseResource:
     abstract: true
@@ -1856,6 +1932,16 @@ node_types:
             KUBE_RESOURCE_ID: { get_property: [SELF, resource_id] }
             NAMESPACE: { get_property: [SELF, namespace] }
           implementation: scripts/kubectl_resource_wrapper_uninstall.sh
+
+capability_types:
+  org.alien4cloud.kubernetes.api.capabilities.KubeContainerHost:
+    derived_from: tosca.capabilities.Container
+    description: >
+      The capacity to host kube Docker containers.
+  org.alien4cloud.kubernetes.api.capabilities.KubeEndpoint:
+    derived_from: tosca.capabilities.Endpoint
+    description: >
+      When a container need to expose a port, it should expose this capability.
 
 relationship_types:
   org.alien4cloud.kubernetes.api.relationships.K8SEndpointConnectToEndpoint:

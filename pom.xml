@@ -49,8 +49,6 @@
     <hibernate-validator.version>5.0.2.Final</hibernate-validator.version>
     <javax.el-api.version>3.0.0</javax.el-api.version>
     <javax.el-impl.version>2.2.6</javax.el-impl.version>
-    <servlet-api.version>3.1.0</servlet-api.version>
-    <httpclient.version>4.3.2</httpclient.version>
     <commons-cli.version>1.2</commons-cli.version>
     <commons-lang.version>3.5</commons-lang.version>
     <commons-collections.version>4.1</commons-collections.version>
