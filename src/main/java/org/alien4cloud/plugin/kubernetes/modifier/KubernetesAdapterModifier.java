@@ -63,6 +63,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
     public static final String K8S_TYPES_KUBECONTAINER = "org.alien4cloud.kubernetes.api.types.KubeContainer";
     public static final String K8S_TYPES_CONFIGURABLE_KUBE_CONTAINER = "org.alien4cloud.kubernetes.api.types.KubeConfigurableContainer";
     public static final String K8S_TYPES_KUBE_SERVICE = "org.alien4cloud.kubernetes.api.types.KubeService";
+    public static final String K8S_TYPES_VOLUME_BASE = "org.alien4cloud.kubernetes.api.types.volume.VolumeBase";
 
     @Resource
     private WorkflowSimplifyService workflowSimplifyService;
@@ -136,6 +137,10 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
 //        Set<NodeTemplate> jobNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_JOB, false);
 //        jobNodes.forEach(nodeTemplate -> createJobResource(csar, topology, nodeTemplate, nodeReplacementMap, resourceNodeYamlStructures));
 
+        // replace all occurences of org.alien4cloud.nodes.DockerExtVolume by k8s abstract volumes
+        Set<NodeTemplate> volumeNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_VOLUME_BASE, true);
+        volumeNodes.forEach(nodeTemplate -> manageVolumesAtachment(csar, topology, nodeTemplate));
+
         // A function evaluator context will be usefull
         // FIXME: use topology inputs ?
         Map<String, AbstractPropertyValue> inputValues = Maps.newHashMap();
@@ -149,11 +154,8 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
                 nodeTemplate -> manageContainer(csar, topology, nodeTemplate, nodeReplacementMap, resourceNodeYamlStructures, functionEvaluatorContext,
                         serviceIpAddressesPerDeploymentResource, context));
 
-
-
-//        // for each volume node, populate the 'volumes' property of the corresponding deployment resource
-//        Set<NodeTemplate> volumeNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_VOLUME_BASE, true);
-//        volumeNodes.forEach(nodeTemplate -> manageVolume(context, csar, topology, nodeTemplate, nodeReplacementMap, resourceNodeYamlStructures));
+        // for each volume node, populate the 'volumes' property of the corresponding deployment resource
+        volumeNodes.forEach(nodeTemplate -> manageVolume(context, csar, topology, nodeTemplate, nodeReplacementMap, resourceNodeYamlStructures));
 //
 //        // check auto-scaling policies and build the equiv node
 //        Set<PolicyTemplate> policies = TopologyNavigationUtil.getPoliciesOfType(topology, K8S_POLICIES_AUTO_SCALING, true);
@@ -165,8 +167,8 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         services.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
         deploymentNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
 //        jobNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
-//        Set<NodeTemplate> volumes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_VOLUME_BASE, true);
-//        volumes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
+        Set<NodeTemplate> volumes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_VOLUME_BASE, true);
+        volumes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
         Set<NodeTemplate> containers = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_APPLICATION_DOCKER_CONTAINER, true, false);
         safe(containers).forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
 
@@ -212,6 +214,46 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
 //        servicesToRemove.stream().forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
 
 
+    }
+
+    /**
+     * Replace a node of type <code>org.alien4cloud.nodes.DockerExtVolume</code> by a node if type
+     * <code>org.alien4cloud.kubernetes.api.types.volume.AbstractVolumeBase</code>.
+     */
+    private void manageVolumesAtachment(Csar csar, Topology topology, NodeTemplate nodeTemplate) {
+        Set<RelationshipTemplate> relationships = TopologyNavigationUtil.getTargetRelationships(nodeTemplate, "attachment");
+        relationships.forEach(relationshipTemplate -> manageVolumeAttachment(csar, topology, nodeTemplate, relationshipTemplate));
+    }
+
+    /**
+     * For a given volume node template, and it's relationship to a target container, fill the property 'volumeMounts' of the corresponding container runtime.
+     */
+    private void manageVolumeAttachment(Csar csar, Topology topology, NodeTemplate volumeNodeTemplate, RelationshipTemplate relationshipTemplate) {
+        NodeTemplate containerNode = topology.getNodeTemplates().get(relationshipTemplate.getTarget());
+        // TODO: return if not a container
+        // TODO: return if not a org.alien4cloud.relationships.MountDockerVolume ?
+        // get the container_path property from the relationship
+        AbstractPropertyValue mountPath = PropertyUtil.getPropertyValueFromPath(relationshipTemplate.getProperties(), "container_path");
+        // get the container_subPath property from the relationship
+        AbstractPropertyValue mountSubPath = PropertyUtil.getPropertyValueFromPath(relationshipTemplate.getProperties(), "container_subPath");
+        // get the readonly property from the relationship
+        AbstractPropertyValue readonly = PropertyUtil.getPropertyValueFromPath(relationshipTemplate.getProperties(), "readonly");
+
+        // get the volume name
+        AbstractPropertyValue name = PropertyUtil.getPropertyValueFromPath(volumeNodeTemplate.getProperties(), "name");
+        if (mountPath != null && name != null) {
+            ComplexPropertyValue volumeMount = new ComplexPropertyValue();
+            volumeMount.setValue(Maps.newHashMap());
+            volumeMount.getValue().put("mountPath", mountPath);
+            volumeMount.getValue().put("name", name);
+            if (mountSubPath != null) {
+                volumeMount.getValue().put("subPath", mountSubPath);
+            }
+            if (readonly != null) {
+                volumeMount.getValue().put("readOnly", readonly);
+            }
+            appendNodePropertyPathValue(csar, topology, containerNode, "container.volumeMounts", volumeMount);
+        }
     }
 
     private void manageServiceRelationship(Csar csar, Topology topology, NodeTemplate serviceNode, FlowExecutionContext context) {
@@ -424,15 +466,18 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         }
         NodeTemplate targetContainer = topology.getNodeTemplates().get(relationshipTemplate.get().getTarget());
         // find the deployment that hosts this container
-        NodeTemplate deploymentContainer = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology, targetContainer, K8S_TYPES_DEPLOYMENT);
+        NodeTemplate deploymentContainer = TopologyNavigationUtil.getImmediateHostTemplate(topology, targetContainer);
         // get the deployment resource corresponding to this deployment
         NodeTemplate deploymentResourceNode = nodeReplacementMap.get(deploymentContainer.getName());
+
+        // get the volume name
+        AbstractPropertyValue name = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "name");
 
         managePersistentVolumeClaim(ctx, csar, topology, volumeNode, resourceNodeYamlStructures, deploymentResourceNode);
 
         Map<String, AbstractPropertyValue> deploymentResourceNodeProperties = resourceNodeYamlStructures.get(deploymentResourceNode.getName());
         Map<String, Object> volumeEntry = Maps.newHashMap();
-        AbstractPropertyValue name = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "name");
+
         AbstractPropertyValue volume_type = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "volume_type");
         AbstractPropertyValue volume_spec = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "spec");
         volumeEntry.put("name", name);

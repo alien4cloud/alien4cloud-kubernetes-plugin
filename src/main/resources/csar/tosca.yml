@@ -1693,6 +1693,8 @@ node_types:
     properties:
       container:
         type: org.alien4cloud.kubernetes.api.datatypes.ContainerSpec
+    capabilities:
+      attach: org.alien4cloud.capabilities.DockerVolumeAttachment
     requirements:
       - host:
           # a ContainerRuntime can be hosted on a ContainerDeploymentUnit
