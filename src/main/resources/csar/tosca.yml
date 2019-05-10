@@ -1281,7 +1281,7 @@ node_types:
         description: |
           Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#types-kinds
         constraints:
-          - valid_values: [Deployment, Service, HorizontalPodAutoscaler]
+          - valid_values: [Deployment, Service, Ingress, HorizontalPodAutoscaler]
       metadata:
         type: map
         required: false
@@ -1500,6 +1500,9 @@ node_types:
   org.alien4cloud.kubernetes.api.types.KubeService:
     derived_from: org.alien4cloud.kubernetes.api.types.AbstractService
     abstract: true
+    capabilities:
+      service_endpoint:
+        type: org.alien4cloud.kubernetes.api.capabilities.KubeServiceEndpoint
     requirements:
       - expose:
           capability: org.alien4cloud.kubernetes.api.capabilities.KubeEndpoint
@@ -1514,6 +1517,41 @@ node_types:
         type: org.alien4cloud.kubernetes.api.datatypes.ServiceSpec
         default:
           service_type: NodePort
+
+  org.alien4cloud.kubernetes.api.types.KubeIngress:
+    derived_from: org.alien4cloud.kubernetes.api.types.Base
+    description: |
+      Represent a kubernetes Ingress
+    properties:
+      apiVersion:
+        type: string
+        description: |
+          APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#resources
+        default: v1
+        constraints:
+          - equal: v1
+      kind:
+        type: string
+        description: |
+          Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#types-kinds
+        default: Ingress
+        constraints:
+          - equal: Ingress
+      tls_crt:
+        type: string
+        description: |
+          Optionnal base64 encoded certificate (if TLS need to be set for the ingress)
+        required: false
+      tls_key:
+        type: string
+        description: |
+          Optionnal base64 encoded key (if TLS need to be set for the ingress)
+        required: false
+    requirements:
+      - expose:
+          capability: org.alien4cloud.kubernetes.api.capabilities.KubeServiceEndpoint
+          relationship: org.alien4cloud.kubernetes.api.relationships.ConnectUrlTo
+          occurrences: [1, unbounded]
 
   org.alien4cloud.kubernetes.api.types.IngressService:
     derived_from: org.alien4cloud.kubernetes.api.types.Service
@@ -1944,6 +1982,10 @@ capability_types:
     derived_from: tosca.capabilities.Endpoint
     description: >
       When a container need to expose a port, it should expose this capability.
+  org.alien4cloud.kubernetes.api.capabilities.KubeServiceEndpoint:
+    derived_from: tosca.capabilities.Endpoint
+    description: >
+      When a service need to expose a port, it should expose this capability.
 
 relationship_types:
   org.alien4cloud.kubernetes.api.relationships.K8SEndpointConnectToEndpoint:
@@ -1957,6 +1999,20 @@ relationship_types:
           inputs:
             KUBE_SPEC_PATH: { get_attribute: [SOURCE, spec_path] }
             TARGET_IP_ADDRESS: { get_attribute: [TARGET, ip_address] }
+
+  org.alien4cloud.kubernetes.api.relationships.ConnectUrlTo:
+    derived_from: tosca.relationships.ConnectsTo
+    description: This type represents relationship between a K8S Ingress and a service.
+    valid_target_types: [ org.alien4cloud.kubernetes.api.capabilities.KubeServiceEndpoint ]
+    properties:
+      host:
+        type: string
+        required: true
+        description: Specifies the host.
+      path:
+        type: string
+        required: true
+        description: Specifies the path.
 
 policy_types:
   org.alien4cloud.kubernetes.api.policies.AntiAffinityLabel:
