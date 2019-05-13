@@ -2013,6 +2013,7 @@ relationship_types:
         type: string
         required: true
         description: Specifies the path.
+        default: "/"
 
 policy_types:
   org.alien4cloud.kubernetes.api.policies.AntiAffinityLabel:

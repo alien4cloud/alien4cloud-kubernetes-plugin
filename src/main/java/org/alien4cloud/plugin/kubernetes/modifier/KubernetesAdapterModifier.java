@@ -63,6 +63,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
     public static final String K8S_TYPES_KUBECONTAINER = "org.alien4cloud.kubernetes.api.types.KubeContainer";
     public static final String K8S_TYPES_CONFIGURABLE_KUBE_CONTAINER = "org.alien4cloud.kubernetes.api.types.KubeConfigurableContainer";
     public static final String K8S_TYPES_KUBE_SERVICE = "org.alien4cloud.kubernetes.api.types.KubeService";
+    public static final String K8S_TYPES_KUBE_INGRESS = "org.alien4cloud.kubernetes.api.types.KubeIngress";
     public static final String K8S_TYPES_VOLUME_BASE = "org.alien4cloud.kubernetes.api.types.volume.VolumeBase";
 
     @Resource
@@ -133,6 +134,10 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         safe(services).forEach(nodeTemplate -> manageServiceRelationship(csar, topology, nodeTemplate, context));
         services.forEach(nodeTemplate -> createServiceResource(csar, topology, nodeTemplate, nodeReplacementMap, resourceNodeYamlStructures, context));
 
+        // Manage Ingress
+        Set<NodeTemplate> ingress = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_KUBE_INGRESS, true, false);
+        ingress.forEach(nodeTemplate -> createIngress(csar,topology,nodeTemplate,nodeReplacementMap,resourceNodeYamlStructures,context));
+
         //        // for each Job create a node of type JobResource
 //        Set<NodeTemplate> jobNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_JOB, false);
 //        jobNodes.forEach(nodeTemplate -> createJobResource(csar, topology, nodeTemplate, nodeReplacementMap, resourceNodeYamlStructures));
@@ -165,6 +170,8 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         // TODO bug on node matching view since these nodes are the real matched ones
         // TODO then find a way to delete servicesNodes and deloymentNodes as they are not used
         services.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
+        ingress.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
+
         deploymentNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
 //        jobNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
         Set<NodeTemplate> volumes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_VOLUME_BASE, true);
@@ -1095,12 +1102,80 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
                         "dependency", "feature");
         }
 
-        if (serviceNode.getType().equals(K8S_TYPES_SERVICE_INGRESS)) {
-            createIngress(context, csar, topology, serviceNode, serviceResourceNode, portName, namePropertyValue, resourceNodeYamlStructures, context);
+        //if (serviceNode.getType().equals(K8S_TYPES_SERVICE_INGRESS)) {
+        //    createIngress(context, csar, topology, serviceNode, serviceResourceNode, portName, namePropertyValue, resourceNodeYamlStructures, context);
+        //}
+    }
+
+    private void createIngress(Csar csar, Topology topology, NodeTemplate ingressNode, Map<String, NodeTemplate> nodeReplacementMap,
+                                       Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures, FlowExecutionContext context) {
+        Set<RelationshipTemplate> relationshipTemplates = TopologyNavigationUtil.getTargetRelationships(ingressNode,"expose");
+
+        NodeTemplate ingressResourceNode = addNodeTemplate(csar, topology, ingressNode.getName() + "_Resource", K8S_TYPES_SIMPLE_RESOURCE, K8S_CSAR_VERSION);
+
+        Map<String, AbstractPropertyValue> ingressResourceNodeProperties = Maps.newHashMap();
+        resourceNodeYamlStructures.put(ingressResourceNode.getName(), ingressResourceNodeProperties);
+
+        String ingressName = generateUniqueKubeName(context, ingressResourceNode.getName());
+
+        feedPropertyValue(ingressResourceNode.getProperties(), "resource_type", new ScalarPropertyValue("ing"), false);
+        feedPropertyValue(ingressResourceNode.getProperties(), "resource_id", new ScalarPropertyValue(ingressName), false);
+
+        // fill the future JSON spec
+        feedPropertyValue(ingressResourceNodeProperties, "resource_def.kind", "Ingress", false);
+        feedPropertyValue(ingressResourceNodeProperties, "resource_def.apiVersion", "extensions/v1beta1", false);
+        feedPropertyValue(ingressResourceNodeProperties, "resource_def.metadata.name", ingressName, false);
+        feedPropertyValue(ingressResourceNodeProperties, "resource_def.metadata.labels.a4c_id", ingressName, false);
+
+        Map<String,Map<String,Object>> hostMap = Maps.newHashMap();
+        List<Object> rules = Lists.newArrayList();
+
+        feedPropertyValue(ingressResourceNodeProperties, "resource_def.spec.rules", rules, false);
+
+        for (RelationshipTemplate r : relationshipTemplates) {
+            AbstractPropertyValue hostProp = PropertyUtil.getPropertyValueFromPath(r.getProperties(), "host");
+            AbstractPropertyValue pathProp = PropertyUtil.getPropertyValueFromPath(r.getProperties(), "path");
+
+            String hostValue = PropertyUtil.getScalarValue(hostProp);
+            String pathValue = PropertyUtil.getScalarValue(pathProp);
+
+            List<Object> paths = null;
+            Map<String,Object> map = hostMap.get(hostValue);
+            if (map == null) {
+                map = Maps.newHashMap();
+                map.put("host",hostValue);
+
+                Map<String,Object> http = Maps.newHashMap();
+                map.put("http",http);
+
+                paths = Lists.newArrayList();
+                http.put("paths",paths);
+
+                hostMap.put(hostValue,map);
+                rules.add(map);
+            } else {
+                Map<String,Object> http = (Map<String,Object>) map.get("http");
+                paths = (List<Object>) http.get("paths");
+            }
+
+            NodeTemplate serviceNode = topology.getNodeTemplates().get(r.getTarget());
+
+            AbstractPropertyValue svcName = PropertyUtil.getPropertyValueFromPath(safe(serviceNode.getProperties()), "metadata.name");
+            AbstractPropertyValue svcPort = portNameFromService(serviceNode);
+
+            Map<String,Object> path = Maps.newHashMap();
+            Map<String, Object> backend = Maps.newHashMap();
+            path.put("path",pathValue);
+            path.put("backend",backend);
+            backend.put("serviceName",svcName);
+            backend.put("servicePort",svcPort);
+            paths.add(path);
+
+
         }
     }
 
-    private void createIngress(FlowExecutionContext ctx, Csar csar, Topology topology, NodeTemplate serviceNode, NodeTemplate serviceResourcesNode, String portName, AbstractPropertyValue serviceName, Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures, FlowExecutionContext context) {
+        private void createIngress(FlowExecutionContext ctx, Csar csar, Topology topology, NodeTemplate serviceNode, NodeTemplate serviceResourcesNode, String portName, AbstractPropertyValue serviceName, Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures, FlowExecutionContext context) {
         AbstractPropertyValue ingressHost = PropertyUtil.getPropertyValueFromPath(safe(serviceNode.getProperties()), "host");
 
         NodeTemplate ingressResourceNode = addNodeTemplate(csar, topology, serviceNode.getName() + "_Ingress", K8S_TYPES_SIMPLE_RESOURCE, K8S_CSAR_VERSION);
@@ -1230,4 +1305,9 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         feedPropertyValue(propertyValues, targetPath, propertyValue, false);
     }
 
+    private ScalarPropertyValue portNameFromService(NodeTemplate node) {
+        ListPropertyValue ports = (ListPropertyValue) PropertyUtil.getPropertyValueFromPath(safe(node.getProperties()), "spec.ports");
+        ComplexPropertyValue port = (ComplexPropertyValue) ports.getValue().get(0);
+        return (ScalarPropertyValue) port.getValue().get("name");
+    }
 }
