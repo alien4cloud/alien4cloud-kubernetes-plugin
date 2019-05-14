@@ -1101,10 +1101,6 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
             addRelationshipTemplate(csar, topology, serviceResourceNode, controllerResourceNode.getName(), NormativeRelationshipConstants.DEPENDS_ON,
                         "dependency", "feature");
         }
-
-        //if (serviceNode.getType().equals(K8S_TYPES_SERVICE_INGRESS)) {
-        //    createIngress(context, csar, topology, serviceNode, serviceResourceNode, portName, namePropertyValue, resourceNodeYamlStructures, context);
-        //}
     }
 
     private void createIngress(Csar csar, Topology topology, NodeTemplate ingressNode, Map<String, NodeTemplate> nodeReplacementMap,
@@ -1159,6 +1155,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
             }
 
             NodeTemplate serviceNode = topology.getNodeTemplates().get(r.getTarget());
+            NodeTemplate serviceResourceNode = nodeReplacementMap.get(serviceNode.getName());
 
             AbstractPropertyValue svcName = PropertyUtil.getPropertyValueFromPath(safe(serviceNode.getProperties()), "metadata.name");
             AbstractPropertyValue svcPort = portNameFromService(serviceNode);
@@ -1171,83 +1168,30 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
             backend.put("servicePort",svcPort);
             paths.add(path);
 
-
+            // add a dependency between the ingress and the service
+            addRelationshipTemplate(csar, topology, ingressResourceNode, serviceResourceNode.getName(), NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
         }
-    }
 
-        private void createIngress(FlowExecutionContext ctx, Csar csar, Topology topology, NodeTemplate serviceNode, NodeTemplate serviceResourcesNode, String portName, AbstractPropertyValue serviceName, Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures, FlowExecutionContext context) {
-        AbstractPropertyValue ingressHost = PropertyUtil.getPropertyValueFromPath(safe(serviceNode.getProperties()), "host");
-
-        NodeTemplate ingressResourceNode = addNodeTemplate(csar, topology, serviceNode.getName() + "_Ingress", K8S_TYPES_SIMPLE_RESOURCE, K8S_CSAR_VERSION);
-
-        Map<String, AbstractPropertyValue> ingressResourceNodeProperties = Maps.newHashMap();
-        resourceNodeYamlStructures.put(ingressResourceNode.getName(), ingressResourceNodeProperties);
-
-        String ingressName = generateUniqueKubeName(ctx, ingressResourceNode.getName());
-
-        feedPropertyValue(ingressResourceNode.getProperties(), "resource_type", new ScalarPropertyValue("ing"), false);
-        feedPropertyValue(ingressResourceNode.getProperties(), "resource_id", new ScalarPropertyValue(ingressName), false);
-
-        /* here we are creating something like that:
-        apiVersion: extensions/v1beta1
-        kind: Ingress
-        metadata:
-          name: ingress
-        spec:
-          rules:
-          - host: helloworld-test.artemis.public
-            http:
-              paths:
-              - path: /
-                backend:
-                  serviceName: helloworld-ingress-svc
-                  servicePort: 80
-         */
-
-        // fill the future JSON spec
-        feedPropertyValue(ingressResourceNodeProperties, "resource_def.kind", "Ingress", false);
-        feedPropertyValue(ingressResourceNodeProperties, "resource_def.apiVersion", "extensions/v1beta1", false);
-        feedPropertyValue(ingressResourceNodeProperties, "resource_def.metadata.name", ingressName, false);
-        feedPropertyValue(ingressResourceNodeProperties, "resource_def.metadata.labels.a4c_id", ingressName, false);
-
-        Map<String, Object> rule = Maps.newHashMap();
-        rule.put("host", ingressHost);
-        Map<String, Object> http = Maps.newHashMap();
-        rule.put("http", http);
-        Map<String, Object> path = Maps.newHashMap();
-        path.put("path", "/");
-        Map<String, Object> backend = Maps.newHashMap();
-        backend.put("serviceName", serviceName);
-        backend.put("servicePort", portName);
-        path.put("backend", backend);
-        List<Object> paths = Lists.newArrayList();
-        paths.add(path);
-        http.put("paths", paths);
-        feedPropertyValue(ingressResourceNodeProperties, "resource_def.spec.rules", rule, true);
-
-        // add a dependency between the ingress and the service
-        addRelationshipTemplate(csar, topology, ingressResourceNode, serviceResourcesNode.getName(), NormativeRelationshipConstants.DEPENDS_ON,
-                "dependency", "feature");
-
-        // if the Ingress service has both tls_crt and tls_key then we should create a secret and activate TLS on Ingress
-        AbstractPropertyValue ingressCrtPV = PropertyUtil.getPropertyValueFromPath(safe(serviceNode.getProperties()), "tls_crt");
+        // If the Ingress has both tls_crt and tls_key then we should create a secret and activate TLS on Ingress
+        AbstractPropertyValue ingressCrtPV = PropertyUtil.getPropertyValueFromPath(safe(ingressNode.getProperties()), "tls_crt");
         String ingressCrt = null;
         if (ingressCrtPV != null && ingressCrtPV instanceof ScalarPropertyValue) {
             ingressCrt = ((ScalarPropertyValue)ingressCrtPV).getValue();
         }
-        AbstractPropertyValue ingressKeyPV = PropertyUtil.getPropertyValueFromPath(safe(serviceNode.getProperties()), "tls_key");
+        AbstractPropertyValue ingressKeyPV = PropertyUtil.getPropertyValueFromPath(safe(ingressNode.getProperties()), "tls_key");
         String ingressKey = null;
         if (ingressKeyPV != null && ingressKeyPV instanceof ScalarPropertyValue) {
             ingressKey = ((ScalarPropertyValue)ingressKeyPV).getValue();
         }
+
         if (StringUtils.isNoneEmpty(ingressCrt) && StringUtils.isNoneEmpty(ingressKey)) {
             // create the secret
-            NodeTemplate secretResourceNode = addNodeTemplate(csar, topology, serviceNode.getName() + "_IngressSecret", K8S_TYPES_SIMPLE_RESOURCE, K8S_CSAR_VERSION);
+            NodeTemplate secretResourceNode = addNodeTemplate(csar, topology, ingressNode.getName() + "_Secret", K8S_TYPES_SIMPLE_RESOURCE, K8S_CSAR_VERSION);
 
             Map<String, AbstractPropertyValue> ingressSecretResourceNodeProperties = Maps.newHashMap();
             resourceNodeYamlStructures.put(secretResourceNode.getName(), ingressSecretResourceNodeProperties);
 
-            String ingressSecretName = generateUniqueKubeName(ctx, secretResourceNode.getName());
+            String ingressSecretName = generateUniqueKubeName(context, secretResourceNode.getName());
 
             feedPropertyValue(secretResourceNode.getProperties(), "resource_type", new ScalarPropertyValue("secrets"), false);
             feedPropertyValue(secretResourceNode.getProperties(), "resource_id", new ScalarPropertyValue(ingressSecretName), false);
@@ -1276,18 +1220,16 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
             feedPropertyValue(ingressSecretResourceNodeProperties, "resource_def.type", "Opaque", false);
             feedPropertyValue(ingressSecretResourceNodeProperties, "resource_def.data", data, false);
 
-            // add the TLS config to the Ingress
+            // Add the TLS config to the Ingress
             Map<String, Object> tls = Maps.newHashMap();
             tls.put("secretName", ingressSecretName);
             feedPropertyValue(ingressResourceNodeProperties, "resource_def.spec.tls", tls, true);
 
             // add a relation between the Ingress and the secret
-            addRelationshipTemplate(csar, topology, ingressResourceNode, secretResourceNode.getName(), NormativeRelationshipConstants.DEPENDS_ON,
-                    "dependency", "feature");
-        } else if (StringUtils.isNoneEmpty(ingressCrt) || StringUtils.isNoneEmpty(ingressKey)) {
-            context.log().warn("tls_crt or tls_key is provided for service  <" + serviceNode + "> but both are needed in order to create a secured Ingress. A non secured Ingress is created !");
+            addRelationshipTemplate(csar, topology, ingressResourceNode, secretResourceNode.getName(), NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
+        }  else if (StringUtils.isNoneEmpty(ingressCrt) || StringUtils.isNoneEmpty(ingressKey)) {
+            context.log().warn("tls_crt or tls_key is provided for ingress  <" + ingressNode + "> but both are needed in order to create a secured Ingress. A non secured Ingress is created !");
         }
-
     }
 
     private void renameProperty(Object propertyValue, String propertyPath, String newName) {
