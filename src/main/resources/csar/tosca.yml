@@ -2007,7 +2007,7 @@ relationship_types:
     properties:
       host:
         type: string
-        required: true
+        required: false
         description: Specifies the host.
       path:
         type: string
