@@ -986,9 +986,15 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         // Copy scalable property of the deployment node into the cluster controller capability of the deployment node.
         Capability scalableCapability = safe(deploymentNode.getCapabilities()).get("scalable");
         if (scalableCapability != null) {
-            Capability clusterControllerCapability = new Capability(AlienCapabilityTypes.CLUSTER_CONTROLLER,
-                    CloneUtil.clone(scalableCapability.getProperties()));
+            Capability clusterControllerCapability = new Capability(AlienCapabilityTypes.CLUSTER_CONTROLLER, CloneUtil.clone(scalableCapability.getProperties()));
             NodeTemplateUtils.setCapability(deploymentResourceNode, "scalable", clusterControllerCapability);
+
+            AbstractPropertyValue instPV = clusterControllerCapability.getProperties().get("default_instances");
+            if (instPV != null) {
+                PropertyDefinition replicasDef = getInnerPropertyDefinition(propertyDefinition,"replicas");
+                transformedValue = getTransformedValue(instPV, replicasDef, "");
+                feedPropertyValue(deploymentResourceNodeProperties, "resource_def.spec.replicas", transformedValue, false);
+            }
         }
 
 //        // find each node of type Service that targets this deployment

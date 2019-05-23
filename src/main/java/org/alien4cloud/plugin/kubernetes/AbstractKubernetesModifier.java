@@ -108,6 +108,15 @@ public abstract class AbstractKubernetesModifier extends TopologyModifierSupport
         return targetedMembers;
     }
 
+    protected PropertyDefinition getInnerPropertyDefinition(PropertyDefinition def,String path) {
+        if (!ToscaTypes.isPrimitive(def.getType())) {
+            DataType type= ToscaContext.get(DataType.class, def.getType());
+            return type.getProperties().get(path);
+        } else {
+            return null;
+        }
+    }
+
     /**
      * Transform the object by replacing eventual PropertyValue found by it's value.
      */
