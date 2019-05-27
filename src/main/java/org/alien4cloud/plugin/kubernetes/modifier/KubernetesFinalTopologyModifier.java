@@ -492,7 +492,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
             return;
         }
 
-        Set<NodeTemplate> validTargets = getValidTargets(policyTemplate, topology, invalidName -> context.log()
+        Set<NodeTemplate> validTargets = getValidTargets(policyTemplate, topology, K8S_TYPES_DEPLOYMENT, invalidName -> context.log()
                 .warn("Auto-scaling policy <{}>: will ignore target <{}> as it IS NOT an instance of <{}>.", policyTemplate.getName(), invalidName,
                         K8S_TYPES_DEPLOYMENT));
 

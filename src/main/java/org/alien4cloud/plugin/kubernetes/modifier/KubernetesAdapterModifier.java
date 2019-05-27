@@ -45,6 +45,7 @@ import java.util.stream.Stream;
 import static alien4cloud.utils.AlienUtils.safe;
 import static org.alien4cloud.plugin.kubernetes.csar.Version.K8S_CSAR_VERSION;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.*;
+import static org.alien4cloud.plugin.kubernetes.policies.KubePoliciesConstants.K8S_POLICIES_AUTO_SCALING;
 import static org.alien4cloud.tosca.utils.ToscaTypeUtils.isOfType;
 
 /**
@@ -161,10 +162,10 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
 
         // for each volume node, populate the 'volumes' property of the corresponding deployment resource
         volumeNodes.forEach(nodeTemplate -> manageVolume(context, csar, topology, nodeTemplate, nodeReplacementMap, resourceNodeYamlStructures));
-//
-//        // check auto-scaling policies and build the equiv node
-//        Set<PolicyTemplate> policies = TopologyNavigationUtil.getPoliciesOfType(topology, K8S_POLICIES_AUTO_SCALING, true);
-//        policies.forEach(policyTemplate -> manageAutoScaling(csar, topology, policyTemplate, nodeReplacementMap, resourceNodeYamlStructures, context));
+
+        // check auto-scaling policies and build the equiv node
+        Set<PolicyTemplate> policies = TopologyNavigationUtil.getPoliciesOfType(topology, K8S_POLICIES_AUTO_SCALING, true);
+        policies.forEach(policyTemplate -> manageAutoScaling(csar, topology, policyTemplate, nodeReplacementMap, resourceNodeYamlStructures, context));
 
         // remove useless nodes
         // TODO bug on node matching view since these nodes are the real matched ones
@@ -565,33 +566,34 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
     }
 
     private void manageAutoScaling(Csar csar, Topology topology, PolicyTemplate policyTemplate, Map<String, NodeTemplate> nodeReplacementMap,
-            Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures, FlowExecutionContext context) {
+        Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures, FlowExecutionContext context) {
 
         if (CollectionUtils.isEmpty(policyTemplate.getTargets())) {
-            context.log().warn("Auto-scaling policy <{}> is not correctly configured, at least 1 targets is required. It will be ignored.",
-                    policyTemplate.getName());
+            context.log().warn("Auto-scaling policy <{}> is not correctly configured, at least 1 targets is required. It will be ignored.", policyTemplate.getName());
             return;
         }
 
         if (safe(policyTemplate.getProperties()).get("spec") == null) {
-            context.log()
-                    .warn("Auto-scaling policy <{}> is not correctly configured, property \"spec\" is required. It will be ignored.", policyTemplate.getName());
-
+            context.log().warn("Auto-scaling policy <{}> is not correctly configured, property \"spec\" is required. It will be ignored.", policyTemplate.getName());
             return;
         }
 
-        Set<NodeTemplate> validTargets = getValidTargets(policyTemplate, topology, invalidName -> context.log()
-                .warn("Auto-scaling policy <{}>: will ignore target <{}> as it IS NOT an instance of <{}>.", policyTemplate.getName(), invalidName,
-                        K8S_TYPES_DEPLOYMENT));
+        Set<NodeTemplate> validTargets = getValidTargets(
+                policyTemplate,
+                topology,
+                K8S_TYPES_KUBEDEPLOYMENT,
+                invalidName -> context.log().warn("Auto-scaling policy <{}>: will ignore target <{}> as it IS NOT an instance of <{}>.",
+                    policyTemplate.getName(),
+                    invalidName,
+                    K8S_TYPES_KUBEDEPLOYMENT
+                ));
 
         // for each target, add a SimpleResource for HorizontaPodAutoScaler, targeting the related DeploymentResource
-        validTargets.forEach(nodeTemplate -> addHorizontalPodAutoScalingResource(context, csar, topology, policyTemplate, nodeTemplate, nodeReplacementMap,
-                resourceNodeYamlStructures));
-
+        validTargets.forEach(nodeTemplate -> addHorizontalPodAutoScalingResource(context, csar, topology, policyTemplate, nodeTemplate, nodeReplacementMap, resourceNodeYamlStructures));
     }
 
     private void addHorizontalPodAutoScalingResource(FlowExecutionContext ctx, Csar csar, Topology topology, PolicyTemplate policyTemplate, NodeTemplate target,
-            Map<String, NodeTemplate> nodeReplacementMap, Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures) {
+        Map<String, NodeTemplate> nodeReplacementMap, Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures) {
         String resourceBaseName = target.getName() + "_" + policyTemplate.getName();
         NodeTemplate podAutoScalerResourceNode = addNodeTemplate(csar, topology, resourceBaseName + "_Resource", K8S_TYPES_SIMPLE_RESOURCE, K8S_CSAR_VERSION);
 
@@ -630,8 +632,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         feedPropertyValue(podAutoScalerResourceNodeProperties, "resource_def.spec.maxReplicas", transformed.get("maxReplicas"), false);
 
         // clear metrics and add
-        feedPropertyValue(podAutoScalerResourceNodeProperties, "resource_def.spec.metrics", cleanMetricsBaseOnType((List<Object>) transformed.get("metrics")),
-                false);
+        feedPropertyValue(podAutoScalerResourceNodeProperties, "resource_def.spec.metrics", cleanMetricsBaseOnType((List<Object>) transformed.get("metrics")), false);
     }
 
     private List<Object> cleanMetricsBaseOnType(List<Object> metrics) {
@@ -986,10 +987,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         // Copy scalable property of the deployment node into the cluster controller capability of the deployment node.
         Capability scalableCapability = safe(deploymentNode.getCapabilities()).get("scalable");
         if (scalableCapability != null) {
-            Capability clusterControllerCapability = new Capability(AlienCapabilityTypes.CLUSTER_CONTROLLER, CloneUtil.clone(scalableCapability.getProperties()));
-            NodeTemplateUtils.setCapability(deploymentResourceNode, "scalable", clusterControllerCapability);
-
-            AbstractPropertyValue instPV = clusterControllerCapability.getProperties().get("default_instances");
+            AbstractPropertyValue instPV = scalableCapability.getProperties().get("default_instances");
             if (instPV != null) {
                 PropertyDefinition replicasDef = getInnerPropertyDefinition(propertyDefinition,"replicas");
                 transformedValue = getTransformedValue(instPV, replicasDef, "");
