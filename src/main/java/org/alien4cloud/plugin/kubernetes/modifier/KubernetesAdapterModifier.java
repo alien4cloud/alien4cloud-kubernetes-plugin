@@ -29,16 +29,14 @@ import org.alien4cloud.tosca.model.types.PolicyType;
 import org.alien4cloud.tosca.normative.constants.AlienCapabilityTypes;
 import org.alien4cloud.tosca.normative.constants.NormativeCapabilityTypes;
 import org.alien4cloud.tosca.normative.constants.NormativeRelationshipConstants;
+import org.alien4cloud.tosca.normative.constants.ToscaFunctionConstants;
 import org.alien4cloud.tosca.utils.*;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.Resource;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.stream.Stream;
 
@@ -64,8 +62,11 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
     public static final String K8S_TYPES_KUBECONTAINER = "org.alien4cloud.kubernetes.api.types.KubeContainer";
     public static final String K8S_TYPES_CONFIGURABLE_KUBE_CONTAINER = "org.alien4cloud.kubernetes.api.types.KubeConfigurableContainer";
     public static final String K8S_TYPES_KUBE_SERVICE = "org.alien4cloud.kubernetes.api.types.KubeService";
+    public static final String K8S_TYPES_KUBE_CONCRETE_SERVICE = "org.alien4cloud.kubernetes.api.types.KubeNodeportService";
     public static final String K8S_TYPES_KUBE_INGRESS = "org.alien4cloud.kubernetes.api.types.KubeIngress";
     public static final String K8S_TYPES_VOLUME_BASE = "org.alien4cloud.kubernetes.api.types.volume.VolumeBase";
+    public static final String K8S_TYPES_KUBE_CONTAINER_ENDPOINT = "org.alien4cloud.kubernetes.api.capabilities.KubeEndpoint";
+    public static final String A4C_CAPABILITIES_PROXY = "org.alien4cloud.capabilities.Proxy";
 
     @Resource
     private WorkflowSimplifyService workflowSimplifyService;
@@ -113,6 +114,10 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         Set<NodeTemplate> endpointNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_ENDPOINT_RESOURCE, false, true);
         endpointNodes.forEach(nodeTemplate -> manageEndpoints(context, csar, topology, nodeTemplate));
 
+        Set<NodeTemplate> containerNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_KUBECONTAINER, true);
+        containerNodes.forEach(nodeTemplate -> manageContainersDirectConnection(context, csar, topology, nodeTemplate));
+
+
         // just a map that store the node name as key and the replacement node as value
         Map<String, NodeTemplate> nodeReplacementMap = Maps.newHashMap();
 
@@ -155,7 +160,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         Map<String, List<String>> serviceIpAddressesPerDeploymentResource = Maps.newHashMap();
 
         // for each container,
-        Set<NodeTemplate> containerNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_KUBECONTAINER, true);
+//        Set<NodeTemplate> containerNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_KUBECONTAINER, true);
         containerNodes.forEach(
                 nodeTemplate -> manageContainer(csar, topology, nodeTemplate, nodeReplacementMap, resourceNodeYamlStructures, functionEvaluatorContext,
                         serviceIpAddressesPerDeploymentResource, context));
@@ -222,6 +227,47 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
 //        servicesToRemove.stream().forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
 
 
+    }
+
+    /**
+     * When a container is connected to another container directly (not through a service), and if those 2 containers are not in the same deployment, then
+     * we create a service of type ClusterIP between them.
+     */
+    private void manageContainersDirectConnection(FlowExecutionContext context, Csar csar, Topology topology, NodeTemplate nodeTemplate) {
+        NodeTemplate sourceDeploymentNode = TopologyNavigationUtil.getImmediateHostTemplate(topology, nodeTemplate);
+        Set<RelationshipTemplate> relationsShips = Sets.newHashSet();
+        nodeTemplate.getRelationships().forEach((t, relationshipTemplate) -> {
+            String targetNode = relationshipTemplate.getTarget();
+            NodeTemplate targetNodeTemplate = topology.getNodeTemplates().get(targetNode);
+            NodeType nodeType = ToscaContext.get(NodeType.class, targetNodeTemplate.getType());
+            if (isOfType(nodeType, K8S_TYPES_KUBECONTAINER)) {
+                NodeTemplate targetDeploymentNode = TopologyNavigationUtil.getImmediateHostTemplate(topology, targetNodeTemplate);
+                if (targetDeploymentNode != sourceDeploymentNode) {
+                    // containers are not co-hosted
+                    String targetCapabilityName = relationshipTemplate.getTargetedCapabilityName();
+                    Capability targetCapability = targetNodeTemplate.getCapabilities().get(targetCapabilityName);
+                    CapabilityType targetCapabilityType = ToscaContext.get(CapabilityType.class, targetCapability.getType());
+                    if (isOfType(targetCapabilityType, K8S_TYPES_KUBE_CONTAINER_ENDPOINT)) {
+                        // containers are directly connected but not co-hosted, we add a service between them
+                        relationsShips.add(relationshipTemplate);
+                    }
+                }
+            }
+        });
+        relationsShips.stream().forEach(relationshipTemplate -> {
+            // remove the relationship
+            removeRelationship(csar, topology, nodeTemplate.getName(), relationshipTemplate.getName());
+            String targetCapabilityName = relationshipTemplate.getTargetedCapabilityName();
+            NodeTemplate targetNodeTemplate = topology.getNodeTemplates().get(relationshipTemplate.getTarget());
+            // add a service
+            NodeTemplate serviceNode = addNodeTemplate(csar, topology, nodeTemplate.getName() + "_" + relationshipTemplate.getRequirementName() + "_" + targetNodeTemplate.getName() + "_" + targetCapabilityName + "_Service",
+                    K8S_TYPES_KUBE_CONCRETE_SERVICE, K8S_CSAR_VERSION);
+            setNodePropertyPathValue(csar, topology, serviceNode, "spec.service_type", new ScalarPropertyValue("ClusterIP"));
+            // add a relation between the service and the target container
+            addRelationshipTemplate(csar, topology, serviceNode, targetNodeTemplate.getName(), NormativeRelationshipConstants.CONNECTS_TO, "expose", targetCapabilityName);
+            // add a relation between the source container and the service
+            addRelationshipTemplate(csar, topology, nodeTemplate, serviceNode.getName(), NormativeRelationshipConstants.CONNECTS_TO, relationshipTemplate.getRequirementName(), "service_endpoint");
+        });
     }
 
     /**
@@ -667,12 +713,12 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
             }
             return new ScalarPropertyValue(sb.toString());
         }
-        if (KubeTopologyUtils.isTargetedEndpointProperty(topology, nodeTemplate, iValue)) {
-            return KubeTopologyUtils.getTargetedEndpointProperty(topology, nodeTemplate, iValue);
-        }
-        Optional<String> dependencyIpAddress = KubeTopologyUtils.getDependencyIpAddress(topology, nodeTemplate, iValue, serviceIpAddressesPerDeploymentResource, deploymentResource.getName());
-        if (dependencyIpAddress.isPresent()) {
-            return new ScalarPropertyValue(dependencyIpAddress.get());
+        if (iValue instanceof FunctionPropertyValue && ((FunctionPropertyValue)iValue).getTemplateName().endsWith(ToscaFunctionConstants.TARGET)) {
+            FunctionPropertyValue fpv = (FunctionPropertyValue)iValue;
+            Optional<AbstractPropertyValue> pv = resolveTargetFunction(topology, deploymentResource, nodeTemplate, functionEvaluatorContext, serviceIpAddressesPerDeploymentResource, fpv, context);
+            if (pv.isPresent()) {
+                return pv.get();
+            }
         }
         try {
             AbstractPropertyValue propertyValue =
@@ -688,6 +734,139 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
             context.getLog().warn("Can't resolve value for input <" + inputName + "> (" + serializePropertyValue(iValue)+ ") of container <" + nodeTemplate.getName() + ">, error was : " + iae.getMessage());
         }
         return null;
+    }
+
+    private Optional<AbstractPropertyValue> resolveTargetFunction(Topology topology, NodeTemplate deploymentResource, NodeTemplate nodeTemplate,
+                                                                  FunctionEvaluatorContext functionEvaluatorContext, Map<String, List<String>> serviceIpAddressesPerDeploymentResource,
+                                                                  FunctionPropertyValue fpv, FlowExecutionContext context) {
+        Optional<AbstractPropertyValue> result = Optional.empty();
+        if (fpv.getParameters().size() < 3) {
+            // we have an issue
+            return result;
+        }
+        String requirementName = fpv.getParameters().get(1);
+        Set<RelationshipTemplate> targetRelationships = TopologyNavigationUtil.getTargetRelationships(nodeTemplate, requirementName);
+        if (targetRelationships.isEmpty()) {
+            // we have an issue
+            return result;
+        } else if (targetRelationships.size() > 1) {
+            // alert
+        }
+        // we take the first node in target list
+        RelationshipTemplate targetRelationship = targetRelationships.iterator().next();
+        NodeTemplate targetNode = topology.getNodeTemplates().get(targetRelationship.getTarget());
+        NodeType targetNodeType = ToscaContext.get(NodeType.class, targetNode.getType());
+        Capability targetCapability = targetNode.getCapabilities().get(targetRelationship.getTargetedCapabilityName());
+        String elementNameToFetch = fpv.getElementNameToFetch();
+        boolean searchForCapabilityElement = fpv.getParameters().size() == 4;
+        if (elementNameToFetch.equals("ip_address")) {
+            // TODO: resolve ip_address
+            String ip_address = resolveIpAddress(functionEvaluatorContext, nodeTemplate, targetNode, targetNodeType, serviceIpAddressesPerDeploymentResource, deploymentResource);
+            if (ip_address != null) {
+                return Optional.of(new ScalarPropertyValue(ip_address));
+            }
+        } else if (elementNameToFetch.equals("port")) {
+            String port = resolvePort(functionEvaluatorContext, nodeTemplate, targetNode, targetNodeType, serviceIpAddressesPerDeploymentResource, deploymentResource);
+            if (port != null) {
+                return Optional.of(new ScalarPropertyValue(port));
+            }
+        } else if (elementNameToFetch.equals("protocol")) {
+            String scheme = resolveProtocol(functionEvaluatorContext, nodeTemplate, targetNode, targetNodeType, serviceIpAddressesPerDeploymentResource, deploymentResource);
+            if (scheme != null) {
+                return Optional.of(new ScalarPropertyValue(scheme));
+            }
+        }
+
+        CapabilityType capabilityType = ToscaContext.get(CapabilityType.class, targetCapability.getType());
+        if (ToscaTypeUtils.isOfType(capabilityType, A4C_CAPABILITIES_PROXY)) {
+            // The targeted capability is of type proxy
+            // we are looking for
+            //  - a capability element but it doesn't exist in the proxy capability
+            //  - a node element but it doesn't exist in the target node
+            // So we recursively resolve real target behind this proxy capability
+            AbstractPropertyValue pv = resolveProxyfiedTargetFunction(fpv, functionEvaluatorContext, targetNode, targetCapability, targetRelationship, elementNameToFetch, searchForCapabilityElement);
+            if (pv != null) {
+                return Optional.of(pv);
+            }
+        } else {
+            List<String> params = new ArrayList<>();
+            params.add(ToscaFunctionConstants.SELF);
+            params.addAll(fpv.getParameters().subList(2, fpv.getParameters().size()));
+            FunctionPropertyValue newFunc = new FunctionPropertyValue(fpv.getFunction(), params);
+            AbstractPropertyValue pv = FunctionEvaluator.tryResolveValue(functionEvaluatorContext, targetNode, targetNode.getProperties(), newFunc);
+            if (pv != null) {
+                return Optional.of(pv);
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    private String resolveIpAddress(FunctionEvaluatorContext functionEvaluatorContext, NodeTemplate sourceNode, NodeTemplate targetNode, NodeType targetNodeType, Map<String, List<String>> serviceIpAddressesPerDeploymentResource, NodeTemplate deploymentResource) {
+        if (ToscaTypeUtils.isOfType(targetNodeType, K8S_TYPES_KUBECONTAINER)) {
+            // the target is a container
+            if (TopologyNavigationUtil.getImmediateHostTemplate(functionEvaluatorContext.getTopology(), sourceNode)
+                    == TopologyNavigationUtil.getImmediateHostTemplate(functionEvaluatorContext.getTopology(), targetNode)) {
+                // both containers are on the same deployment, they can communicate using 'localhost'
+                return "localhost";
+            } else {
+                // both container are in different deployments, they can not be linked directly
+                // a service has been previously created so will never occur
+            }
+        } else if (ToscaTypeUtils.isOfType(targetNodeType, K8S_TYPES_KUBE_SERVICE)) {
+            return resolveDependency(targetNode, serviceIpAddressesPerDeploymentResource, deploymentResource.getName());
+        }
+        // TODO: manage a4c services ?
+        return null;
+    }
+
+    private String resolvePort(FunctionEvaluatorContext functionEvaluatorContext, NodeTemplate sourceNode, NodeTemplate targetNode, NodeType targetNodeType, Map<String, List<String>> serviceIpAddressesPerDeploymentResource, NodeTemplate deploymentResource) {
+        if (ToscaTypeUtils.isOfType(targetNodeType, K8S_TYPES_KUBE_INGRESS)) {
+            // TODO
+        }
+        // TODO: manager services ?
+        return null;
+    }
+
+    private String resolveProtocol(FunctionEvaluatorContext functionEvaluatorContext, NodeTemplate sourceNode, NodeTemplate targetNode, NodeType targetNodeType, Map<String, List<String>> serviceIpAddressesPerDeploymentResource, NodeTemplate deploymentResource) {
+        if (ToscaTypeUtils.isOfType(targetNodeType, K8S_TYPES_KUBE_INGRESS)) {
+            // TODO
+        }
+        // TODO: manager services ?
+        return null;
+    }
+
+    private AbstractPropertyValue resolveProxyfiedTargetFunction(FunctionPropertyValue fpv, FunctionEvaluatorContext functionEvaluatorContext, NodeTemplate node, Capability capability, RelationshipTemplate relationship, String elementNameToFetch, boolean searchForCapabilityElement) {
+        // a proxy capability proxify a requirement having the same name (by convention)
+        // TODO: secure it !
+        String proxyfiedRequirement = ((ScalarPropertyValue)capability.getProperties().get("proxy_for")).getValue();
+        Set<RelationshipTemplate> targetRelationships = TopologyNavigationUtil.getTargetRelationships(node, proxyfiedRequirement);
+        if (targetRelationships.isEmpty()) {
+            // no relationship wired to the proxyfied requirement has been found
+            return null;
+        }
+        RelationshipTemplate targetRelationship = targetRelationships.iterator().next();
+        NodeTemplate targetNode = functionEvaluatorContext.getTopology().getNodeTemplates().get(targetRelationship.getTarget());
+        Capability targetCapability = targetNode.getCapabilities().get(targetRelationship.getTargetedCapabilityName());
+        CapabilityType capabilityType = ToscaContext.get(CapabilityType.class, targetCapability.getType());
+        if (ToscaTypeUtils.isOfType(capabilityType, A4C_CAPABILITIES_PROXY)
+                && ((searchForCapabilityElement && !targetCapability.getProperties().containsKey(elementNameToFetch))
+                || (!searchForCapabilityElement && !targetNode.getProperties().containsKey(elementNameToFetch)))) {
+            // The targeted capability is of type proxy
+            // we are looking for
+            //  - a capability element but it doesn't exist in the proxy capability
+            //  - a node element but it doesn't exist in the target node
+            // So we recursively resolve real target behind this proxy capability
+            return resolveProxyfiedTargetFunction(fpv, functionEvaluatorContext, targetNode, targetCapability, targetRelationship, elementNameToFetch, searchForCapabilityElement);
+        } else {
+            // The real proxyfied target has been found, let's resolve the element we are looking for
+            List<String> params = new ArrayList<>();
+            params.add(ToscaFunctionConstants.SELF);
+            params.addAll(fpv.getParameters().subList(2, fpv.getParameters().size()));
+            FunctionPropertyValue newFunc = new FunctionPropertyValue(fpv.getFunction(), params);
+            AbstractPropertyValue propertyValue = FunctionEvaluator.tryResolveValue(functionEvaluatorContext, targetNode, targetNode.getProperties(), newFunc);
+            return propertyValue;
+        }
     }
 
     private static String serializePropertyValue(AbstractPropertyValue value) {

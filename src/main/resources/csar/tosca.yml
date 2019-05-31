@@ -1503,6 +1503,8 @@ node_types:
     capabilities:
       service_endpoint:
         type: org.alien4cloud.kubernetes.api.capabilities.KubeServiceEndpoint
+        properties:
+          proxy_for: expose
     requirements:
       - expose:
           capability: org.alien4cloud.kubernetes.api.capabilities.KubeEndpoint
@@ -1626,6 +1628,10 @@ node_types:
     derived_from: org.alien4cloud.kubernetes.api.types.AbstractDeployment
 #    tags:
 #      icon: /images/kubernetes.png
+    properties:
+      spec:
+        type: org.alien4cloud.kubernetes.api.datatypes.DeploymentSpec
+        required: false
     capabilities:
       host: org.alien4cloud.kubernetes.api.capabilities.KubeContainerHost
 
@@ -1985,7 +1991,7 @@ capability_types:
     description: >
       When a container need to expose a port, it should expose this capability.
   org.alien4cloud.kubernetes.api.capabilities.KubeServiceEndpoint:
-    derived_from: tosca.capabilities.Endpoint
+    derived_from: org.alien4cloud.capabilities.Proxy
     description: >
       When a service need to expose a port, it should expose this capability.
 
