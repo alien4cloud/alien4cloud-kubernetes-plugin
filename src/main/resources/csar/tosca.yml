@@ -2075,10 +2075,12 @@ policy_types:
     derived_from: tosca.policies.Scaling
     description: >
       c.f. https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale-walkthrough/
+    metadata:
+      # pluginId:pluginBean:phase
+      a4c_policy_impl: alien4cloud-kubernetes-plugin:kubernetes-autoscaling-modifier:post-node-match
     properties:
       spec:
         type: org.alien4cloud.kubernetes.api.datatypes.autoscaler.HorizontalPodAutoscalerSpec
-
 
   org.alien4cloud.kubernetes.api.policies.NodeAffinityLabel:
     derived_from: org.alien4cloud.policies.LabelPlacement
