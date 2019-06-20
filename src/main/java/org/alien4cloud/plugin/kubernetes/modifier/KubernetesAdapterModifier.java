@@ -62,7 +62,6 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
     public static final String K8S_TYPES_KUBECONTAINER = "org.alien4cloud.kubernetes.api.types.KubeContainer";
     public static final String K8S_TYPES_CONFIGURABLE_KUBE_CONTAINER = "org.alien4cloud.kubernetes.api.types.KubeConfigurableContainer";
     public static final String K8S_TYPES_KUBE_SERVICE = "org.alien4cloud.kubernetes.api.types.KubeService";
-    public static final String K8S_TYPES_KUBE_CONCRETE_SERVICE = "org.alien4cloud.kubernetes.api.types.KubeNodeportService";
     public static final String K8S_TYPES_KUBE_INGRESS = "org.alien4cloud.kubernetes.api.types.KubeIngress";
     public static final String K8S_TYPES_VOLUME_BASE = "org.alien4cloud.kubernetes.api.types.volume.VolumeBase";
     public static final String K8S_TYPES_KUBE_CONTAINER_ENDPOINT = "org.alien4cloud.kubernetes.api.capabilities.KubeEndpoint";
@@ -261,7 +260,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
             NodeTemplate targetNodeTemplate = topology.getNodeTemplates().get(relationshipTemplate.getTarget());
             // add a service
             NodeTemplate serviceNode = addNodeTemplate(csar, topology, nodeTemplate.getName() + "_" + relationshipTemplate.getRequirementName() + "_" + targetNodeTemplate.getName() + "_" + targetCapabilityName + "_Service",
-                    K8S_TYPES_KUBE_CONCRETE_SERVICE, K8S_CSAR_VERSION);
+                    K8S_TYPES_KUBE_SERVICE, K8S_CSAR_VERSION);
             setNodePropertyPathValue(csar, topology, serviceNode, "spec.service_type", new ScalarPropertyValue("ClusterIP"));
             // add a relation between the service and the target container
             addRelationshipTemplate(csar, topology, serviceNode, targetNodeTemplate.getName(), NormativeRelationshipConstants.CONNECTS_TO, "expose", targetCapabilityName);
@@ -1284,6 +1283,19 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
             addRelationshipTemplate(csar, topology, serviceResourceNode, controllerResourceNode.getName(), NormativeRelationshipConstants.DEPENDS_ON,
                         "dependency", "feature");
         }
+        // explore all nodes that connect to this service
+        Set<NodeTemplate> connectedSourceNodes = TopologyNavigationUtil.getSourceNodes(topology, serviceNode, "service_endpoint");
+        for (NodeTemplate connectedSourceNode : connectedSourceNodes) {
+            NodeType connectedSourceNodeType = ToscaContext.get(NodeType.class, connectedSourceNode.getType());
+            if (ToscaTypeUtils.isOfType(connectedSourceNodeType, K8S_TYPES_KUBECONTAINER)) {
+                // if they are containers, then add a relationship between the deployment and the service resource.
+                NodeTemplate controllerNode = TopologyNavigationUtil.getImmediateHostTemplate(topology, connectedSourceNode);
+                NodeTemplate controllerResourceNode = nodeReplacementMap.get(controllerNode.getName());
+                addRelationshipTemplate(csar, topology, controllerResourceNode, serviceResourceNode.getName(), NormativeRelationshipConstants.DEPENDS_ON,
+                        "dependency", "feature");
+            }
+        }
+
     }
 
     private void createIngress(Csar csar, Topology topology, NodeTemplate ingressNode, Map<String, NodeTemplate> nodeReplacementMap,
