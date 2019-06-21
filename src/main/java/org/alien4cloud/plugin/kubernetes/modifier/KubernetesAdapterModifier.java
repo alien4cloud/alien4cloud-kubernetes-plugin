@@ -116,7 +116,6 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         Set<NodeTemplate> containerNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_KUBECONTAINER, true);
         containerNodes.forEach(nodeTemplate -> manageContainersDirectConnection(context, csar, topology, nodeTemplate));
 
-
         // just a map that store the node name as key and the replacement node as value
         Map<String, NodeTemplate> nodeReplacementMap = Maps.newHashMap();
 
@@ -213,17 +212,17 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
             }
         }
 
-//        // remove services that are no more target of relationships
-//        Set<NodeTemplate> servicesToRemove = Sets.newHashSet();
-//        for (NodeTemplate node : topology.getNodeTemplates().values()) {
-//            if (node instanceof ServiceNodeTemplate) {
-//                Set<NodeTemplate> sourceNodes = TopologyNavigationUtil.getSourceNodesByRelationshipType(topology, node, NormativeRelationshipConstants.ROOT);
-//                if (sourceNodes.isEmpty()) {
-//                    servicesToRemove.add(node);
-//                }
-//            }
-//        }
-//        servicesToRemove.stream().forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
+        // remove services that are no more target of relationships
+        Set<NodeTemplate> servicesToRemove = Sets.newHashSet();
+        for (NodeTemplate node : topology.getNodeTemplates().values()) {
+            if (node instanceof ServiceNodeTemplate) {
+                Set<NodeTemplate> sourceNodes = TopologyNavigationUtil.getSourceNodesByRelationshipType(topology, node, NormativeRelationshipConstants.ROOT);
+                if (sourceNodes.isEmpty()) {
+                    servicesToRemove.add(node);
+                }
+            }
+        }
+        servicesToRemove.stream().forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
 
 
     }
@@ -759,20 +758,10 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         String elementNameToFetch = fpv.getElementNameToFetch();
         boolean searchForCapabilityElement = fpv.getParameters().size() == 4;
         if (elementNameToFetch.equals("ip_address")) {
-            // TODO: resolve ip_address
-            String ip_address = resolveIpAddress(functionEvaluatorContext, nodeTemplate, targetNode, targetNodeType, serviceIpAddressesPerDeploymentResource, deploymentResource);
+            // resolve ip_address
+            String ip_address = resolveIpAddress(functionEvaluatorContext, nodeTemplate, targetNode, targetNodeType, targetRelationship, serviceIpAddressesPerDeploymentResource, deploymentResource);
             if (ip_address != null) {
                 return Optional.of(new ScalarPropertyValue(ip_address));
-            }
-        } else if (elementNameToFetch.equals("port")) {
-            String port = resolvePort(functionEvaluatorContext, nodeTemplate, targetNode, targetNodeType, serviceIpAddressesPerDeploymentResource, deploymentResource);
-            if (port != null) {
-                return Optional.of(new ScalarPropertyValue(port));
-            }
-        } else if (elementNameToFetch.equals("protocol")) {
-            String scheme = resolveProtocol(functionEvaluatorContext, nodeTemplate, targetNode, targetNodeType, serviceIpAddressesPerDeploymentResource, deploymentResource);
-            if (scheme != null) {
-                return Optional.of(new ScalarPropertyValue(scheme));
             }
         }
 
@@ -801,7 +790,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         return Optional.empty();
     }
 
-    private String resolveIpAddress(FunctionEvaluatorContext functionEvaluatorContext, NodeTemplate sourceNode, NodeTemplate targetNode, NodeType targetNodeType, Map<String, List<String>> serviceIpAddressesPerDeploymentResource, NodeTemplate deploymentResource) {
+    private String resolveIpAddress(FunctionEvaluatorContext functionEvaluatorContext, NodeTemplate sourceNode, NodeTemplate targetNode, NodeType targetNodeType, RelationshipTemplate targetRelationship, Map<String, List<String>> serviceIpAddressesPerDeploymentResource, NodeTemplate deploymentResource) {
         if (ToscaTypeUtils.isOfType(targetNodeType, K8S_TYPES_KUBECONTAINER)) {
             // the target is a container
             if (TopologyNavigationUtil.getImmediateHostTemplate(functionEvaluatorContext.getTopology(), sourceNode)
@@ -814,24 +803,12 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
             }
         } else if (ToscaTypeUtils.isOfType(targetNodeType, K8S_TYPES_KUBE_SERVICE)) {
             return resolveDependency(targetNode, serviceIpAddressesPerDeploymentResource, deploymentResource.getName());
+        } else if (targetNode instanceof ServiceNodeTemplate) {
+            String attributeName = "capabilities." + targetRelationship.getTargetedCapabilityName() + ".ip_address";
+            if (((ServiceNodeTemplate) targetNode).getAttributeValues().containsKey(attributeName)) {
+                return ((ServiceNodeTemplate) targetNode).getAttributeValues().get(attributeName);
+            }
         }
-        // TODO: manage a4c services ?
-        return null;
-    }
-
-    private String resolvePort(FunctionEvaluatorContext functionEvaluatorContext, NodeTemplate sourceNode, NodeTemplate targetNode, NodeType targetNodeType, Map<String, List<String>> serviceIpAddressesPerDeploymentResource, NodeTemplate deploymentResource) {
-        if (ToscaTypeUtils.isOfType(targetNodeType, K8S_TYPES_KUBE_INGRESS)) {
-            // TODO
-        }
-        // TODO: manager services ?
-        return null;
-    }
-
-    private String resolveProtocol(FunctionEvaluatorContext functionEvaluatorContext, NodeTemplate sourceNode, NodeTemplate targetNode, NodeType targetNodeType, Map<String, List<String>> serviceIpAddressesPerDeploymentResource, NodeTemplate deploymentResource) {
-        if (ToscaTypeUtils.isOfType(targetNodeType, K8S_TYPES_KUBE_INGRESS)) {
-            // TODO
-        }
-        // TODO: manager services ?
         return null;
     }
 
