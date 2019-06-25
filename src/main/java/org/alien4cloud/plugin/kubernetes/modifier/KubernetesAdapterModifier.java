@@ -57,6 +57,8 @@ import static org.alien4cloud.tosca.utils.ToscaTypeUtils.isOfType;
 public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
 
     public static final String A4C_KUBERNETES_ADAPTER_MODIFIER_TAG = "a4c_kubernetes-adapter-modifier";
+    /** This tag is added to any K8S resource, it's value will target the node name it replace in the original topology. */
+    public static final String A4C_KUBERNETES_ADAPTER_MODIFIER_TAG_REPLACEMENT_NODE_FOR = A4C_KUBERNETES_ADAPTER_MODIFIER_TAG + "_ReplacementNodeFor";
 
     public static final String K8S_TYPES_KUBEDEPLOYMENT = "org.alien4cloud.kubernetes.api.types.KubeDeployment";
     public static final String K8S_TYPES_KUBECONTAINER = "org.alien4cloud.kubernetes.api.types.KubeContainer";
@@ -1137,7 +1139,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
                 K8S_CSAR_VERSION);
         setKubeConfig(csar, topology, deploymentResourceNode, context);
         nodeReplacementMap.put(deploymentNode.getName(), deploymentResourceNode);
-        setNodeTagValue(deploymentResourceNode, A4C_KUBERNETES_ADAPTER_MODIFIER_TAG + "_created_from", deploymentNode.getName());
+        setNodeTagValue(deploymentResourceNode, A4C_KUBERNETES_ADAPTER_MODIFIER_TAG_REPLACEMENT_NODE_FOR, deploymentNode.getName());
 
         // ensure a policy that targets the deployment will now target the resource
         // not very necessary because the policy here doesn't mean nothing ...
@@ -1226,6 +1228,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
 
         NodeTemplate serviceResourceNode = addNodeTemplate(csar, topology, serviceNode.getName() + "_Resource", K8S_TYPES_SERVICE_RESOURCE, K8S_CSAR_VERSION);
         setKubeConfig(csar, topology, serviceResourceNode, context);
+        setNodeTagValue(serviceResourceNode, A4C_KUBERNETES_ADAPTER_MODIFIER_TAG_REPLACEMENT_NODE_FOR, serviceNode.getName());
 
         // prepare attributes
         Map<String, Set<String>> topologyAttributes = topology.getOutputAttributes();
@@ -1312,6 +1315,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
 
         NodeTemplate ingressResourceNode = addNodeTemplate(csar, topology, ingressNode.getName() + "_Resource", K8S_TYPES_SIMPLE_RESOURCE, K8S_CSAR_VERSION);
         setKubeConfig(csar, topology, ingressResourceNode, context);
+        setNodeTagValue(ingressResourceNode, A4C_KUBERNETES_ADAPTER_MODIFIER_TAG_REPLACEMENT_NODE_FOR, ingressNode.getName());
 
         Map<String, AbstractPropertyValue> ingressResourceNodeProperties = Maps.newHashMap();
         resourceNodeYamlStructures.put(ingressResourceNode.getName(), ingressResourceNodeProperties);

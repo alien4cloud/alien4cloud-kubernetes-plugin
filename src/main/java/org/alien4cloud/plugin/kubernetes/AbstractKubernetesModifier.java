@@ -41,9 +41,6 @@ public abstract class AbstractKubernetesModifier extends TopologyModifierSupport
     protected static final String A4C_KUBERNETES_MODIFIER_TAG_EXPOSED_AS_CAPA = AbstractKubernetesModifier.A4C_KUBERNETES_MODIFIER_TAG + "_exposedAs";
     protected static final String A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT_PORT = A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT + "_port";
     protected static final String A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT_PORT_NAME = A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT + "_portName";
-
-    /** This tag is added to any K8S resource, it's value will target the node name it replace in the original topology. */
-    public static final String A4C_KUBERNETES_MODIFIER_TAG_REPLACEMENT_NODE_FOR = A4C_KUBERNETES_MODIFIER_TAG + "_ReplacementNodeFor";
     private static Map<String, AbstractKubernetesModifier.Parser> k8sParsers = Maps.newHashMap();
     protected static final String K8S_NAMESPACE_METAPROP_NAME = "K8S_NAMESPACE";
     protected static final String K8S_PREFIX_METAPROP_NAME = "K8S_PREFIX";
