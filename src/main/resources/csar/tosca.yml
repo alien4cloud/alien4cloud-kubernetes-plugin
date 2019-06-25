@@ -1255,11 +1255,13 @@ node_types:
             INPUT_VARIABLES: { get_property: [SELF, input_variables] }
             KUBE_SERVICE_DEPENDENCIES: { get_property: [SELF, service_dependency_lookups] }
             NAMESPACE: { get_property: [SELF, namespace] }
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_configmap_create.sh
         delete:
           inputs:
             CONFIGMAP_NAME: { get_attribute: [SELF, name] }
             NAMESPACE: { get_property: [SELF, namespace] }
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_configmap_delete.sh
     artifacts:
       - configs:
@@ -1487,11 +1489,13 @@ node_types:
           inputs:
             SECRET_NAME: { get_property: [SELF, name] }
             NAMESPACE: { get_property: [SELF, namespace] }
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_secret_create.sh
         delete:
           inputs:
             SECRET_NAME: { get_property: [SELF, name] }
             NAMESPACE: { get_property: [SELF, namespace] }
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_secret_delete.sh
 
   org.alien4cloud.kubernetes.api.types.Service:
@@ -1776,6 +1780,15 @@ node_types:
         description: |
           The the JSON serialization (and eventually transformation) of initial node properties.
           This JSON can be used to instanciate the resource on the K8S cluster.
+      kube_config:
+        type: string
+        required: false
+        description: |
+          The kube config that will be used if provided
+    artifacts:
+      - commons:
+          type: tosca.artifacts.File
+          file: scripts/commons.sh
 #    artifacts:
 #      - deployment:
 #          type: tosca.artifacts.File
@@ -1810,6 +1823,7 @@ node_types:
             KUBE_SERVICE_DEPENDENCIES: { get_property: [SELF, service_dependency_lookups] }
             KUBE_RESOURCE_DEPLOYMENT_CONFIG: { get_property: [SELF, resource_spec] }
             NAMESPACE: { get_property: [SELF, namespace] }
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_deployment_create.sh
           description: |
             - filter variable in the artifact file
@@ -1819,6 +1833,7 @@ node_types:
           inputs:
             KUBE_DEPLOYMENT_ID: { get_property: [SELF, resource_id] }
             NAMESPACE: { get_property: [SELF, namespace] }
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_deployment_delete.sh
 # Disabled for now
 #      org.alien4cloud.management.ClusterControl:
@@ -1848,6 +1863,15 @@ node_types:
         description: |
           The the JSON serialization (and eventually transformation) of initial node properties.
           This JSON can be used to instanciate the resource on the K8S cluster.
+      kube_config:
+        type: string
+        required: false
+        description: |
+          The kube config that will be used if provided
+    artifacts:
+      - commons:
+          type: tosca.artifacts.File
+          file: scripts/commons.sh
 
   org.alien4cloud.kubernetes.api.types.JobResource:
     derived_from: org.alien4cloud.kubernetes.api.types.BaseJobResource
@@ -1856,12 +1880,17 @@ node_types:
         submit:
           inputs:
             KUBE_RESOURCE_JOB_CONFIG: { get_property: [SELF, resource_spec] }
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_job_submit.sh
           description: Standard lifecycle submit operation.
         run:
+          inputs:
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_job_run.sh
           description: Standard lifecycle run operation.
         cancel:
+          inputs:
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_job_cancel.sh
           description: Standard lifecycle cancel operation.
 
@@ -1897,12 +1926,14 @@ node_types:
             KUBE_RESOURCE_ID: { get_property: [SELF, resource_id] }
             KUBE_SPEC_PATH: { get_attribute: [SELF, spec_path] }
             NAMESPACE: { get_property: [SELF, namespace] }
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_endpoint_start.sh
         delete:
           inputs:
             KUBE_RESOURCE_TYPE: endpoints
             KUBE_RESOURCE_ID: { get_attribute: [SELF, resource_id] }
             NAMESPACE: { get_property: [SELF, namespace] }
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_resource_wrapper_uninstall.sh
 
   org.alien4cloud.kubernetes.api.types.ServiceResource:
@@ -1925,6 +1956,7 @@ node_types:
             KUBE_SERVICE_NAME: { get_property: [SELF, service_name] }
             KUBE_SERVICE_CONFIG: { get_property: [SELF, resource_spec] }
             NAMESPACE: { get_property: [SELF, namespace] }
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_service_wrapper.sh
           description: |
             - Deploy the service onto kubernetes
@@ -1933,6 +1965,7 @@ node_types:
           inputs:
             KUBE_SERVICE_NAME: { get_property: [SELF, service_name] }
             NAMESPACE: { get_property: [SELF, namespace] }
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_service_wrapper_uninstall.sh
 
   org.alien4cloud.kubernetes.api.types.SimpleResource:
@@ -1973,13 +2006,26 @@ node_types:
             KUBE_JSON_PATH_EXPR: { get_property: [SELF, json_path_expr] }
             KUBE_JSON_PATH_VALUE: { get_property: [SELF, json_path_value] }
             NAMESPACE: { get_property: [SELF, namespace] }
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_resource_wrapper.sh
         delete:
           inputs:
             KUBE_RESOURCE_TYPE: { get_property: [SELF, resource_type] }
             KUBE_RESOURCE_ID: { get_property: [SELF, resource_id] }
             NAMESPACE: { get_property: [SELF, namespace] }
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_resource_wrapper_uninstall.sh
+
+  org.alien4cloud.kubernetes.api.types.nodes.KubeCluster:
+    derived_from: tosca.nodes.Root
+    abstract: true
+    properties:
+      config:
+        type: string
+        required: false
+    capabilities:
+      k8s_endpoint:
+        type: org.alien4cloud.kubernetes.api.capabilities.KubeCluster
 
 capability_types:
   org.alien4cloud.kubernetes.api.capabilities.KubeContainerHost:
@@ -1994,6 +2040,10 @@ capability_types:
     derived_from: org.alien4cloud.capabilities.Proxy
     description: >
       When a service need to expose a port, it should expose this capability.
+  org.alien4cloud.kubernetes.api.capabilities.KubeCluster:
+    derived_from: tosca.capabilities.Endpoint
+    description: >
+      Used to associate a kube stuff to a given K8S cluster.
 
 relationship_types:
   org.alien4cloud.kubernetes.api.relationships.K8SEndpointConnectToEndpoint:

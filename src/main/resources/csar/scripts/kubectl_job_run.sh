@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 # configuration
-KUBE_ADMIN_CONFIG_PATH=/etc/kubernetes/admin.conf
+source $commons
 
 # Get active logs
 activeJobs=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}"  get "${TOSCA_JOB_ID}" -o=jsonpath={.status.active})
@@ -25,6 +25,7 @@ if [[ -n "${activeJobs}" ]] || ( [[ "${succeededJobs}" == "0" ]] && [[ "${failed
     # Some jobs are still running
     echo "${succeededJobs}/${expectedCompletions} succeeded completions (${activeJobs} still running, ${failedJobs} failed)"
     export TOSCA_JOB_STATUS="RUNNING"
+    clear_resources
     exit 0
 fi
 
@@ -45,7 +46,7 @@ if [[ ${succeededJobs} -ge ${expectedCompletions} ]] ; then
     export TOSCA_JOB_STATUS="COMPLETED"
 
     kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" delete "${TOSCA_JOB_ID}"
-
+    clear_resources
     exit 0
 fi
 
@@ -54,3 +55,4 @@ echo "Job failed"
 echo "${succeededJobs}/${expectedCompletions} succeeded completions, ${failedJobs} failed"
 export TOSCA_JOB_STATUS="FAILED"
 kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" delete "${TOSCA_JOB_ID}"
+clear_resources

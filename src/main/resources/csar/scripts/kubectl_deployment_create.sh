@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # configuration
-KUBE_ADMIN_CONFIG_PATH=/etc/kubernetes/admin.conf
+source $commons
 
 # Provided variables:
 # KUBE_SERVICE_DEPENDENCIES: contains a list of key values VARIABLE_WHERE_TO_STORE_SERVICE_IP:service-name,VAR2:service-name2
@@ -86,9 +86,11 @@ function exit_if_error(){
     if [ "${DEPLOYMENT_STATUS}" -ne 0 ]
     then
         echo "Failed to deploy"
+        clear_resources
         exit "${DEPLOYMENT_STATUS}"
     fi
 }
 
 resolve_service_dependencies_variables
 deploy_resource
+clear_resources

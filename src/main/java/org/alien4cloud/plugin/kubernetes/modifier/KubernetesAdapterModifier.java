@@ -66,6 +66,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
     public static final String K8S_TYPES_VOLUME_BASE = "org.alien4cloud.kubernetes.api.types.volume.VolumeBase";
     public static final String K8S_TYPES_KUBE_CONTAINER_ENDPOINT = "org.alien4cloud.kubernetes.api.capabilities.KubeEndpoint";
     public static final String A4C_CAPABILITIES_PROXY = "org.alien4cloud.capabilities.Proxy";
+    public static final String K8S_TYPES_KUBE_CLUSTER = "org.alien4cloud.kubernetes.api.types.nodes.KubeCluster";
 
     @Resource
     private WorkflowSimplifyService workflowSimplifyService;
@@ -109,6 +110,24 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
 
     private void doProcess(Topology topology, FlowExecutionContext context) {
         Csar csar = new Csar(topology.getArchiveName(), topology.getArchiveVersion());
+
+        // If a node of type KubeCluster is found in the topology, get the config and store it in the context for later usage
+        Set<NodeTemplate> kubeClusterNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_KUBE_CLUSTER, false);
+        if (kubeClusterNodes != null && !kubeClusterNodes.isEmpty()) {
+            if (kubeClusterNodes.size() > 1) {
+                context.getLog().warn("More than one KubeCluster node have been found, juste taking the first one");
+            }
+            NodeTemplate kubeClusterNode = kubeClusterNodes.iterator().next();
+            AbstractPropertyValue configPV = PropertyUtil.getPropertyValueFromPath(kubeClusterNode.getProperties(), "config");
+            if (configPV != null && configPV instanceof ScalarPropertyValue) {
+                String kubeConfig = ((ScalarPropertyValue)configPV).getValue();
+                if (StringUtils.isNotEmpty(kubeConfig)) {
+                    // Store the kube config using this key for later usage
+                    context.getExecutionCache().put(K8S_TYPES_KUBE_CLUSTER, kubeConfig);
+                }
+            }
+        }
+
 
         Set<NodeTemplate> endpointNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_ENDPOINT_RESOURCE, false, true);
         endpointNodes.forEach(nodeTemplate -> manageEndpoints(context, csar, topology, nodeTemplate));
@@ -1116,6 +1135,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
 
         NodeTemplate deploymentResourceNode = addNodeTemplate(csar, topology, deploymentNode.getName() + "_Resource", K8S_TYPES_DEPLOYMENT_RESOURCE,
                 K8S_CSAR_VERSION);
+        setKubeConfig(csar, topology, deploymentResourceNode, context);
         nodeReplacementMap.put(deploymentNode.getName(), deploymentResourceNode);
         setNodeTagValue(deploymentResourceNode, A4C_KUBERNETES_ADAPTER_MODIFIER_TAG + "_created_from", deploymentNode.getName());
 
@@ -1182,6 +1202,16 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
 //        }
     }
 
+    private void setKubeConfig(Csar csar, Topology topology, NodeTemplate resourceNode, FlowExecutionContext context) {
+        Object o = context.getExecutionCache().get(K8S_TYPES_KUBE_CLUSTER);
+        if (o != null) {
+            String kubeConfig = o.toString();
+            if (StringUtils.isNotEmpty(kubeConfig)) {
+                setNodePropertyPathValue(csar, topology, resourceNode, "kube_config", new ScalarPropertyValue(kubeConfig));
+            }
+        }
+    }
+
     private void createServiceResource(Csar csar, Topology topology, NodeTemplate serviceNode, Map<String, NodeTemplate> nodeReplacementMap,
             Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures, FlowExecutionContext context) {
 
@@ -1195,6 +1225,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         }
 
         NodeTemplate serviceResourceNode = addNodeTemplate(csar, topology, serviceNode.getName() + "_Resource", K8S_TYPES_SERVICE_RESOURCE, K8S_CSAR_VERSION);
+        setKubeConfig(csar, topology, serviceResourceNode, context);
 
         // prepare attributes
         Map<String, Set<String>> topologyAttributes = topology.getOutputAttributes();
@@ -1280,6 +1311,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         Set<RelationshipTemplate> relationshipTemplates = TopologyNavigationUtil.getTargetRelationships(ingressNode,"expose");
 
         NodeTemplate ingressResourceNode = addNodeTemplate(csar, topology, ingressNode.getName() + "_Resource", K8S_TYPES_SIMPLE_RESOURCE, K8S_CSAR_VERSION);
+        setKubeConfig(csar, topology, ingressResourceNode, context);
 
         Map<String, AbstractPropertyValue> ingressResourceNodeProperties = Maps.newHashMap();
         resourceNodeYamlStructures.put(ingressResourceNode.getName(), ingressResourceNodeProperties);
@@ -1359,6 +1391,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         if (StringUtils.isNoneEmpty(ingressCrt) && StringUtils.isNoneEmpty(ingressKey)) {
             // create the secret
             NodeTemplate secretResourceNode = addNodeTemplate(csar, topology, ingressNode.getName() + "_Secret", K8S_TYPES_SIMPLE_RESOURCE, K8S_CSAR_VERSION);
+            setKubeConfig(csar, topology, secretResourceNode, context);
 
             Map<String, AbstractPropertyValue> ingressSecretResourceNodeProperties = Maps.newHashMap();
             resourceNodeYamlStructures.put(secretResourceNode.getName(), ingressSecretResourceNodeProperties);

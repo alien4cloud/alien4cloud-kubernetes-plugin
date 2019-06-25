@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # configuration
-KUBE_ADMIN_CONFIG_PATH=/etc/kubernetes/admin.conf
+source $commons
 
 NAMESPACE_OPTION=""
 if [ ! -z "$NAMESPACE" ]; then
@@ -24,6 +24,8 @@ echo "Creating secret using command: $command"
 
 cmd_output=$(echo $command | sh)
 cmd_code=$?
+clear_resources
+
 if [ "${cmd_code}" -ne 0 ]; then
     echo "Failed to create config map: $cmd_output"
     exit "${cmd_code}"

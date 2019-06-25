@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # configuration
-KUBE_ADMIN_CONFIG_PATH=/etc/kubernetes/admin.conf
+source $commons
 
 # provided variables:
 # KUBE_DEPLOYMENT_ID: contains the k8s deployment id to undeploy
@@ -16,6 +16,8 @@ function scale_resource(){
     # scale to new expected instances count
     kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" ${NAMESPACE_OPTION}scale deployment "${KUBE_DEPLOYMENT_ID}" --replicas="${EXPECTED_INSTANCES}"
     SCALE_STATUS=$?
+
+    clear_resources
 
     if [ "${SCALE_STATUS}" -ne 0 ]
     then
