@@ -65,7 +65,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
     public static final String K8S_TYPES_CONFIGURABLE_KUBE_CONTAINER = "org.alien4cloud.kubernetes.api.types.KubeConfigurableContainer";
     public static final String K8S_TYPES_KUBE_SERVICE = "org.alien4cloud.kubernetes.api.types.KubeService";
     public static final String K8S_TYPES_KUBE_INGRESS = "org.alien4cloud.kubernetes.api.types.KubeIngress";
-    public static final String K8S_TYPES_VOLUME_BASE = "org.alien4cloud.kubernetes.api.types.volume.VolumeBase";
+    public static final String K8S_TYPES_VOLUME_BASE = "org.alien4cloud.kubernetes.api.types.volume.AbstractVolumeBase";
     public static final String K8S_TYPES_KUBE_CONTAINER_ENDPOINT = "org.alien4cloud.kubernetes.api.capabilities.KubeEndpoint";
     public static final String A4C_CAPABILITIES_PROXY = "org.alien4cloud.capabilities.Proxy";
     public static final String K8S_TYPES_KUBE_CLUSTER = "org.alien4cloud.kubernetes.api.types.nodes.KubeCluster";
@@ -168,7 +168,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
 //        jobNodes.forEach(nodeTemplate -> createJobResource(csar, topology, nodeTemplate, nodeReplacementMap, resourceNodeYamlStructures));
 
         // replace all occurences of org.alien4cloud.nodes.DockerExtVolume by k8s abstract volumes
-        Set<NodeTemplate> volumeNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_VOLUME_BASE, true);
+            Set<NodeTemplate> volumeNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_VOLUME_BASE, true);
         volumeNodes.forEach(nodeTemplate -> manageVolumesAtachment(csar, topology, nodeTemplate));
 
         // A function evaluator context will be usefull
