@@ -1040,26 +1040,26 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
 //            }
 
             // populate the service_dependency_lookups property of the deployment resource nodes
-//            serviceIpAddressesPerDeploymentResource.forEach((deploymentResourceNodeName, ipAddressLookups) -> {
-//                NodeTemplate deploymentResourceNode = topology.getNodeTemplates().get(deploymentResourceNodeName);
-//                StringBuilder serviceDependencyDefinitionsValue = new StringBuilder();
-//                for (int i = 0; i < ipAddressLookups.size(); i++) {
-//                    if (i > 0) {
-//                        serviceDependencyDefinitionsValue.append(",");
-//                    }
-//                    serviceDependencyDefinitionsValue.append("SERVICE_IP_LOOKUP").append(i);
-//                    serviceDependencyDefinitionsValue.append(":").append(ipAddressLookups.get(i));
-//                }
-//                setNodePropertyPathValue(csar, topology, deploymentResourceNode, "service_dependency_lookups",
-//                        new ScalarPropertyValue(serviceDependencyDefinitionsValue.toString()));
-//                // we set the same property for each configMapFactory if any
-//                configMapFactories.forEach((input_prefix, configMapFactoryNodeTemplate) -> {
-//                    configMapFactoryNodeTemplate.iterator().forEachRemaining(nodeTemplate -> {
-//                        setNodePropertyPathValue(csar, topology, nodeTemplate, "service_dependency_lookups",
-//                                new ScalarPropertyValue(serviceDependencyDefinitionsValue.toString()));
-//                    });
-//                });
-//            });
+            serviceIpAddressesPerDeploymentResource.forEach((deploymentResourceNodeName, ipAddressLookups) -> {
+                NodeTemplate deploymentResourceNode = topology.getNodeTemplates().get(deploymentResourceNodeName);
+                StringBuilder serviceDependencyDefinitionsValue = new StringBuilder();
+                for (int i = 0; i < ipAddressLookups.size(); i++) {
+                    if (i > 0) {
+                        serviceDependencyDefinitionsValue.append(",");
+                    }
+                    serviceDependencyDefinitionsValue.append("SERVICE_IP_LOOKUP").append(i);
+                    serviceDependencyDefinitionsValue.append(":").append(ipAddressLookups.get(i));
+                }
+                setNodePropertyPathValue(csar, topology, deploymentResourceNode, "service_dependency_lookups",
+                        new ScalarPropertyValue(serviceDependencyDefinitionsValue.toString()));
+                // we set the same property for each configMapFactory if any
+                configMapFactories.forEach((input_prefix, configMapFactoryNodeTemplate) -> {
+                    configMapFactoryNodeTemplate.iterator().forEachRemaining(nodeTemplate -> {
+                        setNodePropertyPathValue(csar, topology, nodeTemplate, "service_dependency_lookups",
+                                new ScalarPropertyValue(serviceDependencyDefinitionsValue.toString()));
+                    });
+                });
+            });
 
             // add an entry in the deployment resource
             AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(safe(containerNode.getProperties()), "container");
