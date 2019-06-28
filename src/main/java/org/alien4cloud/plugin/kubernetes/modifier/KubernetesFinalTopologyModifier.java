@@ -389,6 +389,14 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         NodeTemplate targetContainer = topology.getNodeTemplates().get(relationshipTemplate.get().getTarget());
         // find the deployment that hosts this container
         NodeTemplate deploymentContainer = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology, targetContainer, K8S_TYPES_DEPLOYMENT);
+        if (deploymentContainer == null) {
+            // find the job that hosts this container
+            deploymentContainer = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology, targetContainer, K8S_TYPES_JOB);
+        }
+        if (deploymentContainer == null) {
+            ctx.getLog().error("failed to get controller hosting volume <"+ volumeNode.getName() + ">");
+            return;
+        }
         // get the deployment resource corresponding to this deployment
         NodeTemplate deploymentResourceNode = nodeReplacementMap.get(deploymentContainer.getName());
 
