@@ -1630,8 +1630,8 @@ node_types:
 
   org.alien4cloud.kubernetes.api.types.KubeDeployment:
     derived_from: org.alien4cloud.kubernetes.api.types.AbstractDeployment
-#    tags:
-#      icon: /images/kubernetes.png
+    tags:
+      icon: /images/kubernetes.png
     properties:
       spec:
         type: org.alien4cloud.kubernetes.api.datatypes.DeploymentSpec
@@ -1734,8 +1734,8 @@ node_types:
 
   org.alien4cloud.kubernetes.api.types.KubeContainer:
     derived_from: tosca.nodes.Root
-#    tags:
-#      icon: /images/kubernetes.png
+    tags:
+      icon: /images/kubernetes.png
     description: >
       Represent a kubernetes ContainerSpec.
     properties:
