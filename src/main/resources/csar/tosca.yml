@@ -193,6 +193,16 @@ data_types:
         required: false
         description: |
           Template describes the pods that will be created.
+      replicas:
+        type: integer
+        required: false
+        description: |
+          Desired number of replicas of the given Template. These are replicas in the sense that they are instantiations of the same Template, but individual replicas also have a consistent identity. If unspecified, defaults to 1.
+      revisionHistoryLimit:
+        type: integer
+        required: false
+        description: |
+          Maximum number of revisions that will be maintained in the revision history. The revision history consists of all revisions not represented by a currently applied version. 
 
   org.alien4cloud.kubernetes.api.datatypes.DeploymentSpec:
     derived_from: org.alien4cloud.kubernetes.api.datatypes.ControllerSpec
@@ -214,16 +224,6 @@ data_types:
         required: false
         description: |
           The maximum time in seconds for a deployment to make progress before it is considered to be failed. The deployment controller will continue to process failed deployments and a condition with a ProgressDeadlineExceeded reason will be surfaced in the deployment status. Once autoRollback is implemented, the deployment controller will automatically rollback failed deployments. Note that progress will not be estimated during the time a deployment is paused. Defaults to 600s.
-      replicas:
-        type: integer
-        required: false
-        description: |
-          Number of desired pods. This is a pointer to distinguish between explicit zero and not specified. Defaults to 1.
-      revisionHistoryLimit:
-        type: integer
-        required: false
-        description: |
-          The number of old ReplicaSets to retain to allow rollback. This is a pointer to distinguish between explicit zero and not specified. Defaults to 2.
       rollbackTo:
         type: string # datetype: RollbackConfig
         required: false
@@ -277,16 +277,6 @@ data_types:
     description: >
       c.f. https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.12/#statefulsetspec-v1-apps
     properties:
-      replicas:
-        type: integer
-        required: false
-        description: |
-          Desired number of replicas of the given Template. These are replicas in the sense that they are instantiations of the same Template, but individual replicas also have a consistent identity. If unspecified, defaults to 1.
-      revisionHistoryLimit:
-        type: integer
-        required: false
-        description: |
-          Maximum number of revisions that will be maintained in the StatefulSet's revision history. The revision history consists of all revisions not represented by a currently applied StatefulSetSpec version. The default value is 10.
       selector:
         type: string # datetype: org.alien4cloud.kubernetes.api.datatypes.LabelSelector
         required: false
@@ -1582,12 +1572,32 @@ node_types:
   #      type: org.alien4cloud.kubernetes.api.datatypes.ControllerSpec
   # in this case don't need to define spec property in AbstractDeployment and AbstractJobe
   
+  org.alien4cloud.kubernetes.api.types.AbstractController:
+    abstract: true
+    derived_from: org.alien4cloud.kubernetes.api.types.Base
+    capabilities:
+      host: tosca.capabilities.Container.Docker
+      scalable: tosca.capabilities.Scalable
+    properties:
+      apiVersion:
+        type: string
+        default: apps/v1
+        constraints:
+          - valid_values: [apps/v1, apps/v1beta1]
+      kind:
+        type: string
+        default: StatefulSet
+        constraints:
+          - valid_values: [StatefulSet, Deployment]
+      spec:
+        type: org.alien4cloud.kubernetes.api.datatypes.ControllerSpec
+
   org.alien4cloud.kubernetes.api.types.StatefulSet:
     derived_from: org.alien4cloud.kubernetes.api.types.AbstractStatefulSet
 
   org.alien4cloud.kubernetes.api.types.AbstractStatefulSet:
     abstract: true
-    derived_from: org.alien4cloud.kubernetes.api.types.Base
+    derived_from: org.alien4cloud.kubernetes.api.types.AbstractController
     description: >
       Represent a kubernetes StatefulSet
     properties:
@@ -1609,28 +1619,20 @@ node_types:
 
   org.alien4cloud.kubernetes.api.types.AbstractDeployment:
     abstract: true
-    derived_from: org.alien4cloud.kubernetes.api.types.Base
+    derived_from: org.alien4cloud.kubernetes.api.types.AbstractController
     description: >
       Represent a kubernetes Deployment
-    capabilities:
-      host: tosca.capabilities.Container.Docker
-      scalable: tosca.capabilities.Scalable
     properties:
       apiVersion:
         type: string
-        description: |
-          APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#resources
         default: apps/v1beta1
         constraints:
           - equal: apps/v1beta1
       kind:
         type: string
-        description: |
-          Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#types-kinds
         default: Deployment
         constraints:
           - equal: Deployment
-      # Could remove this if we derive AbstractDeployment from AbstractController
       spec:
         type: org.alien4cloud.kubernetes.api.datatypes.DeploymentSpec
 
