@@ -43,6 +43,7 @@ import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_T
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ABSTRACT_CONTAINER;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ABSTRACT_DEPLOYMENT;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ABSTRACT_STATEFULSET;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ABSTRACT_CONTROLLER;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ABSTRACT_JOB;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ABSTRACT_SERVICE;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ABSTRACT_VOLUME_BASE;
@@ -103,7 +104,7 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         Set<NodeTemplate> containerRuntimeNodes = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_CONTAINER_RUNTIME, false);
         containerRuntimeNodes.forEach(nodeTemplate -> transformContainerRuntime(csar, topology, context, nodeTemplate));
 
-        // replace all ContainerDeploymentUnit by org.alien4cloud.kubernetes.api.types.AbstractDeployment
+        // replace all ContainerDeploymentUnit by org.alien4cloud.kubernetes.api.types.AbstractController
         Set<NodeTemplate> containerDeploymentUnitNodes = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_CONTAINER_DEPLOYMENT_UNIT, false);
         containerDeploymentUnitNodes.forEach(nodeTemplate -> transformContainerDeploymentUnit(csar, topology, context, nodeTemplate));
 
@@ -282,10 +283,10 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
     }
 
     /**
-     * Replace this node of type ContainerDeploymentUnit by a node of type AbstractDeployment.
+     * Replace this node of type ContainerDeploymentUnit by a node of type AbstractController.
      */
     private void transformContainerDeploymentUnit(Csar csar, Topology topology, FlowExecutionContext context, NodeTemplate nodeTemplate) {
-        nodeTemplate = replaceNode(csar, topology, nodeTemplate, K8S_TYPES_ABSTRACT_DEPLOYMENT, K8S_CSAR_VERSION);
+        nodeTemplate = replaceNode(csar, topology, nodeTemplate, K8S_TYPES_ABSTRACT_CONTROLLER, K8S_CSAR_VERSION);
         setNodeTagValue(nodeTemplate, A4C_KUBERNETES_MODIFIER_TAG, "Replacement of a " + A4C_TYPES_CONTAINER_DEPLOYMENT_UNIT);
 
         AbstractPropertyValue defaultInstances = TopologyNavigationUtil.getNodeCapabilityPropertyValue(nodeTemplate, "scalable", "default_instances");
@@ -474,7 +475,7 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         appendNodePropertyPathValue(csar, topology, serviceNode, "spec.ports", complexPropertyValue);
 
         // find the deployment node parent of the container
-        NodeTemplate deploymentHost = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology, containerNodeTemplate, K8S_TYPES_ABSTRACT_DEPLOYMENT);
+        NodeTemplate deploymentHost = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology, containerNodeTemplate, K8S_TYPES_ABSTRACT_CONTROLLER);
         // add a depends_on relationship between service and the deployment unit
         addRelationshipTemplate(csar, topology, serviceNode, deploymentHost.getName(), NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
 
@@ -489,7 +490,7 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
                 if (relationship.getTarget().equals(containerNodeTemplate.getName()) && relationship.getTargetedCapabilityName().equals(endpointName)) {
                     // we need to add a depends_on between the source deployment and the service (if not already exist)
                     NodeTemplate sourceDeploymentHost = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology, containerSourceCandidateNodeTemplate,
-                            K8S_TYPES_ABSTRACT_DEPLOYMENT);
+                            K8S_TYPES_ABSTRACT_CONTROLLER);
                     // exclude if source and target containers are hosted on the same deployment
                     if (sourceDeploymentHost != deploymentNodeTemplate && !TopologyNavigationUtil.hasRelationship(sourceDeploymentHost, serviceNode.getName(), "dependency", "feature")) {
                         addRelationshipTemplate(csar, topology, sourceDeploymentHost, serviceNode.getName(), NormativeRelationshipConstants.DEPENDS_ON,
