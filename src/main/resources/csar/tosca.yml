@@ -1290,7 +1290,7 @@ node_types:
         description: |
           Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#types-kinds
         constraints:
-          - valid_values: [Deployment, Service, HorizontalPodAutoscaler]
+          - valid_values: [StatefulSet, Deployment, Service, HorizontalPodAutoscaler]
       metadata:
         type: map
         required: false
@@ -1579,16 +1579,6 @@ node_types:
       host: tosca.capabilities.Container.Docker
       scalable: tosca.capabilities.Scalable
     properties:
-      apiVersion:
-        type: string
-        default: apps/v1
-        constraints:
-          - valid_values: [apps/v1, apps/v1beta1]
-      kind:
-        type: string
-        default: StatefulSet
-        constraints:
-          - valid_values: [StatefulSet, Deployment]
       spec:
         type: org.alien4cloud.kubernetes.api.datatypes.ControllerSpec
 
