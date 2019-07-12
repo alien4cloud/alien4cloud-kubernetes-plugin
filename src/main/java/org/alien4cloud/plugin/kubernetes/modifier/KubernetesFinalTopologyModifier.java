@@ -42,8 +42,10 @@ import static org.alien4cloud.plugin.kubernetes.csar.Version.K8S_CSAR_VERSION;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_APPLICATION_DOCKER_CONTAINER;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_CONTAINER;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_DEPLOYMENT;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_STATEFULSET;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_JOB;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_DEPLOYMENT_RESOURCE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_STATEFULSET_RESOURCE;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_JOB_RESOURCE;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ENDPOINT_RESOURCE;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_BASE_RESOURCE;
@@ -130,6 +132,10 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         // for each Deployment create a node of type DeploymentResource
         Set<NodeTemplate> deploymentNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_DEPLOYMENT, false);
         deploymentNodes.forEach(nodeTemplate -> createDeploymentResource(csar, topology, nodeTemplate, nodeReplacementMap, resourceNodeYamlStructures));
+
+        // for each StatefulSet create a node of type StatefulSetResource
+        Set<NodeTemplate> statefulSetNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_STATEFULSET, false);
+        statefulSetNodes.forEach(nodeTemplate -> createStatefulSetResource(csar, topology, nodeTemplate, nodeReplacementMap, resourceNodeYamlStructures));
 
         // for each Job create a node of type JobResource
         Set<NodeTemplate> jobNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_JOB, false);
@@ -387,14 +393,18 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
             return;
         }
         NodeTemplate targetContainer = topology.getNodeTemplates().get(relationshipTemplate.get().getTarget());
-        // find the deployment that hosts this container
-        NodeTemplate deploymentContainer = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology, targetContainer, K8S_TYPES_DEPLOYMENT);
-        // get the deployment resource corresponding to this deployment
-        NodeTemplate deploymentResourceNode = nodeReplacementMap.get(deploymentContainer.getName());
+        // find the controller that hosts this container
+        // If don't find a deployment then try to find a statefulSet
+        NodeTemplate hostOfContainer = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology, targetContainer, K8S_TYPES_DEPLOYMENT);
+        if(hostOfContainer == null){
+            hostOfContainer = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology, targetContainer, K8S_TYPES_STATEFULSET);
+        }
+        // get the controller resource corresponding to this deployment
+        NodeTemplate controllerResourceNode = nodeReplacementMap.get(hostOfContainer.getName());
 
-        managePersistentVolumeClaim(ctx, csar, topology, volumeNode, resourceNodeYamlStructures, deploymentResourceNode);
+        managePersistentVolumeClaim(ctx, csar, topology, volumeNode, resourceNodeYamlStructures, controllerResourceNode);
 
-        Map<String, AbstractPropertyValue> deploymentResourceNodeProperties = resourceNodeYamlStructures.get(deploymentResourceNode.getName());
+        Map<String, AbstractPropertyValue> deploymentResourceNodeProperties = resourceNodeYamlStructures.get(controllerResourceNode.getName());
         Map<String, Object> volumeEntry = Maps.newHashMap();
         AbstractPropertyValue name = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "name");
         AbstractPropertyValue volume_type = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "volume_type");
@@ -425,7 +435,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                 secretFactory.setArtifacts(artifacts);
             }
             artifacts.put("resources", volumeNode.getArtifacts().get("resources"));
-            addRelationshipTemplate(csar, topology, deploymentResourceNode, secretFactory.getName(), NormativeRelationshipConstants.DEPENDS_ON,
+            addRelationshipTemplate(csar, topology, controllerResourceNode, secretFactory.getName(), NormativeRelationshipConstants.DEPENDS_ON,
                     "dependency", "feature");
         }
     }
@@ -799,6 +809,29 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         }
     }
 
+    
+    private void createStatefulSetResource(Csar csar, Topology topology, NodeTemplate statefulsetNode, Map<String, NodeTemplate> nodeReplacementMap,
+    Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures){
+        NodeTemplate statefulsetResourceNode = addNodeTemplate(csar, topology, statefulsetNode.getName() + "_Resource", K8S_TYPES_STATEFULSET_RESOURCE,
+        K8S_CSAR_VERSION);
+        nodeReplacementMap.put(statefulsetNode.getName(), statefulsetResourceNode);
+        setNodeTagValue(statefulsetResourceNode, A4C_KUBERNETES_MODIFIER_TAG + "_created_from", statefulsetNode.getName()); 
+
+        Map<String, AbstractPropertyValue> statefulsetResourceNodeProperties = Maps.newHashMap();
+        resourceNodeYamlStructures.put(statefulsetResourceNode.getName(), statefulsetResourceNodeProperties);
+
+        copyProperty(csar, topology, statefulsetNode, "apiVersion", statefulsetResourceNodeProperties, "resource_def.apiVersion");
+        copyProperty(csar, topology, statefulsetNode, "kind", statefulsetResourceNodeProperties, "resource_def.kind");
+        copyProperty(csar, topology, statefulsetNode, "metadata", statefulsetResourceNodeProperties, "resource_def.metadata");
+
+        AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(safe(statefulsetNode.getProperties()), "spec");
+        NodeType nodeType = ToscaContext.get(NodeType.class, statefulsetNode.getType());
+        PropertyDefinition propertyDefinition = nodeType.getProperties().get("spec");
+        Object transformedValue = getTransformedValue(propertyValue, propertyDefinition, "");
+        feedPropertyValue(statefulsetResourceNodeProperties, "resource_def.spec", transformedValue, false);
+    }
+    
+    
     private void createJobResource(Csar csar, Topology topology, NodeTemplate jobNode, Map<String, NodeTemplate> nodeReplacementMap,
             Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures) {
         NodeTemplate jobResourceNode = addNodeTemplate(csar, topology, jobNode.getName() + "_Resource", K8S_TYPES_JOB_RESOURCE,
