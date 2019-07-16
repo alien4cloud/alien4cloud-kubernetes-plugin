@@ -168,6 +168,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         serviceNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
         deploymentNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
         jobNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
+        statefulSetNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
         Set<NodeTemplate> volumes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_VOLUME_BASE, true);
         volumes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
         Set<NodeTemplate> containers = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_APPLICATION_DOCKER_CONTAINER, true, false);
@@ -402,6 +403,13 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         // get the controller resource corresponding to this deployment
         NodeTemplate controllerResourceNode = nodeReplacementMap.get(hostOfContainer.getName());
 
+        // If statefulSet does not match a PVC, raise error
+        NodeType volumeNodeType = ToscaContext.get(NodeType.class, volumeNode.getType());
+        NodeType hostNodeType = ToscaContext.get(NodeType.class, hostOfContainer.getType());
+        if(ToscaTypeUtils.isOfType(hostNodeType, K8S_TYPES_STATEFULSET) && !ToscaTypeUtils.isOfType(volumeNodeType, KubeTopologyUtils.K8S_TYPES_VOLUMES_CLAIM)){
+            ctx.log().error("StatefulSet "+hostOfContainer.getName()+" should match a PersistentVolumeClaim resource !");
+        }
+        
         managePersistentVolumeClaim(ctx, csar, topology, volumeNode, resourceNodeYamlStructures, controllerResourceNode);
 
         Map<String, AbstractPropertyValue> deploymentResourceNodeProperties = resourceNodeYamlStructures.get(controllerResourceNode.getName());
@@ -419,7 +427,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         volumeEntry.put(PropertyUtil.getScalarValue(volume_type), volumeSpecObject);
         feedPropertyValue(deploymentResourceNodeProperties, "resource_def.spec.template.spec.volumes", volumeEntry, true);
 
-        NodeType volumeNodeType = ToscaContext.get(NodeType.class, volumeNode.getType());
+        //NodeType volumeNodeType = ToscaContext.get(NodeType.class, volumeNode.getType());
         if (ToscaTypeUtils.isOfType(volumeNodeType, KubeTopologyUtils.K8S_TYPES_SECRET_VOLUME)) {
             // we must create a secret, the deployment should depend on it
             NodeTemplate secretFactory = addNodeTemplate(csar, topology, volumeNode.getName() + "_Secret", KubeTopologyUtils.K8S_TYPES_SECRET_FACTORY,
@@ -824,11 +832,53 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         copyProperty(csar, topology, statefulsetNode, "kind", statefulsetResourceNodeProperties, "resource_def.kind");
         copyProperty(csar, topology, statefulsetNode, "metadata", statefulsetResourceNodeProperties, "resource_def.metadata");
 
+        AbstractPropertyValue resource_id = PropertyUtil.getPropertyValueFromPath(safe(statefulsetNode.getProperties()), "metadata.name");
+        setNodePropertyPathValue(csar, topology, statefulsetResourceNode, "resource_id", resource_id);
+
         AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(safe(statefulsetNode.getProperties()), "spec");
         NodeType nodeType = ToscaContext.get(NodeType.class, statefulsetNode.getType());
         PropertyDefinition propertyDefinition = nodeType.getProperties().get("spec");
         Object transformedValue = getTransformedValue(propertyValue, propertyDefinition, "");
         feedPropertyValue(statefulsetResourceNodeProperties, "resource_def.spec", transformedValue, false);
+
+        Capability scalableCapability = safe(statefulsetNode.getCapabilities()).get("scalable");
+        if (scalableCapability != null) {
+            Capability clusterControllerCapability = new Capability(AlienCapabilityTypes.CLUSTER_CONTROLLER,
+                    CloneUtil.clone(scalableCapability.getProperties()));
+            NodeTemplateUtils.setCapability(statefulsetResourceNode, "scalable", clusterControllerCapability);
+        }
+
+
+        // find each node of type Service that targets this deployment
+        Set<NodeTemplate> sourceCandidates = TopologyNavigationUtil.getSourceNodes(topology, statefulsetNode, "feature");
+        for (NodeTemplate sourceCandidate : sourceCandidates) {
+            NodeType sourceCandidateType = ToscaContext.get(NodeType.class, sourceCandidate.getType());
+            if (ToscaTypeUtils.isOfType(sourceCandidateType, K8S_TYPES_SERVICE)) {
+                // find the replacer
+                NodeTemplate serviceResource = nodeReplacementMap.get(sourceCandidate.getName());
+                if (!TopologyNavigationUtil.hasRelationship(serviceResource, statefulsetResourceNode.getName(), "dependency", "feature")) {
+                    RelationshipTemplate relationshipTemplate = addRelationshipTemplate(csar, topology, serviceResource, statefulsetResourceNode.getName(),
+                            NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
+                    setNodeTagValue(relationshipTemplate, A4C_KUBERNETES_MODIFIER_TAG + "_created_from",
+                            sourceCandidate.getName() + " -> " + statefulsetNode.getName());
+                }
+            }
+        }
+        // find each node of type service this deployment depends on
+        Set<NodeTemplate> targetCandidates = TopologyNavigationUtil.getTargetNodes(topology, statefulsetNode, "dependency");
+        for (NodeTemplate targetCandidate : targetCandidates) {
+            NodeType targetCandidateType = ToscaContext.get(NodeType.class, targetCandidate.getType());
+            if (ToscaTypeUtils.isOfType(targetCandidateType, K8S_TYPES_SERVICE)) {
+                // find the replacer
+                NodeTemplate serviceResource = nodeReplacementMap.get(targetCandidate.getName());
+                if (!TopologyNavigationUtil.hasRelationship(statefulsetResourceNode, serviceResource.getName(), "dependency", "feature")) {
+                    RelationshipTemplate relationshipTemplate = addRelationshipTemplate(csar, topology, statefulsetResourceNode, serviceResource.getName(),
+                            NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
+                    setNodeTagValue(relationshipTemplate, A4C_KUBERNETES_MODIFIER_TAG + "_created_from",
+                    statefulsetNode.getName() + " -> " + targetCandidate.getName());
+                }
+            }
+        }
     }
     
     
