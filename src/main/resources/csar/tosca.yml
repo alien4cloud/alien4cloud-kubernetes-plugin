@@ -203,6 +203,11 @@ data_types:
         required: false
         description: |
           Maximum number of revisions that will be maintained in the revision history. The revision history consists of all revisions not represented by a currently applied version. 
+      selector:
+        type: string # datetype: org.alien4cloud.kubernetes.api.datatypes.LabelSelector
+        required: false
+        description: |
+          Label query over pods that should match the pod count. Normally, the system sets this field for you
 
   org.alien4cloud.kubernetes.api.datatypes.DeploymentSpec:
     derived_from: org.alien4cloud.kubernetes.api.datatypes.ControllerSpec
@@ -229,11 +234,6 @@ data_types:
         required: false
         description: |
           The config this deployment is rolling back to. Will be cleared after rollback is done.
-      selector:
-        type: string # datetype: org.alien4cloud.kubernetes.api.datatypes.LabelSelector
-        required: false
-        description: |
-          Label selector for pods. Existing ReplicaSets whose pods are selected by this will be the ones affected by this deployment.
       strategy:
         type: string # datetype: DeploymentStrategy
         required: false
@@ -266,22 +266,12 @@ data_types:
         required: false
         description: |
           Parallelism specifies the maximum desired number of pods the job should run at any given time.
-      selector:
-        type: string # datetype: org.alien4cloud.kubernetes.api.datatypes.LabelSelector
-        required: false
-        description: |
-          Label query over pods that should match the pod count. Normally, the system sets this field for you
 
   org.alien4cloud.kubernetes.api.datatypes.StatefulSetSpec:
     derived_from: org.alien4cloud.kubernetes.api.datatypes.ControllerSpec
     description: >
       c.f. https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.12/#statefulsetspec-v1-apps
     properties:
-      selector:
-        type: string # datetype: org.alien4cloud.kubernetes.api.datatypes.LabelSelector
-        required: false
-        description: |
-          Label query over pods that should match the pod count. Normally, the system sets this field for you
       serviceName:
         type: string
         required: false
