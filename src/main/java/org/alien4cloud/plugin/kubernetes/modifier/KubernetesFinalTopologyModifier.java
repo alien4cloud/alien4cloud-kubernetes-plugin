@@ -477,6 +477,8 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                 // get the size of the volume to define claim storage size
                 NodeType nodeType = ToscaContext.get(NodeType.class, volumeNode.getType());
                 AbstractPropertyValue size = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "size");
+                if(size ==null)
+                    ctx.log().error("Volume node "+volumeNode.getName()+" should have a size !");
                 PropertyDefinition propertyDefinition = nodeType.getProperties().get("size");
                 Object transformedSize = getTransformedValue(size, propertyDefinition, "");
                 feedPropertyValue(volumeClaimResourceNodeProperties, "resource_def.spec.resources.requests.storage", transformedSize, false);
