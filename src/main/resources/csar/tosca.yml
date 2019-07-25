@@ -130,11 +130,6 @@ data_types:
         required: false
         description: |
           clusterIP is the IP address of the service and is usually assigned randomly by the master. If an address is specified manually and is not in use by others, it will be allocated to the service; otherwise, creation of the service will fail. This field can not be changed through updates. Valid values are "None", empty string (""), or a valid IP address. "None" can be specified for headless services when proxying is not required. Only applies to types ClusterIP, NodePort, and LoadBalancer. Ignored if type is ExternalName. More info: http://kubernetes.io/docs/user-guide/services#virtual-ips-and-service-proxies
-      deprecatedPublicIPs:
-        type: string
-        required: false
-        description: |
-          array  deprecatedPublicIPs is deprecated and replaced by the externalIPs field with almost the exact same semantics. This field is retained in the v1 API for compatibility until at least 8/20/2016. It will be removed from any new API revisions. If both deprecatedPublicIPs and externalIPs are set, deprecatedPublicIPs is used.
       externalIPs:
         type: string
         required: false
@@ -145,6 +140,16 @@ data_types:
         required: false
         description: |
           externalName is the external reference that kubedns or equivalent will return as a CNAME record for this service. No proxying will be involved. Must be a valid DNS name and requires Type to be ExternalName.
+      externalTrafficPolicy:
+        type: string
+        required: false
+        description: |
+          externalTrafficPolicy denotes if this Service desires to route external traffic to node-local or cluster-wide endpoints. "Local" preserves the client source IP and avoids a second hop for LoadBalancer and Nodeport type services, but risks potentially imbalanced traffic spreading. "Cluster" obscures the client source IP and may cause a second hop to another node, but should have good overall load-spreading.
+      healthCheckNodePort:
+        type: integer
+        required: false
+        description: |
+          healthCheckNodePort specifies the healthcheck nodePort for the service. If not specified, HealthCheckNodePort is created by the service api backend with the allocated nodePort. Will use user-specified nodePort value if specified by the client. Only effects when Type is set to LoadBalancer and ExternalTrafficPolicy is set to Local.
       loadBalancerIP:
         type: string
         required: false
@@ -162,6 +167,11 @@ data_types:
           The list of ports that are exposed by this service. More info: http://kubernetes.io/docs/user-guide/services#virtual-ips-and-service-proxies
         entry_schema:
           type: org.alien4cloud.kubernetes.api.datatypes.ServicePort
+      publishNotReadyAddresses:
+        type: boolean
+        required: false
+        description: |
+          publishNotReadyAddresses, when set to true, indicates that DNS implementations must publish the notReadyAddresses of subsets for the Endpoints associated with the Service. The default value is false. The primary use case for setting this field is to use a StatefulSet's Headless Service to propagate SRV records for its Pods without respect to their readiness for purpose of peer discovery.
       selector:
         type: map
         required: false
@@ -170,18 +180,40 @@ data_types:
         description: |
           Route service traffic to pods with label keys and values matching this selector. If empty or not present, the service is assumed to have an external process managing its endpoints, which Kubernetes will not modify. Only applies to types ClusterIP, NodePort, and LoadBalancer. Ignored if type is ExternalName. More info: http://kubernetes.io/docs/user-guide/services#overview
       sessionAffinity:
-        type: string
+        type:  org.alien4cloud.kubernetes.api.datatypes.SessionAffinityConfig
         required: false
         description: |
-          Supports "ClientIP" and "None". Used to maintain session affinity. Enable client IP based session affinity. Must be ClientIP or None. Defaults to None. More info: http://kubernetes.io/docs/user-guide/services#virtual-ips-and-service-proxies
+          sessionAffinityConfig contains the configurations of session affinity.
       # TODO: initally 'type'
       service_type:
         type: string
-        required: false
+        required: true
+        default: ClusterIP
         description: |
           type determines how the Service is exposed. Defaults to ClusterIP. Valid options are ExternalName, ClusterIP, NodePort, and LoadBalancer. "ExternalName" maps to the specified externalName. "ClusterIP" allocates a cluster-internal IP address for load-balancing to endpoints. Endpoints are determined by the selector or if that is not specified, by manual construction of an Endpoints object. If clusterIP is "None", no virtual IP is allocated and the endpoints are published as a set of endpoints rather than a stable IP. "NodePort" builds on ClusterIP and allocates a port on every node which routes to the clusterIP. "LoadBalancer" builds on NodePort and creates an external load-balancer (if supported in the current cloud) which routes to the clusterIP. More info: http://kubernetes.io/docs/user-guide/services#overview
         constraints:
           valid_values: [ 'ExternalName', 'ClusterIP', 'NodePort', 'LoadBalancer' ]
+
+  org.alien4cloud.kubernetes.api.datatypes.SessionAffinityConfig:
+    derived_from: tosca.datatypes.Root
+    description: >
+      SessionAffinityConfig represents the configurations of session affinity.
+    properties:
+      clientIP:
+        type: org.alien4cloud.kubernetes.api.datatypes.ClientIPConfig
+        description: |
+          clientIP contains the configurations of Client IP based session affinity.
+
+  org.alien4cloud.kubernetes.api.datatypes.ClientIPConfig:
+    derived_from: tosca.datatypes.Root
+    description: >
+      ClientIPConfig represents the configurations of Client IP based session affinity.
+    properties:
+      timeoutSeconds:
+        type: integer
+        required: true
+        description: |
+          timeoutSeconds specifies the seconds of ClientIP type session sticky time. The value must be >0 && <=86400(for 1 day) if ServiceAffinity == "ClientIP". Default value is 10800(for 3 hours).
 
   org.alien4cloud.kubernetes.api.datatypes.ControllerSpec:
     derived_from: tosca.datatypes.Root
@@ -326,7 +358,7 @@ data_types:
         type: org.alien4cloud.kubernetes.api.datatypes.Affinity
         required: false
         description: |
-           If specified, the pod's scheduling constraints
+          If specified, the pod's scheduling constraints
       automountServiceAccountToken:
         type: boolean
         required: false
@@ -336,11 +368,16 @@ data_types:
       #   type: Container
       #   description: |
       #     array List of containers belonging to the pod. Containers cannot currently be added or removed. There must be at least one container in a Pod. Cannot be updated. More info: http://kubernetes.io/docs/user-guide/containers
+      enableServiceLinks:
+        type: boolean
+        required: false
+        description: |
+          EnableServiceLinks indicates whether information about services should be injected into pod's environment variables, matching the syntax of Docker links. Optional: Defaults to true.
       dnsPolicy:
         type: string
         required: false
         description: |
-           Set DNS policy for containers within the pod. One of 'ClusterFirstWithHostNet', 'ClusterFirst' or 'Default'. Defaults to "ClusterFirst". To have DNS options set along with hostNetwork, you have to specify DNS policy explicitly to 'ClusterFirstWithHostNet'.
+          Set DNS policy for containers within the pod. One of 'ClusterFirstWithHostNet', 'ClusterFirst' or 'Default'. Defaults to "ClusterFirst". To have DNS options set along with hostNetwork, you have to specify DNS policy explicitly to 'ClusterFirstWithHostNet'.
       hostIPC:
         type: boolean
         required: false
@@ -360,7 +397,7 @@ data_types:
         type: string
         required: false
         description: |
-           Specifies the hostname of the Pod If not specified, the pod's hostname will be set to a system-defined value.
+          Specifies the hostname of the Pod If not specified, the pod's hostname will be set to a system-defined value.
       imagePullSecrets:
         type: list
         required: false
@@ -377,14 +414,24 @@ data_types:
         type: string
         required: false
         description: |
-           NodeName is a request to schedule this pod onto a specific node. If it is non-empty, the scheduler simply schedules this pod onto that node, assuming that it fits resource requirements.
+          NodeName is a request to schedule this pod onto a specific node. If it is non-empty, the scheduler simply schedules this pod onto that node, assuming that it fits resource requirements.
       nodeSelector:
         type: map
         required: false
         entry_schema:
           type: string
         description: |
-           NodeSelector is a selector which must be true for the pod to fit on a node. Selector which must match a node's labels for the pod to be scheduled on that node. More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
+          NodeSelector is a selector which must be true for the pod to fit on a node. Selector which must match a node's labels for the pod to be scheduled on that node. More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
+      priority:
+        type: integer
+        required: false
+        description: |
+          The priority value. Various system components use this field to find the priority of the pod. When Priority Admission Controller is enabled, it prevents users from setting this field. The admission controller populates this field from PriorityClassName. The higher the value, the higher the priority.
+      priorityClassName:
+        type: string
+        required: false
+        description: |
+          If specified, indicates the pod's priority. "system-node-critical" and "system-cluster-critical" are two special keywords which indicate the highest priorities with the former being the highest priority. Any other name must be defined by creating a PriorityClass object with that name. If not specified, the pod priority will be default or zero if there is no default.
       restartPolicy:
         type: string
         required: false
@@ -409,6 +456,11 @@ data_types:
         required: false
         description: |
            ServiceAccountName is the name of the ServiceAccount to use to run this pod. More info: http://releases.k8s.io/HEAD/docs/design/service_accounts.md
+      shareProcessNamespace:
+        type: boolean
+        required: false
+        description: |
+          Share a single process namespace between all of the containers in a pod. When this is set containers will be able to view and signal processes from other containers in the same pod, and the first process in each container will not be assigned PID 1. HostPID and ShareProcessNamespace cannot both be set. Optional: Default to false. This field is beta-level and may be disabled with the PodShareProcessNamespace feature.
       subdomain:
         type: string
         required: false
@@ -1533,9 +1585,9 @@ node_types:
         type: string
         description: |
           APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#resources
-        default: v1
+        default: networking.k8s.io/v1beta1
         constraints:
-          - equal: v1
+          - equal: networking.k8s.io/v1beta1
       kind:
         type: string
         description: |
@@ -1601,9 +1653,9 @@ node_types:
         type: string
         description: |
           APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#resources
-        default: v1
+        default: core/v1
         constraints:
-          - equal: v1
+          - equal: core/v1
       kind:
         type: string
         description: |
@@ -1652,9 +1704,9 @@ node_types:
         type: string
         description: |
           APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#resources
-        default: apps/v1beta1
+        default: apps/v1
         constraints:
-          - equal: apps/v1beta1
+          - equal: apps/v1
       kind:
         type: string
         description: |
