@@ -1140,6 +1140,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         ScalarPropertyValue deploymentName = new ScalarPropertyValue(generateUniqueKubeName(context, deploymentNode.getName()));
         setNodePropertyPathValue(csar, topology, deploymentNode, "metadata.name", deploymentName);
         setNodePropertyPathValue(csar, topology, deploymentNode, "spec.template.metadata.labels.app", deploymentName);
+        setNodePropertyPathValue(csar, topology, deploymentNode, "spec.selector.matchLabels.app", deploymentName);
 
         NodeTemplate deploymentResourceNode = addNodeTemplate(csar, topology, deploymentNode.getName() + "_Resource", K8S_TYPES_DEPLOYMENT_RESOURCE,
                 K8S_CSAR_VERSION);
