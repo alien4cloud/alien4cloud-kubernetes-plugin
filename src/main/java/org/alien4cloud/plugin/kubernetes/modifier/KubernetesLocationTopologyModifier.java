@@ -347,7 +347,7 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         // father or mother
         NodeTemplate containerRuntimeNodeTemplate = TopologyNavigationUtil.getImmediateHostTemplate(topology, containerNodeTemplate);
         // gran father or mother
-        NodeTemplate deploymentNodeTemplate = TopologyNavigationUtil.getImmediateHostTemplate(topology, containerRuntimeNodeTemplate);
+        NodeTemplate controllerNodeTemplate = TopologyNavigationUtil.getImmediateHostTemplate(topology, containerRuntimeNodeTemplate);
 
         // fill properties on the hosting K8S container
         Map<String, AbstractPropertyValue> properties = containerNodeTemplate.getProperties();
@@ -393,14 +393,14 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
                 setNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.command", listPropertyValue);
             }
         }
-        manageContainerEndpoints(csar, topology, containerNodeTemplate, containerRuntimeNodeTemplate, deploymentNodeTemplate, allContainerNodes, context);
+        manageContainerEndpoints(csar, topology, containerNodeTemplate, containerRuntimeNodeTemplate, controllerNodeTemplate, allContainerNodes, context);
     }
 
     /**
      * Each capability of type endpoint is considered for a given node of type container.
      */
     private void manageContainerEndpoints(Csar csar, Topology topology, NodeTemplate containerNodeTemplate, NodeTemplate containerRuntimeNodeTemplate,
-            NodeTemplate deploymentNodeTemplate, Set<NodeTemplate> allContainerNodes, FlowExecutionContext context) {
+            NodeTemplate controllerNodeTemplate, Set<NodeTemplate> allContainerNodes, FlowExecutionContext context) {
         // find every endpoint
         Set<String> endpointNames = Sets.newHashSet();
         for (Map.Entry<String, Capability> e : safe(containerNodeTemplate.getCapabilities()).entrySet()) {
@@ -421,11 +421,125 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
                     }
             );
         }
-        endpointNames.forEach(endpointName -> manageContainerEndpoint(csar, topology, containerNodeTemplate, endpointName, containerRuntimeNodeTemplate,
-                deploymentNodeTemplate, allContainerNodes, context, exposedEndpoints));
+        //create a unique service for all the port exposed by a container instead of a service/port (deprecated function below)
+        /* For example, container node that have theses capabilities : 
+        org.ystia.yorc.samples.kube.containers.capabilities.ConsulUI:
+            derived_from: tosca.capabilities.Endpoint
+            properties:
+            docker_bridge_port_mapping:
+               type: integer
+               description: Port used to bridge to the container's endpoint.
+               default: 8500
+            port:
+               type: integer
+               default: 8500
+        org.ystia.yorc.samples.kube.containers.capabilities.YorcRestAPI:
+            derived_from: tosca.capabilities.Endpoint
+            properties:
+            docker_bridge_port_mapping:
+                type: integer
+                description: Port used to bridge to the container's endpoint.
+                default: 8800
+            port:
+                type: integer
+    |           default: 8800
+    |    
+    |-----> Become 
+
+            metadata:
+                name: yorc-service
+            spec:
+                ports:
+                    - name: consul-ui
+                      port: 8500
+                      targetPort: 8500
+                    - name: yorc-rest-API
+                      port: 8800
+                      targetPort: 8800
+                selector: 
+                    app: 
+
+
+         */
+        // Create the service 
+        NodeTemplate serviceNode = addNodeTemplate(csar, topology, containerNodeTemplate.getName() + "_" + controllerNodeTemplate.getName() + "_Service",
+        K8S_TYPES_ABSTRACT_SERVICE, K8S_CSAR_VERSION);
+        setNodePropertyPathValue(csar, topology, serviceNode, "metadata.name", new ScalarPropertyValue(generateUniqueKubeName(context, serviceNode.getName())));
+        setNodePropertyPathValue(csar, topology, serviceNode, "spec.service_type", new ScalarPropertyValue("NodePort"));
+        // fill properties of service
+        // get the "controller name"
+        AbstractPropertyValue controllerName = PropertyUtil.getPropertyValueFromPath(safe(controllerNodeTemplate.getProperties()), "metadata.name");
+        setNodePropertyPathValue(csar, topology, serviceNode, "spec.selector.app", controllerName);
+
+        for (String endpointName : endpointNames) {
+            AbstractPropertyValue port = containerNodeTemplate.getCapabilities().get(endpointName).getProperties().get("port");
+            if (port == null) {
+                context.log().error("Connecting container to an external requires its endpoint port to be defined. Port of [" + containerNodeTemplate.getName()
+                        + ".capabilities." + endpointName + "] is not defined.");
+                return;
+            }
+            // fill containerRuntime ports
+            ComplexPropertyValue portPropertyValue = new ComplexPropertyValue(Maps.newHashMap());
+            portPropertyValue.getValue().put("containerPort", port);
+            String portName = generateKubeName(endpointName);
+            portPropertyValue.getValue().put("name", new ScalarPropertyValue(portName));
+            appendNodePropertyPathValue(csar, topology, containerRuntimeNodeTemplate, "container.ports", portPropertyValue);
+
+            setNodeTagValue(serviceNode, A4C_KUBERNETES_MODIFIER_TAG, "Proxy of node <" + containerNodeTemplate.getName() + "> capability <" + endpointName + ">");
+            setNodeTagValue(serviceNode, A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT, endpointName);
+            setNodeTagValue(serviceNode, A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT_PORT, ((ScalarPropertyValue)port).getValue());
+            setNodeTagValue(serviceNode, A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT_PORT_NAME, portName);
+
+            String exposedCapabilityName = exposedEndpoints.get(endpointName);
+            if (exposedCapabilityName != null) {
+                // a container capability is exposed for substitution
+                // here tag the exposed capability name onto serviceNode
+                setNodeTagValue(serviceNode, A4C_KUBERNETES_MODIFIER_TAG_EXPOSED_AS_CAPA, exposedCapabilityName);
+            }
+
+            // fill port list
+            Map<String, Object> portEntry = Maps.newHashMap();
+            portEntry.put("name", new ScalarPropertyValue(portName));
+            portEntry.put("targetPort", new ScalarPropertyValue(portName));
+            portEntry.put("port", port);
+            ComplexPropertyValue complexPropertyValue = new ComplexPropertyValue(portEntry);
+            appendNodePropertyPathValue(csar, topology, serviceNode, "spec.ports", complexPropertyValue);
+
+            // we should find each relationship that targets this endpoint and add a dependency between both deployments
+            for (NodeTemplate containerSourceCandidateNodeTemplate : allContainerNodes) {
+                if (containerSourceCandidateNodeTemplate.getName().equals(containerNodeTemplate.getName())) {
+                    // don't consider the current container (owner of the endpoint)
+                    continue;
+                }
+
+                for (RelationshipTemplate relationship : safe(containerSourceCandidateNodeTemplate.getRelationships()).values()) {
+                    if (relationship.getTarget().equals(containerNodeTemplate.getName()) && relationship.getTargetedCapabilityName().equals(endpointName)) {
+                        // we need to add a depends_on between the source deployment and the service (if not already exist)
+                        NodeTemplate sourceDeploymentHost = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology, containerSourceCandidateNodeTemplate,
+                                K8S_TYPES_ABSTRACT_CONTROLLER);
+                        // exclude if source and target containers are hosted on the same deployment
+                        if (sourceDeploymentHost != controllerNodeTemplate && !TopologyNavigationUtil.hasRelationship(sourceDeploymentHost, serviceNode.getName(), "dependency", "feature")) {
+                            addRelationshipTemplate(csar, topology, sourceDeploymentHost, serviceNode.getName(), NormativeRelationshipConstants.DEPENDS_ON,
+                                    "dependency", "feature");
+                        }
+                    }
+                }
+            }
+
+        }
+        // find the deployment node parent of the container
+        NodeTemplate deploymentHost = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology, containerNodeTemplate, K8S_TYPES_ABSTRACT_CONTROLLER);
+        // add a depends_on relationship between service and the deployment unit
+        addRelationshipTemplate(csar, topology, serviceNode, deploymentHost.getName(), NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
+
+        
+
+        //Deprecated
+        //endpointNames.forEach(endpointName -> manageContainerEndpoint(csar, topology, containerNodeTemplate, endpointName, containerRuntimeNodeTemplate,
+        //        deploymentNodeTemplate, allContainerNodes, context, exposedEndpoints));
     }
 
-    /**
+    /** DEPRECATED
      * For a given endpoint capability of a node of type container, we must create a Service node.
      */
     private void manageContainerEndpoint(Csar csar, Topology topology, NodeTemplate containerNodeTemplate, String endpointName,
