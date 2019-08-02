@@ -400,17 +400,23 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         if(hostOfContainer == null){
             hostOfContainer = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology, targetContainer, K8S_TYPES_STATEFULSET);
         }
+        //TODO: it will be possible to have other controller types maybe
+
         // get the controller resource corresponding to this deployment
         NodeTemplate controllerResourceNode = nodeReplacementMap.get(hostOfContainer.getName());
 
-        // If statefulSet does not match a PVC, raise error
         NodeType volumeNodeType = ToscaContext.get(NodeType.class, volumeNode.getType());
         NodeType hostNodeType = ToscaContext.get(NodeType.class, hostOfContainer.getType());
-        if(ToscaTypeUtils.isOfType(hostNodeType, K8S_TYPES_STATEFULSET) && !ToscaTypeUtils.isOfType(volumeNodeType, KubeTopologyUtils.K8S_TYPES_VOLUMES_CLAIM)){
-            ctx.log().error("StatefulSet "+hostOfContainer.getName()+" should match a PersistentVolumeClaim resource !");
+        if(ToscaTypeUtils.isOfType(hostNodeType, K8S_TYPES_STATEFULSET)){
+            // If statefulSet does not match a PVC, raise error
+            if(!ToscaTypeUtils.isOfType(volumeNodeType, KubeTopologyUtils.K8S_TYPES_VOLUMES_CLAIM)){
+                ctx.log().error("StatefulSet "+hostOfContainer.getName()+" should match a PersistentVolumeClaim resource !");
+                return;
+            }
+            manageVolumeClaimTemplates(ctx, csar, topology, volumeNode, resourceNodeYamlStructures, controllerResourceNode);
+        }else{
+            managePersistentVolumeClaim(ctx, csar, topology, volumeNode, resourceNodeYamlStructures, controllerResourceNode);
         }
-        
-        managePersistentVolumeClaim(ctx, csar, topology, volumeNode, resourceNodeYamlStructures, controllerResourceNode);
 
         Map<String, AbstractPropertyValue> deploymentResourceNodeProperties = resourceNodeYamlStructures.get(controllerResourceNode.getName());
         Map<String, Object> volumeEntry = Maps.newHashMap();
@@ -446,6 +452,42 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
             addRelationshipTemplate(csar, topology, controllerResourceNode, secretFactory.getName(), NormativeRelationshipConstants.DEPENDS_ON,
                     "dependency", "feature");
         }
+    }
+
+
+    private void manageVolumeClaimTemplates(FlowExecutionContext ctx, Csar csar, Topology topology, NodeTemplate volumeNode,
+    Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures, NodeTemplate statefulsetResourceNode) {
+        AbstractPropertyValue size = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "size");
+                if(size ==null)
+                    ctx.log().error("Volume node "+volumeNode.getName()+" should have a size !");
+
+        String stsName = statefulsetResourceNode.getName();
+        Map<String, AbstractPropertyValue> stsResourceNodeProperties = resourceNodeYamlStructures.get(stsName);
+        
+        //Create a list of claim templates if it doesn't exists
+        AbstractPropertyValue vctpl = PropertyUtil.getPropertyValueFromPath(stsResourceNodeProperties, "resource_def.spec.volumeClaimTemplates");
+        if(vctpl == null)
+            feedPropertyValue(stsResourceNodeProperties, "resource_def.spec.volumeClaimTemplates", new ListPropertyValue(Lists.newArrayList()), false); 
+
+        //Feed volume infos
+        Map<String, AbstractPropertyValue> volumeClaimResource = Maps.newHashMap();
+        feedPropertyValue(volumeClaimResource, "metadata.name", volumeNode.getName(), false);
+        String claimName = generateUniqueKubeName(ctx, volumeNode.getName());
+        AbstractPropertyValue accessModesProperty = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "accessModes");
+        feedPropertyValue(volumeClaimResource, "spec.accessModes", accessModesProperty, true);
+
+        feedPropertyValue(volumeClaimResource, "spec.resources.requests.storage", size, false);
+        NodeType volumeNodeType = ToscaContext.get(NodeType.class, volumeNode.getType());
+        if (ToscaTypeUtils.isOfType(volumeNodeType, KubeTopologyUtils.K8S_TYPES_VOLUMES_CLAIM_SC)) {
+            // add the storage class name to the claim
+            AbstractPropertyValue storageClassNameProperty = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "storageClassName");
+            feedPropertyValue(volumeClaimResource, "resource_def.spec.storageClassName", storageClassNameProperty, false);
+        }
+
+        //Add one corresponding to the pvc matched into volumeClaimTemplates
+        feedPropertyValue(stsResourceNodeProperties, "resource_def.spec.volumeClaimTemplates", volumeClaimResource, true);
+        
+
     }
 
     private void managePersistentVolumeClaim(FlowExecutionContext ctx, Csar csar, Topology topology, NodeTemplate volumeNode,
