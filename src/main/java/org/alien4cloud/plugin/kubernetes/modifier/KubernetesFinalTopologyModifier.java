@@ -56,6 +56,7 @@ import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_T
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SIMPLE_RESOURCE;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_VOLUME_BASE;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.getValue;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.generateKubeName;
 import static org.alien4cloud.plugin.kubernetes.policies.KubePoliciesConstants.K8S_POLICIES_AUTO_SCALING;
 
 /**
@@ -460,7 +461,8 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         AbstractPropertyValue size = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "size");
                 if(size ==null)
                     ctx.log().error("Volume node "+volumeNode.getName()+" should have a size !");
-
+        
+        NodeType nodeType = ToscaContext.get(NodeType.class, volumeNode.getType());
         String stsName = statefulsetResourceNode.getName();
         Map<String, AbstractPropertyValue> stsResourceNodeProperties = resourceNodeYamlStructures.get(stsName);
         
@@ -471,12 +473,14 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
 
         //Feed volume infos
         Map<String, AbstractPropertyValue> volumeClaimResource = Maps.newHashMap();
-        feedPropertyValue(volumeClaimResource, "metadata.name", volumeNode.getName(), false);
-        String claimName = generateUniqueKubeName(ctx, volumeNode.getName());
+        //String volumeName = generateKubeName(volumeNode.getName());
+        AbstractPropertyValue volumeName = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "name");
+        feedPropertyValue(volumeClaimResource, "metadata.name", volumeName, false);
         AbstractPropertyValue accessModesProperty = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "accessModes");
         feedPropertyValue(volumeClaimResource, "spec.accessModes", accessModesProperty, true);
-
-        feedPropertyValue(volumeClaimResource, "spec.resources.requests.storage", size, false);
+        PropertyDefinition propertyDefinition = nodeType.getProperties().get("size");
+        Object transformedSize = getTransformedValue(size, propertyDefinition, "");
+        feedPropertyValue(volumeClaimResource, "spec.resources.requests.storage", transformedSize, false);
         NodeType volumeNodeType = ToscaContext.get(NodeType.class, volumeNode.getType());
         if (ToscaTypeUtils.isOfType(volumeNodeType, KubeTopologyUtils.K8S_TYPES_VOLUMES_CLAIM_SC)) {
             // add the storage class name to the claim
