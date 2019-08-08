@@ -1423,6 +1423,10 @@ node_types:
         default: ReadWriteOnce
         constraints:
           - valid_values: [ReadWriteOnce, ReadOnlyMany, ReadWriteMany]
+      deletable:
+        type: boolean
+        description: delete the volume at undeployment
+        default: true
 
   org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimStorageClassSource:
     derived_from: org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimSource

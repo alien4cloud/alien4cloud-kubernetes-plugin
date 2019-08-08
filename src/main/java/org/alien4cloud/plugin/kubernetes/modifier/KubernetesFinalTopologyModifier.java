@@ -57,6 +57,7 @@ import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_T
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_VOLUME_BASE;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.getValue;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.generateKubeName;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.generateConsistentKubeName;
 import static org.alien4cloud.plugin.kubernetes.policies.KubePoliciesConstants.K8S_POLICIES_AUTO_SCALING;
 
 /**
@@ -880,6 +881,10 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         copyProperty(csar, topology, statefulsetNode, "kind", statefulsetResourceNodeProperties, "resource_def.kind");
         copyProperty(csar, topology, statefulsetNode, "metadata", statefulsetResourceNodeProperties, "resource_def.metadata");
 
+        // For statefulset, generate an id and name that is consistent
+        String stsName = generateConsistentKubeName(statefulsetNode.getName());
+        feedPropertyValue(statefulsetResourceNodeProperties, "metadata.name", stsName, false);
+        feedPropertyValue(statefulsetNode.getProperties(), "metadata.name", stsName, false);
         AbstractPropertyValue resource_id = PropertyUtil.getPropertyValueFromPath(safe(statefulsetNode.getProperties()), "metadata.name");
         setNodePropertyPathValue(csar, topology, statefulsetResourceNode, "resource_id", resource_id);
 

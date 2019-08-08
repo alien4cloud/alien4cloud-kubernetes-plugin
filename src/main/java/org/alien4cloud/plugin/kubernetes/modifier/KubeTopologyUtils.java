@@ -4,6 +4,8 @@ import static alien4cloud.utils.AlienUtils.safe;
 import static org.alien4cloud.tosca.utils.ToscaTypeUtils.isOfType;
 
 import java.util.*;
+import java.math.BigInteger;
+import java.security.MessageDigest;
 
 import org.alien4cloud.plugin.kubernetes.AbstractKubernetesModifier;
 import org.alien4cloud.tosca.model.definitions.*;
@@ -98,6 +100,20 @@ public class KubeTopologyUtils {
      */
     public static String generateKubeName(String candidate) {
         return candidate.toLowerCase().replaceAll("_", "-");
+    }
+
+    /**
+     * Generate a consistent kubernetes name using sha1 algorithm from a string
+     */
+    public static String generateConsistentKubeName(String resourceName){
+        try{
+            MessageDigest md = MessageDigest.getInstance("SHA-1");
+            byte[] b = md.digest(resourceName.getBytes());
+            
+            return generateKubeName(String.format("%s-%X", resourceName, new BigInteger(1, Arrays.copyOfRange(b, 0, 6))) );
+        }catch(Exception e){
+            throw new RuntimeException(e);
+        }
     }
 
     /**
