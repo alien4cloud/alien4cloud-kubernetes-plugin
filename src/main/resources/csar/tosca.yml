@@ -1580,7 +1580,8 @@ node_types:
         required: false
         description: |
           Delete or not volume(s) at undeployment.
-        default: true
+# if default value, cannot be changed at matching
+#        default: true
 
   org.alien4cloud.kubernetes.api.types.AbstractStatefulSet:
     abstract: true
