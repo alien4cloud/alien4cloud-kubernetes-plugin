@@ -880,10 +880,13 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         copyProperty(csar, topology, statefulsetNode, "apiVersion", statefulsetResourceNodeProperties, "resource_def.apiVersion");
         copyProperty(csar, topology, statefulsetNode, "kind", statefulsetResourceNodeProperties, "resource_def.kind");
         copyProperty(csar, topology, statefulsetNode, "metadata", statefulsetResourceNodeProperties, "resource_def.metadata");
+        AbstractPropertyValue volumeDeletable = PropertyUtil.getPropertyValueFromPath(safe(statefulsetNode.getProperties()), "volumeDeletable");
+        setNodePropertyPathValue(csar, topology, statefulsetResourceNode, "volumeDeletable", volumeDeletable);
 
         // For statefulset, generate an id and name that is consistent
         String stsName = generateConsistentKubeName(statefulsetNode.getName());
-        feedPropertyValue(statefulsetResourceNodeProperties, "metadata.name", stsName, false);
+        feedPropertyValue(statefulsetResourceNodeProperties, "resource_def.metadata.name", stsName, false);
+        feedPropertyValue(statefulsetNode.getProperties(), "spec.template.metadata.labels.app", stsName, false);
         feedPropertyValue(statefulsetNode.getProperties(), "metadata.name", stsName, false);
         AbstractPropertyValue resource_id = PropertyUtil.getPropertyValueFromPath(safe(statefulsetNode.getProperties()), "metadata.name");
         setNodePropertyPathValue(csar, topology, statefulsetResourceNode, "resource_id", resource_id);
@@ -914,6 +917,9 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                             NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
                     setNodeTagValue(relationshipTemplate, A4C_KUBERNETES_MODIFIER_TAG + "_created_from",
                             sourceCandidate.getName() + " -> " + statefulsetNode.getName());
+                //Change selector to match the consistent name 
+                Map<String, AbstractPropertyValue> serviceResourceNodeProperties = resourceNodeYamlStructures.get(serviceResource.getName());
+                feedPropertyValue(serviceResourceNodeProperties, "resource_def.spec.selector.app", stsName, false);
                 }
             }
         }

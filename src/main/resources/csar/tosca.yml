@@ -1423,10 +1423,6 @@ node_types:
         default: ReadWriteOnce
         constraints:
           - valid_values: [ReadWriteOnce, ReadOnlyMany, ReadWriteMany]
-      deletable:
-        type: boolean
-        description: delete the volume at undeployment
-        default: true
 
   org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimStorageClassSource:
     derived_from: org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimSource
@@ -1578,6 +1574,13 @@ node_types:
 
   org.alien4cloud.kubernetes.api.types.StatefulSet:
     derived_from: org.alien4cloud.kubernetes.api.types.AbstractStatefulSet
+    properties:
+      volumeDeletable:
+        type: boolean
+        required: false
+        description: |
+          Delete or not volume(s) at undeployment.
+        default: true
 
   org.alien4cloud.kubernetes.api.types.AbstractStatefulSet:
     abstract: true
@@ -1771,6 +1774,12 @@ node_types:
           A CSV key:value pairs where key should be replaced by the interpretation of value in the JSON.
           The value is the Kube name of the service for which the scheduler will need to find the ClusterIP and
           replace the key in the JSON with the found value.
+      volumeDeletable:
+        type: boolean
+        required: false
+        description: |
+          Delete or not volume(s) at undeployment.
+
     capabilities:
       # Manage scalability of instances
       scalable: org.alien4cloud.capabilities.ClusterController
