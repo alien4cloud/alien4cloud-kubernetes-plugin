@@ -1143,11 +1143,11 @@ data_types:
         entry_schema:
           type: string
         description: |
-          Required: Monitors is a collection of Ceph monitors. More info: https://github.com/kubernetes/examples/blob/master/volumes/cephfs/README.md
+          Monitors is a collection of Ceph monitors. More info: https://github.com/kubernetes/examples/blob/master/volumes/cephfs/README.md
       path:
         type: string
         description: |
-          Optional: Used as the mounted root, rather than the full Ceph tree, default is /
+          Used as the mounted root, rather than the full Ceph tree, default is /
         required: false
         default: "/"
       readOnly:
@@ -1155,21 +1155,21 @@ data_types:
         required: false
         default: false
         description: |
-          Optional: Defaults to false (read/write). ReadOnly here will force the ReadOnly setting in VolumeMounts.
+          Defaults to false (read/write). ReadOnly here will force the ReadOnly setting in VolumeMounts.
       secretFile:
         type: string
         description: |
-          Optional: SecretFile is the path to key ring for User, default is /etc/ceph/user.secret
+          SecretFile is the path to key ring for User, default is /etc/ceph/user.secret
         required: false
       secretRef:
         type: org.alien4cloud.kubernetes.api.datatypes.LocalObjectReference
         description: |
-          Optional: SecretRef is reference to the authentication secret for User, default is empty.
+          SecretRef is reference to the authentication secret for User, default is empty.
         required: false
       user:
         type: string
         description: |
-          Optional: User is the rados user name, default is admin
+          User is the rados user name, default is admin
         required: false
 
   org.alien4cloud.kubernetes.api.datatypes.volumes.HostPathVolumeSpec:
