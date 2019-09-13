@@ -18,3 +18,10 @@ component_descriptors:
     description: >
       This topology modifier generates kube yaml spec files and TOSCA nodes for deployment.
       Insert this modifier to post-matched-node-setup phase. Note that you MUST also insert the kubernetes-modifier to your location.
+  - bean_name: kubernetes-adapter-modifier
+    name: Kubernetes adapter modifier.
+    description: >
+      This topology modifier generates kube yaml spec files and TOSCA nodes for deployment from Kube ready concrete types.
+      Use this modifier when you don't want to design portable topology but directly use kube compliant types.
+      Insert this modifier to post-matched-node-setup phase.
+      http://52.30.207.58:8800

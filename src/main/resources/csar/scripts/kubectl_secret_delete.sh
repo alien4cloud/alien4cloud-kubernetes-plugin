@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # configuration
-KUBE_ADMIN_CONFIG_PATH=/etc/kubernetes/admin.conf
+source $commons
 
 # provided variables:
 # KUBE_DEPLOYMENT_ID: contains the k8s deployment id to undeploy
@@ -18,6 +18,9 @@ echo "Deleting secret using command: $command"
 
 cmd_output=$(echo $command | sh)
 cmd_code=$?
+
+clear_resources
+
 if [ "${cmd_code}" -ne 0 ]; then
     echo "Failed to delete secret: $cmd_output"
     exit "${cmd_code}"

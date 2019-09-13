@@ -2,7 +2,7 @@ tosca_definitions_version: alien_dsl_2_0_0
 
 metadata:
   template_name: org.alien4cloud.kubernetes.api
-  template_version: 2.1.0-SNAPSHOT
+  template_version: 2.2.0-SNAPSHOT
   # this version will be changed at build time (see maven-replacer-plugin in pom.xml)
   template_author: alien4cloud
 
@@ -12,8 +12,8 @@ description: |
 imports:
   - tosca-normative-types:1.0.0-ALIEN20
   # these versions will be changed at build time (see maven-replacer-plugin in pom.xml)
-  - docker-types:2.1.0-SNAPSHOT
-  - alien-base-types:2.1.0-SNAPSHOT
+  - docker-types:2.2.0-SNAPSHOT
+  - alien-base-types:2.2.0-SNAPSHOT
 
 data_types:
 
@@ -130,11 +130,6 @@ data_types:
         required: false
         description: |
           clusterIP is the IP address of the service and is usually assigned randomly by the master. If an address is specified manually and is not in use by others, it will be allocated to the service; otherwise, creation of the service will fail. This field can not be changed through updates. Valid values are "None", empty string (""), or a valid IP address. "None" can be specified for headless services when proxying is not required. Only applies to types ClusterIP, NodePort, and LoadBalancer. Ignored if type is ExternalName. More info: http://kubernetes.io/docs/user-guide/services#virtual-ips-and-service-proxies
-      deprecatedPublicIPs:
-        type: string
-        required: false
-        description: |
-          array  deprecatedPublicIPs is deprecated and replaced by the externalIPs field with almost the exact same semantics. This field is retained in the v1 API for compatibility until at least 8/20/2016. It will be removed from any new API revisions. If both deprecatedPublicIPs and externalIPs are set, deprecatedPublicIPs is used.
       externalIPs:
         type: string
         required: false
@@ -145,6 +140,16 @@ data_types:
         required: false
         description: |
           externalName is the external reference that kubedns or equivalent will return as a CNAME record for this service. No proxying will be involved. Must be a valid DNS name and requires Type to be ExternalName.
+      externalTrafficPolicy:
+        type: string
+        required: false
+        description: |
+          externalTrafficPolicy denotes if this Service desires to route external traffic to node-local or cluster-wide endpoints. "Local" preserves the client source IP and avoids a second hop for LoadBalancer and Nodeport type services, but risks potentially imbalanced traffic spreading. "Cluster" obscures the client source IP and may cause a second hop to another node, but should have good overall load-spreading.
+      healthCheckNodePort:
+        type: integer
+        required: false
+        description: |
+          healthCheckNodePort specifies the healthcheck nodePort for the service. If not specified, HealthCheckNodePort is created by the service api backend with the allocated nodePort. Will use user-specified nodePort value if specified by the client. Only effects when Type is set to LoadBalancer and ExternalTrafficPolicy is set to Local.
       loadBalancerIP:
         type: string
         required: false
@@ -162,6 +167,11 @@ data_types:
           The list of ports that are exposed by this service. More info: http://kubernetes.io/docs/user-guide/services#virtual-ips-and-service-proxies
         entry_schema:
           type: org.alien4cloud.kubernetes.api.datatypes.ServicePort
+      publishNotReadyAddresses:
+        type: boolean
+        required: false
+        description: |
+          publishNotReadyAddresses, when set to true, indicates that DNS implementations must publish the notReadyAddresses of subsets for the Endpoints associated with the Service. The default value is false. The primary use case for setting this field is to use a StatefulSet's Headless Service to propagate SRV records for its Pods without respect to their readiness for purpose of peer discovery.
       selector:
         type: map
         required: false
@@ -170,18 +180,40 @@ data_types:
         description: |
           Route service traffic to pods with label keys and values matching this selector. If empty or not present, the service is assumed to have an external process managing its endpoints, which Kubernetes will not modify. Only applies to types ClusterIP, NodePort, and LoadBalancer. Ignored if type is ExternalName. More info: http://kubernetes.io/docs/user-guide/services#overview
       sessionAffinity:
-        type: string
+        type:  org.alien4cloud.kubernetes.api.datatypes.SessionAffinityConfig
         required: false
         description: |
-          Supports "ClientIP" and "None". Used to maintain session affinity. Enable client IP based session affinity. Must be ClientIP or None. Defaults to None. More info: http://kubernetes.io/docs/user-guide/services#virtual-ips-and-service-proxies
+          sessionAffinityConfig contains the configurations of session affinity.
       # TODO: initally 'type'
       service_type:
         type: string
-        required: false
+        required: true
+        default: ClusterIP
         description: |
           type determines how the Service is exposed. Defaults to ClusterIP. Valid options are ExternalName, ClusterIP, NodePort, and LoadBalancer. "ExternalName" maps to the specified externalName. "ClusterIP" allocates a cluster-internal IP address for load-balancing to endpoints. Endpoints are determined by the selector or if that is not specified, by manual construction of an Endpoints object. If clusterIP is "None", no virtual IP is allocated and the endpoints are published as a set of endpoints rather than a stable IP. "NodePort" builds on ClusterIP and allocates a port on every node which routes to the clusterIP. "LoadBalancer" builds on NodePort and creates an external load-balancer (if supported in the current cloud) which routes to the clusterIP. More info: http://kubernetes.io/docs/user-guide/services#overview
         constraints:
           valid_values: [ 'ExternalName', 'ClusterIP', 'NodePort', 'LoadBalancer' ]
+
+  org.alien4cloud.kubernetes.api.datatypes.SessionAffinityConfig:
+    derived_from: tosca.datatypes.Root
+    description: >
+      SessionAffinityConfig represents the configurations of session affinity.
+    properties:
+      clientIP:
+        type: org.alien4cloud.kubernetes.api.datatypes.ClientIPConfig
+        description: |
+          clientIP contains the configurations of Client IP based session affinity.
+
+  org.alien4cloud.kubernetes.api.datatypes.ClientIPConfig:
+    derived_from: tosca.datatypes.Root
+    description: >
+      ClientIPConfig represents the configurations of Client IP based session affinity.
+    properties:
+      timeoutSeconds:
+        type: integer
+        required: true
+        description: |
+          timeoutSeconds specifies the seconds of ClientIP type session sticky time. The value must be >0 && <=86400(for 1 day) if ServiceAffinity == "ClientIP". Default value is 10800(for 3 hours).
 
   org.alien4cloud.kubernetes.api.datatypes.ControllerSpec:
     derived_from: tosca.datatypes.Root
@@ -202,7 +234,7 @@ data_types:
         type: integer
         required: false
         description: |
-          Maximum number of revisions that will be maintained in the revision history. The revision history consists of all revisions not represented by a currently applied version. 
+          Maximum number of revisions that will be maintained in the revision history. The revision history consists of all revisions not represented by a currently applied version.
       selector:
         type: string # datetype: org.alien4cloud.kubernetes.api.datatypes.LabelSelector
         required: false
@@ -234,6 +266,11 @@ data_types:
         required: false
         description: |
           The config this deployment is rolling back to. Will be cleared after rollback is done.
+      selector:
+        type: org.alien4cloud.kubernetes.api.datatypes.LabelSelector
+        required: false
+        description: |
+          Label selector for pods. Existing ReplicaSets whose pods are selected by this will be the ones affected by this deployment.
       strategy:
         type: string # datetype: DeploymentStrategy
         required: false
@@ -346,7 +383,7 @@ data_types:
         type: org.alien4cloud.kubernetes.api.datatypes.Affinity
         required: false
         description: |
-           If specified, the pod's scheduling constraints
+          If specified, the pod's scheduling constraints
       automountServiceAccountToken:
         type: boolean
         required: false
@@ -356,11 +393,16 @@ data_types:
       #   type: Container
       #   description: |
       #     array List of containers belonging to the pod. Containers cannot currently be added or removed. There must be at least one container in a Pod. Cannot be updated. More info: http://kubernetes.io/docs/user-guide/containers
+      enableServiceLinks:
+        type: boolean
+        required: false
+        description: |
+          EnableServiceLinks indicates whether information about services should be injected into pod's environment variables, matching the syntax of Docker links. Optional: Defaults to true.
       dnsPolicy:
         type: string
         required: false
         description: |
-           Set DNS policy for containers within the pod. One of 'ClusterFirstWithHostNet', 'ClusterFirst' or 'Default'. Defaults to "ClusterFirst". To have DNS options set along with hostNetwork, you have to specify DNS policy explicitly to 'ClusterFirstWithHostNet'.
+          Set DNS policy for containers within the pod. One of 'ClusterFirstWithHostNet', 'ClusterFirst' or 'Default'. Defaults to "ClusterFirst". To have DNS options set along with hostNetwork, you have to specify DNS policy explicitly to 'ClusterFirstWithHostNet'.
       hostIPC:
         type: boolean
         required: false
@@ -380,7 +422,7 @@ data_types:
         type: string
         required: false
         description: |
-           Specifies the hostname of the Pod If not specified, the pod's hostname will be set to a system-defined value.
+          Specifies the hostname of the Pod If not specified, the pod's hostname will be set to a system-defined value.
       imagePullSecrets:
         type: list
         required: false
@@ -397,14 +439,24 @@ data_types:
         type: string
         required: false
         description: |
-           NodeName is a request to schedule this pod onto a specific node. If it is non-empty, the scheduler simply schedules this pod onto that node, assuming that it fits resource requirements.
+          NodeName is a request to schedule this pod onto a specific node. If it is non-empty, the scheduler simply schedules this pod onto that node, assuming that it fits resource requirements.
       nodeSelector:
         type: map
         required: false
         entry_schema:
           type: string
         description: |
-           NodeSelector is a selector which must be true for the pod to fit on a node. Selector which must match a node's labels for the pod to be scheduled on that node. More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
+          NodeSelector is a selector which must be true for the pod to fit on a node. Selector which must match a node's labels for the pod to be scheduled on that node. More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
+      priority:
+        type: integer
+        required: false
+        description: |
+          The priority value. Various system components use this field to find the priority of the pod. When Priority Admission Controller is enabled, it prevents users from setting this field. The admission controller populates this field from PriorityClassName. The higher the value, the higher the priority.
+      priorityClassName:
+        type: string
+        required: false
+        description: |
+          If specified, indicates the pod's priority. "system-node-critical" and "system-cluster-critical" are two special keywords which indicate the highest priorities with the former being the highest priority. Any other name must be defined by creating a PriorityClass object with that name. If not specified, the pod priority will be default or zero if there is no default.
       restartPolicy:
         type: string
         required: false
@@ -429,6 +481,11 @@ data_types:
         required: false
         description: |
            ServiceAccountName is the name of the ServiceAccount to use to run this pod. More info: http://releases.k8s.io/HEAD/docs/design/service_accounts.md
+      shareProcessNamespace:
+        type: boolean
+        required: false
+        description: |
+          Share a single process namespace between all of the containers in a pod. When this is set containers will be able to view and signal processes from other containers in the same pod, and the first process in each container will not be assigned PID 1. HostPID and ShareProcessNamespace cannot both be set. Optional: Default to false. This field is beta-level and may be disabled with the PodShareProcessNamespace feature.
       subdomain:
         type: string
         required: false
@@ -974,10 +1031,13 @@ data_types:
           matchExpressions is a list of label selector requirements. The requirements are ANDed.
         entry_schema:
           type: org.alien4cloud.kubernetes.api.datatypes.org.alien4cloud.kubernetes.api.datatypes.LabelSelectorRequirement
-      # matchLabels:
-      #   type: object
-      #   description: |
-      #     matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
+      matchLabels:
+        type: map
+        required: false
+        entry_schema:
+          type: string
+        description: |
+           matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
 
   org.alien4cloud.kubernetes.api.datatypes.org.alien4cloud.kubernetes.api.datatypes.LabelSelectorRequirement:
     derived_from: tosca.datatypes.Root
@@ -1218,6 +1278,27 @@ data_types:
           Name of the secret in the pod's namespace to use. More info: https://kubernetes.io/docs/concepts/storage/volumes#secret
         required: true
 
+  org.alien4cloud.kubernetes.api.datatypes.internal.ConfigSetting:
+    derived_from: tosca.datatypes.Root
+    description: Setting for a set of prefixed inputs related to a given folder in the topology and for which a configMap will be mounted on the container (K8S).
+    properties:
+      mount_path:
+        type: string
+        description: where the config map will be mount onto the container.
+        required: true
+      mount_subPath:
+        type: string
+        description: where the config map will be mount onto the container.
+        required: false
+      input_prefix:
+        type: string
+        description: the prefix used for the input names.
+        required: true
+      config_path:
+        type: string
+        description: where to to find the files that will be used to create the configMap.
+        required: true
+
 node_types:
 
   # HOWTO: How about relationships and capabilities ?
@@ -1254,11 +1335,13 @@ node_types:
             INPUT_VARIABLES: { get_property: [SELF, input_variables] }
             KUBE_SERVICE_DEPENDENCIES: { get_property: [SELF, service_dependency_lookups] }
             NAMESPACE: { get_property: [SELF, namespace] }
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_configmap_create.sh
         delete:
           inputs:
             CONFIGMAP_NAME: { get_attribute: [SELF, name] }
             NAMESPACE: { get_property: [SELF, namespace] }
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_configmap_delete.sh
     artifacts:
       - configs:
@@ -1280,7 +1363,7 @@ node_types:
         description: |
           Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#types-kinds
         constraints:
-          - valid_values: [StatefulSet, Deployment, Service, HorizontalPodAutoscaler]
+          - valid_values: [StatefulSet, Deployment, Service, Ingress, HorizontalPodAutoscaler]
       metadata:
         type: map
         required: false
@@ -1486,15 +1569,75 @@ node_types:
           inputs:
             SECRET_NAME: { get_property: [SELF, name] }
             NAMESPACE: { get_property: [SELF, namespace] }
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_secret_create.sh
         delete:
           inputs:
             SECRET_NAME: { get_property: [SELF, name] }
             NAMESPACE: { get_property: [SELF, namespace] }
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_secret_delete.sh
 
   org.alien4cloud.kubernetes.api.types.Service:
     derived_from: org.alien4cloud.kubernetes.api.types.AbstractService
+
+  org.alien4cloud.kubernetes.api.types.KubeService:
+    derived_from: org.alien4cloud.kubernetes.api.types.AbstractService
+    capabilities:
+      service_endpoint:
+        type: org.alien4cloud.kubernetes.api.capabilities.KubeServiceEndpoint
+        properties:
+          proxy_for: expose
+    requirements:
+      - expose:
+          capability: org.alien4cloud.kubernetes.api.capabilities.KubeEndpoint
+          # use a RouteTo relationship ?
+          relationship: tosca.relationships.ConnectsTo
+          occurrences: [1, 1]
+
+  # deprecated
+  org.alien4cloud.kubernetes.api.types.KubeNodeportService:
+    derived_from: org.alien4cloud.kubernetes.api.types.KubeService
+    properties:
+      spec:
+        type: org.alien4cloud.kubernetes.api.datatypes.ServiceSpec
+        default:
+          service_type: NodePort
+
+  org.alien4cloud.kubernetes.api.types.KubeIngress:
+    derived_from: org.alien4cloud.kubernetes.api.types.Base
+    description: |
+      Represent a kubernetes Ingress
+    properties:
+      apiVersion:
+        type: string
+        description: |
+          APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#resources
+        default: networking.k8s.io/v1beta1
+        constraints:
+          - equal: networking.k8s.io/v1beta1
+      kind:
+        type: string
+        description: |
+          Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#types-kinds
+        default: Ingress
+        constraints:
+          - equal: Ingress
+      tls_crt:
+        type: string
+        description: |
+          Optionnal base64 encoded certificate (if TLS need to be set for the ingress)
+        required: false
+      tls_key:
+        type: string
+        description: |
+          Optionnal base64 encoded key (if TLS need to be set for the ingress)
+        required: false
+    requirements:
+      - expose:
+          capability: org.alien4cloud.kubernetes.api.capabilities.KubeServiceEndpoint
+          relationship: org.alien4cloud.kubernetes.api.relationships.ConnectUrlTo
+          occurrences: [1, unbounded]
 
   org.alien4cloud.kubernetes.api.types.IngressService:
     derived_from: org.alien4cloud.kubernetes.api.types.Service
@@ -1561,7 +1704,7 @@ node_types:
   #    spec:
   #      type: org.alien4cloud.kubernetes.api.datatypes.ControllerSpec
   # in this case don't need to define spec property in AbstractDeployment and AbstractJobe
-  
+
   org.alien4cloud.kubernetes.api.types.AbstractController:
     abstract: true
     derived_from: org.alien4cloud.kubernetes.api.types.Base
@@ -1605,6 +1748,17 @@ node_types:
   org.alien4cloud.kubernetes.api.types.Deployment:
     derived_from: org.alien4cloud.kubernetes.api.types.AbstractDeployment
 
+  org.alien4cloud.kubernetes.api.types.KubeDeployment:
+    derived_from: org.alien4cloud.kubernetes.api.types.AbstractDeployment
+    tags:
+      icon: /images/kubernetes.png
+    properties:
+      spec:
+        type: org.alien4cloud.kubernetes.api.datatypes.DeploymentSpec
+        required: false
+    capabilities:
+      host: org.alien4cloud.kubernetes.api.capabilities.KubeContainerHost
+
   org.alien4cloud.kubernetes.api.types.AbstractDeployment:
     abstract: true
     derived_from: org.alien4cloud.kubernetes.api.types.AbstractController
@@ -1613,9 +1767,11 @@ node_types:
     properties:
       apiVersion:
         type: string
-        default: apps/v1beta1
+        description: |
+          APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#resources
+        default: apps/v1
         constraints:
-          - equal: apps/v1beta1
+          - equal: apps/v1
       kind:
         type: string
         default: Deployment
@@ -1690,6 +1846,38 @@ node_types:
           The kubernetes image will be the concatenation of this property to the image property: {repository}/{image}
           Note that you may want to define imagePullSecrets references so kubernetes uses the right repository credentials. This property must be configured on the Deployment object.
 
+  org.alien4cloud.kubernetes.api.types.KubeContainer:
+    derived_from: tosca.nodes.Root
+    tags:
+      icon: /images/kubernetes.png
+    description: >
+      Represent a kubernetes ContainerSpec.
+    properties:
+      container:
+        type: org.alien4cloud.kubernetes.api.datatypes.ContainerSpec
+    capabilities:
+      attach: org.alien4cloud.capabilities.DockerVolumeAttachment
+    requirements:
+      - host:
+          # a ContainerRuntime can be hosted on a ContainerDeploymentUnit
+          capability: org.alien4cloud.kubernetes.api.capabilities.KubeContainerHost
+          relationship: tosca.relationships.HostedOn
+          occurrences: [1, 1]
+    interfaces:
+      Standard:
+        create: scripts/void.sh
+
+  org.alien4cloud.kubernetes.api.types.KubeConfigurableContainer:
+    derived_from: org.alien4cloud.kubernetes.api.types.KubeContainer
+    description: >
+      A specification of a Kube Container that is configurable using configMaps.
+    properties:
+      config_settings:
+        type: list
+        required: false
+        entry_schema:
+          type: org.alien4cloud.kubernetes.api.datatypes.internal.ConfigSetting
+
   org.alien4cloud.kubernetes.api.types.BaseResource:
     abstract: true
     derived_from: tosca.nodes.Root
@@ -1706,6 +1894,15 @@ node_types:
         description: |
           The the JSON serialization (and eventually transformation) of initial node properties.
           This JSON can be used to instanciate the resource on the K8S cluster.
+      kube_config:
+        type: string
+        required: false
+        description: |
+          The kube config that will be used if provided
+    artifacts:
+      - commons:
+          type: tosca.artifacts.File
+          file: scripts/commons.sh
 #    artifacts:
 #      - deployment:
 #          type: tosca.artifacts.File
@@ -1727,9 +1924,10 @@ node_types:
           A CSV key:value pairs where key should be replaced by the interpretation of value in the JSON.
           The value is the Kube name of the service for which the scheduler will need to find the ClusterIP and
           replace the key in the JSON with the found value.
-    capabilities:
-      # Manage scalability of instances
-      scalable: org.alien4cloud.capabilities.ClusterController
+#    # Disabled for now
+#    capabilities:
+#      # Manage scalability of instances
+#      scalable: org.alien4cloud.capabilities.ClusterController
     attributes:
       deployment_id: { get_operation_output: [SELF, Standard, create, KUBE_DEPLOYMENT_ID] }
     interfaces:
@@ -1739,6 +1937,7 @@ node_types:
             KUBE_SERVICE_DEPENDENCIES: { get_property: [SELF, service_dependency_lookups] }
             KUBE_RESOURCE_DEPLOYMENT_CONFIG: { get_property: [SELF, resource_spec] }
             NAMESPACE: { get_property: [SELF, namespace] }
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_deployment_create.sh
           description: |
             - filter variable in the artifact file
@@ -1748,18 +1947,20 @@ node_types:
           inputs:
             KUBE_DEPLOYMENT_ID: { get_property: [SELF, resource_id] }
             NAMESPACE: { get_property: [SELF, namespace] }
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_deployment_delete.sh
-      org.alien4cloud.management.ClusterControl:
-        scale:
-          inputs:
-            KUBE_DEPLOYMENT_ID: { get_attribute: [SELF, deployment_id] }
-            NAMESPACE: { get_property: [SELF, namespace] }
-            EXPECTED_INSTANCES:
-              type: integer
-            INSTANCES_DELTA:
-              type: integer
-          implementation: scripts/kubectl_deployment_scale.sh
-  
+# Disabled for now
+#      org.alien4cloud.management.ClusterControl:
+#        scale:
+#          inputs:
+#            KUBE_DEPLOYMENT_ID: { get_attribute: [SELF, deployment_id] }
+#            NAMESPACE: { get_property: [SELF, namespace] }
+#            EXPECTED_INSTANCES:
+#              type: integer
+#            INSTANCES_DELTA:
+#              type: integer
+#          implementation: scripts/kubectl_deployment_scale.sh
+
   org.alien4cloud.kubernetes.api.types.StatefulSetResource:
     derived_from: org.alien4cloud.kubernetes.api.types.BaseResource
     properties:
@@ -1826,6 +2027,15 @@ node_types:
         description: |
           The the JSON serialization (and eventually transformation) of initial node properties.
           This JSON can be used to instanciate the resource on the K8S cluster.
+      kube_config:
+        type: string
+        required: false
+        description: |
+          The kube config that will be used if provided
+    artifacts:
+      - commons:
+          type: tosca.artifacts.File
+          file: scripts/commons.sh
 
   org.alien4cloud.kubernetes.api.types.JobResource:
     derived_from: org.alien4cloud.kubernetes.api.types.BaseJobResource
@@ -1834,12 +2044,17 @@ node_types:
         submit:
           inputs:
             KUBE_RESOURCE_JOB_CONFIG: { get_property: [SELF, resource_spec] }
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_job_submit.sh
           description: Standard lifecycle submit operation.
         run:
+          inputs:
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_job_run.sh
           description: Standard lifecycle run operation.
         cancel:
+          inputs:
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_job_cancel.sh
           description: Standard lifecycle cancel operation.
 
@@ -1875,12 +2090,14 @@ node_types:
             KUBE_RESOURCE_ID: { get_property: [SELF, resource_id] }
             KUBE_SPEC_PATH: { get_attribute: [SELF, spec_path] }
             NAMESPACE: { get_property: [SELF, namespace] }
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_endpoint_start.sh
         delete:
           inputs:
             KUBE_RESOURCE_TYPE: endpoints
             KUBE_RESOURCE_ID: { get_attribute: [SELF, resource_id] }
             NAMESPACE: { get_property: [SELF, namespace] }
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_resource_wrapper_uninstall.sh
 
   org.alien4cloud.kubernetes.api.types.ServiceResource:
@@ -1903,6 +2120,7 @@ node_types:
             KUBE_SERVICE_NAME: { get_property: [SELF, service_name] }
             KUBE_SERVICE_CONFIG: { get_property: [SELF, resource_spec] }
             NAMESPACE: { get_property: [SELF, namespace] }
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_service_wrapper.sh
           description: |
             - Deploy the service onto kubernetes
@@ -1911,6 +2129,7 @@ node_types:
           inputs:
             KUBE_SERVICE_NAME: { get_property: [SELF, service_name] }
             NAMESPACE: { get_property: [SELF, namespace] }
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_service_wrapper_uninstall.sh
 
   org.alien4cloud.kubernetes.api.types.SimpleResource:
@@ -1951,13 +2170,44 @@ node_types:
             KUBE_JSON_PATH_EXPR: { get_property: [SELF, json_path_expr] }
             KUBE_JSON_PATH_VALUE: { get_property: [SELF, json_path_value] }
             NAMESPACE: { get_property: [SELF, namespace] }
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_resource_wrapper.sh
         delete:
           inputs:
             KUBE_RESOURCE_TYPE: { get_property: [SELF, resource_type] }
             KUBE_RESOURCE_ID: { get_property: [SELF, resource_id] }
             NAMESPACE: { get_property: [SELF, namespace] }
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_resource_wrapper_uninstall.sh
+
+  org.alien4cloud.kubernetes.api.types.nodes.KubeCluster:
+    derived_from: tosca.nodes.Root
+    abstract: true
+    properties:
+      config:
+        type: string
+        required: false
+    capabilities:
+      k8s_endpoint:
+        type: org.alien4cloud.kubernetes.api.capabilities.KubeCluster
+
+capability_types:
+  org.alien4cloud.kubernetes.api.capabilities.KubeContainerHost:
+    derived_from: tosca.capabilities.Container
+    description: >
+      The capacity to host kube Docker containers.
+  org.alien4cloud.kubernetes.api.capabilities.KubeEndpoint:
+    derived_from: tosca.capabilities.Endpoint
+    description: >
+      When a container need to expose a port, it should expose this capability.
+  org.alien4cloud.kubernetes.api.capabilities.KubeServiceEndpoint:
+    derived_from: org.alien4cloud.capabilities.Proxy
+    description: >
+      When a service need to expose a port, it should expose this capability.
+  org.alien4cloud.kubernetes.api.capabilities.KubeCluster:
+    derived_from: tosca.capabilities.Endpoint
+    description: >
+      Used to associate a kube stuff to a given K8S cluster.
 
 relationship_types:
   org.alien4cloud.kubernetes.api.relationships.K8SEndpointConnectToEndpoint:
@@ -1971,6 +2221,21 @@ relationship_types:
           inputs:
             KUBE_SPEC_PATH: { get_attribute: [SOURCE, spec_path] }
             TARGET_IP_ADDRESS: { get_attribute: [TARGET, ip_address] }
+
+  org.alien4cloud.kubernetes.api.relationships.ConnectUrlTo:
+    derived_from: tosca.relationships.ConnectsTo
+    description: This type represents relationship between a K8S Ingress and a service.
+    valid_target_types: [ org.alien4cloud.kubernetes.api.capabilities.KubeServiceEndpoint ]
+    properties:
+      host:
+        type: string
+        required: false
+        description: Specifies the host.
+      path:
+        type: string
+        required: true
+        description: Specifies the path.
+        default: "/"
 
 policy_types:
   org.alien4cloud.kubernetes.api.policies.AntiAffinityLabel:
@@ -2024,10 +2289,12 @@ policy_types:
     derived_from: tosca.policies.Scaling
     description: >
       c.f. https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale-walkthrough/
+    metadata:
+      # pluginId:pluginBean:phase
+      a4c_policy_impl: alien4cloud-kubernetes-plugin:kubernetes-autoscaling-modifier:post-node-match
     properties:
       spec:
         type: org.alien4cloud.kubernetes.api.datatypes.autoscaler.HorizontalPodAutoscalerSpec
-
 
   org.alien4cloud.kubernetes.api.policies.NodeAffinityLabel:
     derived_from: org.alien4cloud.policies.LabelPlacement

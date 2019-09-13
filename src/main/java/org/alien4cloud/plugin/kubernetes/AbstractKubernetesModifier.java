@@ -2,6 +2,7 @@ package org.alien4cloud.plugin.kubernetes;
 
 import static alien4cloud.utils.AlienUtils.safe;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_DEPLOYMENT;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubernetesAdapterModifier.K8S_TYPES_KUBEDEPLOYMENT;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -93,19 +94,27 @@ public abstract class AbstractKubernetesModifier extends TopologyModifierSupport
         return providedNamespace;
     }
 
-    protected Set<NodeTemplate> getValidTargets(PolicyTemplate policyTemplate, Topology topology, Consumer<String> invalidTargetConsumer) {
+    protected Set<NodeTemplate> getValidTargets(PolicyTemplate policyTemplate, Topology topology,String typename, Consumer<String> invalidTargetConsumer) {
         Set<NodeTemplate> targetedMembers = TopologyNavigationUtil.getTargetedMembers(topology, policyTemplate);
         Iterator<NodeTemplate> iter = targetedMembers.iterator();
         while (iter.hasNext()) {
             NodeTemplate nodeTemplate = iter.next();
-            // TODO maybe better to consider type hierarchy and check if the node is from
-            // org.alien4cloud.kubernetes.api.types.AbstractDeployment
-            if (!Objects.equals(K8S_TYPES_DEPLOYMENT, nodeTemplate.getType())) {
+            // TODO maybe better to consider type hierarchy
+            if (!typename.equals(nodeTemplate.getType())) {
                 invalidTargetConsumer.accept(nodeTemplate.getName());
                 iter.remove();
             }
         }
         return targetedMembers;
+    }
+
+    protected PropertyDefinition getInnerPropertyDefinition(PropertyDefinition def,String path) {
+        if (!ToscaTypes.isPrimitive(def.getType())) {
+            DataType type= ToscaContext.get(DataType.class, def.getType());
+            return type.getProperties().get(path);
+        } else {
+            return null;
+        }
     }
 
     /**

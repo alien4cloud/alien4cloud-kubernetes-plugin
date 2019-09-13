@@ -83,7 +83,7 @@ public class KubernetesNodeAffinityLabelTopologyModifier extends AbstractKuberne
     }
 
     private void apply(PolicyTemplate policy, Topology topology, FlowExecutionContext context, Supplier<List<Object>> matchExpressionsSupplier) {
-        Set<NodeTemplate> validTargets = getValidTargets(policy, topology, invalidName -> context.log()
+        Set<NodeTemplate> validTargets = getValidTargets(policy, topology, K8S_TYPES_DEPLOYMENT, invalidName -> context.log()
                 .warn("Placement policy <{}>: will ignore target <{}> as it IS NOT an instance of <{}>.", policy.getName(), invalidName, K8S_TYPES_DEPLOYMENT));
         safe(validTargets).forEach(nodeTemplate -> {
             // add nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution section

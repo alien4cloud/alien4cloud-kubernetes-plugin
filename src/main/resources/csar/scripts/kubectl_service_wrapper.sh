@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # configuration
-KUBE_ADMIN_CONFIG_PATH=/etc/kubernetes/admin.conf
+source $commons
 
 # Provided variables:
 # KUBE_SERVICE_CONFIG: k8s deployment configuration in JSON format
@@ -28,6 +28,7 @@ function deploy_service(){
     if [ "${SERVICE_DEPLOY_STATUS}" -ne 0 ]
     then
         echo "Failed to deploy service"
+        clear_resources
         exit "${SERVICE_DEPLOY_STATUS}"
     fi
 
@@ -39,3 +40,4 @@ function deploy_service(){
 }
 
 deploy_service
+clear_resources

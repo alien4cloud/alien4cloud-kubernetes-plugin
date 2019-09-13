@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # configuration
-KUBE_ADMIN_CONFIG_PATH=/etc/kubernetes/admin.conf
+source $commons
 
 # Provided variables:
 # KUBE_RESOURCE_ID: name of the service to start
@@ -20,9 +20,11 @@ function delete_resource(){
     if [ "$?" -ne 0 ]
     then
         echo "Failed to delete resource"
+        clear_resources
         exit "${RESOURCE_DELETE_STATUS}"
     fi
 
 }
 
 delete_resource
+clear_resources

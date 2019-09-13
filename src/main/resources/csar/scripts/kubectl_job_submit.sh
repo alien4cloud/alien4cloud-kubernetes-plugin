@@ -3,7 +3,7 @@
 set -e 
 
 # configuration
-KUBE_ADMIN_CONFIG_PATH=/etc/kubernetes/admin.conf
+source $commons
 
 JOB_TMP_FILE=$(mktemp)
 
@@ -16,3 +16,4 @@ export TOSCA_JOB_ID
 
 # cleanup
 rm "${JOB_TMP_FILE}"
+clear_resources

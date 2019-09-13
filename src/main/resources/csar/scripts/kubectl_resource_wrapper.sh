@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # configuration
-KUBE_ADMIN_CONFIG_PATH=/etc/kubernetes/admin.conf
+source $commons
 
 NAMESPACE_OPTION=""
 if [ ! -z "$NAMESPACE" ]; then
@@ -49,6 +49,7 @@ function wait_until_done_or_exit {
     cmd_code=$?
   done
 
+  clear_resources
   if [ "${retries}" -eq "${max_retries}" ] ; then
     echo "Giving up waiting for resource to be in the expected status. Reached max retries (=$max_retries)"
     exit 1
@@ -59,11 +60,13 @@ function wait_until_done_or_exit {
 function exit_if_error(){
     if [ "${DEPLOYMENT_STATUS}" -ne 0 ]
     then
+        clear_resources
         echo "Failed to deploy"
         exit "${DEPLOYMENT_STATUS}"
     fi
     if [ -z "${KUBE_RESOURCE_ID}" ]
     then
+        clear_resources
         echo "Not able to retrieve resource ID"
         exit "1"
     fi
@@ -71,4 +74,4 @@ function exit_if_error(){
 }
 
 deploy_resource
-
+clear_resources

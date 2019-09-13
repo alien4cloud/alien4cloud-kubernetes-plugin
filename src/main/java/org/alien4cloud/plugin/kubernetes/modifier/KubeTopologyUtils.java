@@ -250,7 +250,7 @@ public class KubeTopologyUtils {
         return null;
     }
 
-    private static String resolveDependency(NodeTemplate serviceTemplate, Map<String, List<String>> serviceIpAddressesPerDeploymentResource, String deploymentResourceName) {
+    public static String resolveDependency(NodeTemplate serviceTemplate, Map<String, List<String>> serviceIpAddressesPerDeploymentResource, String deploymentResourceName) {
 
         AbstractPropertyValue serviceNameValue = PropertyUtil
                 .getPropertyValueFromPath(serviceTemplate.getProperties(), "metadata.name");

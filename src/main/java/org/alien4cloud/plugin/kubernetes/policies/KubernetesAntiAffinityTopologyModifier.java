@@ -68,7 +68,7 @@ public class KubernetesAntiAffinityTopologyModifier extends AbstractKubernetesMo
             context.log().warn("Anti-affinity policy <{}> is not correctly configured, at least 2 targets are required. It will be ignored.", policy.getName());
             return;
         }
-        Set<NodeTemplate> validTargets = getValidTargets(policy, topology,
+        Set<NodeTemplate> validTargets = getValidTargets(policy, topology, K8S_TYPES_DEPLOYMENT,
                 invalidName -> context.log().warn("Anti-affinity policy <{}>: will ignore target <{}> as it IS NOT an instance of <{}>.", policy.getName(),
                         invalidName, K8S_TYPES_DEPLOYMENT));
         safe(validTargets).forEach(nodeTemplate -> apply(nodeTemplate, topology, validTargets, policy, context));

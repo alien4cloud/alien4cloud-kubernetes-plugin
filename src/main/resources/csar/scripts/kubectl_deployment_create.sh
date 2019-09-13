@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # configuration
-KUBE_ADMIN_CONFIG_PATH=/etc/kubernetes/admin.conf
+source $commons
 
 # Provided variables:
 # KUBE_SERVICE_DEPENDENCIES: contains a list of key values VARIABLE_WHERE_TO_STORE_SERVICE_IP:service-name,VAR2:service-name2
@@ -37,7 +37,7 @@ function deploy_resource(){
     echo "${KUBE_RESOURCE_DEPLOYMENT_CONFIG}" > "${DEPLOYMENT_TMP_FILE}"
 
     # deploy
-    export KUBE_DEPLOYMENT_ID=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" create -f "${DEPLOYMENT_TMP_FILE}" | sed -r 's/deployment "([a-zA-Z0-9\-]*)" created/\1/')
+    export KUBE_DEPLOYMENT_ID=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" create -f "${DEPLOYMENT_TMP_FILE}" -o jsonpath="{.metadata.name}")
     export DEPLOYMENT_STATUS=$?
 
     # cleanup
@@ -86,9 +86,11 @@ function exit_if_error(){
     if [ "${DEPLOYMENT_STATUS}" -ne 0 ]
     then
         echo "Failed to deploy"
+        clear_resources
         exit "${DEPLOYMENT_STATUS}"
     fi
 }
 
 resolve_service_dependencies_variables
 deploy_resource
+clear_resources

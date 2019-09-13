@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # configuration
-KUBE_ADMIN_CONFIG_PATH=/etc/kubernetes/admin.conf
+source $commons
 
 # Provided variables:
 # KUBE_SERVICE_DEPENDENCIES: contains a list of key values VARIABLE_WHERE_TO_STORE_SERVICE_IP:service-name,VAR2:service-name2
@@ -44,6 +44,7 @@ function resolve_service_dependencies_variables(){
 
 if [ ! -d "$configs" ]; then
     echo "The directory $configs doesn't exist, can't create configMap from it !" >&2
+    clear_resources
     exit 1;
 fi
 
@@ -78,6 +79,9 @@ echo "Creating configMap using command: $command"
 
 cmd_output=$(echo $command | sh)
 cmd_code=$?
+
+clear_resources
+
 if [ "${cmd_code}" -ne 0 ]; then
     echo "Failed to create config map: $cmd_output"
     exit "${cmd_code}"
