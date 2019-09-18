@@ -433,7 +433,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
             return;
         }
         // get the deployment resource corresponding to this deployment
-        NodeTemplate deploymentResourceNode = nodeReplacementMap.get(hostOfContainer.getName());
+        NodeTemplate controllerResourceNode = nodeReplacementMap.get(hostOfContainer.getName());
 
         NodeType volumeNodeType = ToscaContext.get(NodeType.class, volumeNode.getType());
         NodeType hostNodeType = ToscaContext.get(NodeType.class, hostOfContainer.getType());
