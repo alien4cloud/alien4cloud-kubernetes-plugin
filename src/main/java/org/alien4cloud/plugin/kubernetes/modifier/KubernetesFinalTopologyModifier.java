@@ -463,7 +463,6 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         volumeEntry.put(PropertyUtil.getScalarValue(volume_type), volumeSpecObject);
         feedPropertyValue(deploymentResourceNodeProperties, "resource_def.spec.template.spec.volumes", volumeEntry, true);
 
-        //NodeType volumeNodeType = ToscaContext.get(NodeType.class, volumeNode.getType());
         if (ToscaTypeUtils.isOfType(volumeNodeType, KubeTopologyUtils.K8S_TYPES_SECRET_VOLUME)) {
             // we must create a secret, the deployment should depend on it
             NodeTemplate secretFactory = addNodeTemplate(csar, topology, volumeNode.getName() + "_Secret", KubeTopologyUtils.K8S_TYPES_SECRET_FACTORY,
@@ -488,8 +487,9 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
     private void manageVolumeClaimTemplates(FlowExecutionContext ctx, Csar csar, Topology topology, NodeTemplate volumeNode,
     Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures, NodeTemplate statefulsetResourceNode) {
         AbstractPropertyValue size = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "size");
-                if(size ==null)
+                if(size ==null){
                     ctx.log().error("Volume node "+volumeNode.getName()+" should have a size !");
+                }
 
         NodeType nodeType = ToscaContext.get(NodeType.class, volumeNode.getType());
         String stsName = statefulsetResourceNode.getName();
@@ -552,8 +552,9 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                 // get the size of the volume to define claim storage size
                 NodeType nodeType = ToscaContext.get(NodeType.class, volumeNode.getType());
                 AbstractPropertyValue size = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "size");
-                if(size ==null)
+                if(size ==null){
                     ctx.log().error("Volume node "+volumeNode.getName()+" should have a size !");
+                }
                 PropertyDefinition propertyDefinition = nodeType.getProperties().get("size");
                 Object transformedSize = getTransformedValue(size, propertyDefinition, "");
                 feedPropertyValue(volumeClaimResourceNodeProperties, "resource_def.spec.resources.requests.storage", transformedSize, false);

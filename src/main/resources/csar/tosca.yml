@@ -1994,12 +1994,12 @@ node_types:
             KUBE_SERVICE_DEPENDENCIES: { get_property: [SELF, service_dependency_lookups] }
             KUBE_RESOURCE_STATEFULSET_CONFIG: { get_property: [SELF, resource_spec] }
             NAMESPACE: { get_property: [SELF, namespace] }
-          implementation: scripts/kubectl_statefulset_create.sh
+          implementation: scripts/void.sh
         delete:
           inputs:
             KUBE_STATEFULSET_ID: { get_property: [SELF, resource_id] }
             NAMESPACE: { get_property: [SELF, namespace] }
-          implementation: scripts/kubectl_statefulset_delete.sh
+          implementation: scripts/void.sh
       org.alien4cloud.management.ClusterControl:
         scale:
           inputs:
@@ -2009,7 +2009,7 @@ node_types:
               type: integer
             INSTANCES_DELTA:
               type: integer
-          implementation: scripts/kubectl_statefulset_scale.sh
+          implementation: scripts/void.sh
 
   org.alien4cloud.kubernetes.api.types.BaseJobResource:
     abstract: true
