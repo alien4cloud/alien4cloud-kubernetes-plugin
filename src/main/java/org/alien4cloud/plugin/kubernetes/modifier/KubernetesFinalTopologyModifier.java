@@ -160,7 +160,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
 
         // for each StatefulSet create a node of type StatefulSetResource
         Set<NodeTemplate> statefulSetNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_STATEFULSET, false);
-        statefulSetNodes.forEach(nodeTemplate -> createStatefulSetResource(csar, topology, nodeTemplate, nodeReplacementMap, resourceNodeYamlStructures));
+        statefulSetNodes.forEach(nodeTemplate -> createStatefulSetResource(csar, topology, nodeTemplate, nodeReplacementMap, resourceNodeYamlStructures, context));
 
         // for each Job create a node of type JobResource
         Set<NodeTemplate> jobNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_JOB, false);
@@ -897,7 +897,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
 
 
     private void createStatefulSetResource(Csar csar, Topology topology, NodeTemplate statefulsetNode, Map<String, NodeTemplate> nodeReplacementMap,
-    Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures){
+    Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures , FlowExecutionContext context){
         NodeTemplate statefulsetResourceNode = addNodeTemplate(csar, topology, statefulsetNode.getName() + "_Resource", K8S_TYPES_STATEFULSET_RESOURCE,
         K8S_CSAR_VERSION);
         nodeReplacementMap.put(statefulsetNode.getName(), statefulsetResourceNode);
@@ -910,6 +910,9 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         copyProperty(csar, topology, statefulsetNode, "kind", statefulsetResourceNodeProperties, "resource_def.kind");
         copyProperty(csar, topology, statefulsetNode, "metadata", statefulsetResourceNodeProperties, "resource_def.metadata");
         AbstractPropertyValue volumeDeletable = PropertyUtil.getPropertyValueFromPath(safe(statefulsetNode.getProperties()), "volumeDeletable");
+        if(volumeDeletable == null){
+            context.log().error("Failed to get volumeDeletable property on "+ statefulsetNode.getName());
+        }
         setNodePropertyPathValue(csar, topology, statefulsetResourceNode, "volumeDeletable", volumeDeletable);
 
         // For statefulset, generate an id and name that is consistent
@@ -918,10 +921,19 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         feedPropertyValue(statefulsetNode.getProperties(), "spec.template.metadata.labels.app", stsName, false);
         feedPropertyValue(statefulsetNode.getProperties(), "metadata.name", stsName, false);
         AbstractPropertyValue resource_id = PropertyUtil.getPropertyValueFromPath(safe(statefulsetNode.getProperties()), "metadata.name");
+        if(resource_id == null){
+            context.log().error("Failed to get metadata.name property on "+ statefulsetNode.getName());
+        }
         setNodePropertyPathValue(csar, topology, statefulsetResourceNode, "resource_id", resource_id);
 
         AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(safe(statefulsetNode.getProperties()), "spec");
+        if(propertyValue == null){
+            context.log().error("Failed to get spec property on "+ statefulsetNode.getName());
+        }
         NodeType nodeType = ToscaContext.get(NodeType.class, statefulsetNode.getType());
+        if(nodeType == null){
+            context.log().error("Failed to get nodeType property on "+ statefulsetNode.getName());
+        }
         PropertyDefinition propertyDefinition = nodeType.getProperties().get("spec");
         Object transformedValue = getTransformedValue(propertyValue, propertyDefinition, "");
         feedPropertyValue(statefulsetResourceNodeProperties, "resource_def.spec", transformedValue, false);
@@ -934,8 +946,11 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         }
 
 
-        // find each node of type Service that targets this deployment
+        // find each node of type Service that targets this statefulset
         Set<NodeTemplate> sourceCandidates = TopologyNavigationUtil.getSourceNodes(topology, statefulsetNode, "feature");
+        if(sourceCandidates == null){
+            context.log().error("Failed to get sourceCandidates that target node "+ statefulsetNode.getName());
+        }
         for (NodeTemplate sourceCandidate : sourceCandidates) {
             NodeType sourceCandidateType = ToscaContext.get(NodeType.class, sourceCandidate.getType());
             if (ToscaTypeUtils.isOfType(sourceCandidateType, K8S_TYPES_SERVICE)) {
