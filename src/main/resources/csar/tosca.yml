@@ -1840,7 +1840,7 @@ node_types:
 
   org.alien4cloud.kubernetes.api.types.AbstractJob:
     abstract: true
-    derived_from: org.alien4cloud.kubernetes.api.types.Base
+    derived_from: org.alien4cloud.kubernetes.api.types.AbstractController
     description: >
       Represent a kubernetes Job
     capabilities:
