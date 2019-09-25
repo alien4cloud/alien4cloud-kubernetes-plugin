@@ -4,6 +4,8 @@ import static alien4cloud.utils.AlienUtils.safe;
 import static org.alien4cloud.tosca.utils.ToscaTypeUtils.isOfType;
 
 import java.util.*;
+import java.math.BigInteger;
+import java.security.MessageDigest;
 
 import org.alien4cloud.plugin.kubernetes.AbstractKubernetesModifier;
 import org.alien4cloud.tosca.model.definitions.*;
@@ -37,6 +39,8 @@ public class KubeTopologyUtils {
     // K8S abstract types
     public static final String K8S_TYPES_ABSTRACT_CONTAINER = "org.alien4cloud.kubernetes.api.types.AbstractContainer";
     public static final String K8S_TYPES_ABSTRACT_DEPLOYMENT = "org.alien4cloud.kubernetes.api.types.AbstractDeployment";
+    public static final String K8S_TYPES_ABSTRACT_STATEFULSET = "org.alien4cloud.kubernetes.api.types.AbstractStatefulSet";
+    public static final String K8S_TYPES_ABSTRACT_CONTROLLER = "org.alien4cloud.kubernetes.api.types.AbstractController";
     public static final String K8S_TYPES_ABSTRACT_JOB = "org.alien4cloud.kubernetes.api.types.AbstractJob";
     public static final String K8S_TYPES_ABSTRACT_SERVICE = "org.alien4cloud.kubernetes.api.types.AbstractService";
     public static final String K8S_TYPES_ABSTRACT_VOLUME_BASE = "org.alien4cloud.kubernetes.api.types.volume.AbstractVolumeBase";
@@ -45,6 +49,7 @@ public class KubeTopologyUtils {
     // K8S concrete types
     public static final String K8S_TYPES_CONTAINER = "org.alien4cloud.kubernetes.api.types.Container";
     public static final String K8S_TYPES_DEPLOYMENT = "org.alien4cloud.kubernetes.api.types.Deployment";
+    public static final String K8S_TYPES_STATEFULSET = "org.alien4cloud.kubernetes.api.types.StatefulSet";
     public static final String K8S_TYPES_JOB = "org.alien4cloud.kubernetes.api.types.Job";
     public static final String K8S_TYPES_SERVICE = "org.alien4cloud.kubernetes.api.types.Service";
     public static final String K8S_TYPES_SERVICE_INGRESS = "org.alien4cloud.kubernetes.api.types.IngressService";
@@ -54,6 +59,7 @@ public class KubeTopologyUtils {
     public static final String K8S_TYPES_SECRET_VOLUME = "org.alien4cloud.kubernetes.api.types.volume.SecretSource";
     // K8S resource types
     public static final String K8S_TYPES_DEPLOYMENT_RESOURCE = "org.alien4cloud.kubernetes.api.types.DeploymentResource";
+    public static final String K8S_TYPES_STATEFULSET_RESOURCE = "org.alien4cloud.kubernetes.api.types.StatefulSetResource";
     public static final String K8S_TYPES_JOB_RESOURCE = "org.alien4cloud.kubernetes.api.types.JobResource";
     public static final String K8S_TYPES_BASE_JOB_RESOURCE = "org.alien4cloud.kubernetes.api.types.BaseJobResource";
     public static final String K8S_TYPES_BASE_RESOURCE = "org.alien4cloud.kubernetes.api.types.BaseResource";
@@ -94,6 +100,20 @@ public class KubeTopologyUtils {
      */
     public static String generateKubeName(String candidate) {
         return candidate.toLowerCase().replaceAll("_", "-");
+    }
+
+    /**
+     * Generate a consistent kubernetes name using sha1 algorithm from a string
+     */
+    public static String generateConsistentKubeName(String resourceName){
+        try{
+            MessageDigest md = MessageDigest.getInstance("SHA-1");
+            byte[] b = md.digest(resourceName.getBytes());
+            
+            return generateKubeName(String.format("%s-%X", resourceName, new BigInteger(1, Arrays.copyOfRange(b, 0, 6))) );
+        }catch(Exception e){
+            throw new RuntimeException(e);
+        }
     }
 
     /**

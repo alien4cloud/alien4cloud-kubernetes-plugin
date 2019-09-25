@@ -1,5 +1,74 @@
 package org.alien4cloud.plugin.kubernetes.modifier;
 
+import static alien4cloud.utils.AlienUtils.safe;
+import static org.alien4cloud.plugin.kubernetes.csar.Version.K8S_CSAR_VERSION;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_APPLICATION_DOCKER_CONTAINER;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_BASE_JOB_RESOURCE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_BASE_RESOURCE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_CONTAINER;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_DEPLOYMENT;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_DEPLOYMENT_RESOURCE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ENDPOINT_RESOURCE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_JOB;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_JOB_RESOURCE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SERVICE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SERVICE_INGRESS;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SERVICE_RESOURCE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SIMPLE_RESOURCE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_STATEFULSET;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_STATEFULSET_RESOURCE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_VOLUME_BASE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.generateConsistentKubeName;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.getValue;
+import static org.alien4cloud.plugin.kubernetes.policies.KubePoliciesConstants.K8S_POLICIES_AUTO_SCALING;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.logging.Level;
+import java.util.stream.Stream;
+
+import javax.annotation.Resource;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+
+import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
+import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
+import org.alien4cloud.plugin.kubernetes.AbstractKubernetesModifier;
+import org.alien4cloud.tosca.model.Csar;
+import org.alien4cloud.tosca.model.definitions.AbstractPropertyValue;
+import org.alien4cloud.tosca.model.definitions.ComplexPropertyValue;
+import org.alien4cloud.tosca.model.definitions.ConcatPropertyValue;
+import org.alien4cloud.tosca.model.definitions.DeploymentArtifact;
+import org.alien4cloud.tosca.model.definitions.ListPropertyValue;
+import org.alien4cloud.tosca.model.definitions.Operation;
+import org.alien4cloud.tosca.model.definitions.PropertyDefinition;
+import org.alien4cloud.tosca.model.definitions.PropertyValue;
+import org.alien4cloud.tosca.model.definitions.ScalarPropertyValue;
+import org.alien4cloud.tosca.model.templates.Capability;
+import org.alien4cloud.tosca.model.templates.NodeTemplate;
+import org.alien4cloud.tosca.model.templates.PolicyTemplate;
+import org.alien4cloud.tosca.model.templates.RelationshipTemplate;
+import org.alien4cloud.tosca.model.templates.ServiceNodeTemplate;
+import org.alien4cloud.tosca.model.templates.SubstitutionTarget;
+import org.alien4cloud.tosca.model.templates.Topology;
+import org.alien4cloud.tosca.model.types.AbstractToscaType;
+import org.alien4cloud.tosca.model.types.NodeType;
+import org.alien4cloud.tosca.model.types.PolicyType;
+import org.alien4cloud.tosca.normative.constants.AlienCapabilityTypes;
+import org.alien4cloud.tosca.normative.constants.NormativeRelationshipConstants;
+import org.alien4cloud.tosca.utils.FunctionEvaluator;
+import org.alien4cloud.tosca.utils.FunctionEvaluatorContext;
+import org.alien4cloud.tosca.utils.NodeTemplateUtils;
+import org.alien4cloud.tosca.utils.TopologyNavigationUtil;
+import org.alien4cloud.tosca.utils.ToscaTypeUtils;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.stereotype.Component;
+
 import alien4cloud.component.repository.ArtifactRepositoryConstants;
 import alien4cloud.paas.wf.TopologyContext;
 import alien4cloud.paas.wf.WorkflowSimplifyService;
@@ -12,49 +81,7 @@ import alien4cloud.tosca.serializer.ToscaPropertySerializerUtils;
 import alien4cloud.utils.CloneUtil;
 import alien4cloud.utils.MapUtil;
 import alien4cloud.utils.PropertyUtil;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import lombok.extern.java.Log;
-import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
-import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
-import org.alien4cloud.plugin.kubernetes.AbstractKubernetesModifier;
-import org.alien4cloud.tosca.model.Csar;
-import org.alien4cloud.tosca.model.definitions.*;
-import org.alien4cloud.tosca.model.templates.*;
-import org.alien4cloud.tosca.model.types.AbstractToscaType;
-import org.alien4cloud.tosca.model.types.NodeType;
-import org.alien4cloud.tosca.model.types.PolicyType;
-import org.alien4cloud.tosca.normative.constants.AlienCapabilityTypes;
-import org.alien4cloud.tosca.normative.constants.NormativeRelationshipConstants;
-import org.alien4cloud.tosca.utils.*;
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.springframework.stereotype.Component;
-
-import javax.annotation.Resource;
-import java.util.*;
-import java.util.logging.Level;
-import java.util.stream.Stream;
-
-import static alien4cloud.utils.AlienUtils.safe;
-import static org.alien4cloud.plugin.kubernetes.csar.Version.K8S_CSAR_VERSION;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_APPLICATION_DOCKER_CONTAINER;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_CONTAINER;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_DEPLOYMENT;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_JOB;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_DEPLOYMENT_RESOURCE;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_JOB_RESOURCE;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ENDPOINT_RESOURCE;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_BASE_RESOURCE;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_BASE_JOB_RESOURCE;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SERVICE_INGRESS;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SERVICE;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SERVICE_RESOURCE;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SIMPLE_RESOURCE;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_VOLUME_BASE;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.getValue;
-import static org.alien4cloud.plugin.kubernetes.policies.KubePoliciesConstants.K8S_POLICIES_AUTO_SCALING;
 
 /**
  * Transform a matched K8S topology containing <code>Container</code>s, <code>Deployment</code>s, <code>Service</code>s
@@ -131,6 +158,10 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         Set<NodeTemplate> deploymentNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_DEPLOYMENT, false);
         deploymentNodes.forEach(nodeTemplate -> createDeploymentResource(csar, topology, nodeTemplate, nodeReplacementMap, resourceNodeYamlStructures));
 
+        // for each StatefulSet create a node of type StatefulSetResource
+        Set<NodeTemplate> statefulSetNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_STATEFULSET, false);
+        statefulSetNodes.forEach(nodeTemplate -> createStatefulSetResource(csar, topology, nodeTemplate, nodeReplacementMap, resourceNodeYamlStructures, context));
+
         // for each Job create a node of type JobResource
         Set<NodeTemplate> jobNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_JOB, false);
         jobNodes.forEach(nodeTemplate -> createJobResource(csar, topology, nodeTemplate, nodeReplacementMap, resourceNodeYamlStructures));
@@ -162,6 +193,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         serviceNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
         deploymentNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
         jobNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
+        statefulSetNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
         Set<NodeTemplate> volumes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_VOLUME_BASE, true);
         volumes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
         Set<NodeTemplate> containers = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_APPLICATION_DOCKER_CONTAINER, true, false);
@@ -388,21 +420,35 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         }
         NodeTemplate targetContainer = topology.getNodeTemplates().get(relationshipTemplate.get().getTarget());
         // find the deployment that hosts this container
-        NodeTemplate deploymentContainer = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology, targetContainer, K8S_TYPES_DEPLOYMENT);
-        if (deploymentContainer == null) {
+        NodeTemplate hostOfContainer = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology, targetContainer, K8S_TYPES_DEPLOYMENT);
+        if (hostOfContainer == null) {
             // find the job that hosts this container
-            deploymentContainer = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology, targetContainer, K8S_TYPES_JOB);
+            hostOfContainer = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology, targetContainer, K8S_TYPES_JOB);
         }
-        if (deploymentContainer == null) {
+        if(hostOfContainer == null){
+            hostOfContainer = TopologyNavigationUtil.getHostOfTypeInHostingHierarchy(topology, targetContainer, K8S_TYPES_STATEFULSET);
+        }
+        if (hostOfContainer == null) {
             ctx.getLog().error("failed to get controller hosting volume <"+ volumeNode.getName() + ">");
             return;
         }
         // get the deployment resource corresponding to this deployment
-        NodeTemplate deploymentResourceNode = nodeReplacementMap.get(deploymentContainer.getName());
+        NodeTemplate controllerResourceNode = nodeReplacementMap.get(hostOfContainer.getName());
 
-        managePersistentVolumeClaim(ctx, csar, topology, volumeNode, resourceNodeYamlStructures, deploymentResourceNode);
+        NodeType volumeNodeType = ToscaContext.get(NodeType.class, volumeNode.getType());
+        NodeType hostNodeType = ToscaContext.get(NodeType.class, hostOfContainer.getType());
+        if(ToscaTypeUtils.isOfType(hostNodeType, K8S_TYPES_STATEFULSET)){
+            // If statefulSet does not match a PVC, raise error
+            if(!ToscaTypeUtils.isOfType(volumeNodeType, KubeTopologyUtils.K8S_TYPES_VOLUMES_CLAIM)){
+                ctx.log().error("StatefulSet "+hostOfContainer.getName()+" should match a PersistentVolumeClaim resource !");
+                return;
+            }
+            manageVolumeClaimTemplates(ctx, csar, topology, volumeNode, resourceNodeYamlStructures, controllerResourceNode);
+        }else{
+            managePersistentVolumeClaim(ctx, csar, topology, volumeNode, resourceNodeYamlStructures, controllerResourceNode);
+        }
 
-        Map<String, AbstractPropertyValue> deploymentResourceNodeProperties = resourceNodeYamlStructures.get(deploymentResourceNode.getName());
+        Map<String, AbstractPropertyValue> deploymentResourceNodeProperties = resourceNodeYamlStructures.get(controllerResourceNode.getName());
         Map<String, Object> volumeEntry = Maps.newHashMap();
         AbstractPropertyValue name = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "name");
         AbstractPropertyValue volume_type = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "volume_type");
@@ -417,7 +463,6 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         volumeEntry.put(PropertyUtil.getScalarValue(volume_type), volumeSpecObject);
         feedPropertyValue(deploymentResourceNodeProperties, "resource_def.spec.template.spec.volumes", volumeEntry, true);
 
-        NodeType volumeNodeType = ToscaContext.get(NodeType.class, volumeNode.getType());
         if (ToscaTypeUtils.isOfType(volumeNodeType, KubeTopologyUtils.K8S_TYPES_SECRET_VOLUME)) {
             // we must create a secret, the deployment should depend on it
             NodeTemplate secretFactory = addNodeTemplate(csar, topology, volumeNode.getName() + "_Secret", KubeTopologyUtils.K8S_TYPES_SECRET_FACTORY,
@@ -433,9 +478,49 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                 secretFactory.setArtifacts(artifacts);
             }
             artifacts.put("resources", volumeNode.getArtifacts().get("resources"));
-            addRelationshipTemplate(csar, topology, deploymentResourceNode, secretFactory.getName(), NormativeRelationshipConstants.DEPENDS_ON,
+            addRelationshipTemplate(csar, topology, controllerResourceNode, secretFactory.getName(), NormativeRelationshipConstants.DEPENDS_ON,
                     "dependency", "feature");
         }
+    }
+
+
+    private void manageVolumeClaimTemplates(FlowExecutionContext ctx, Csar csar, Topology topology, NodeTemplate volumeNode,
+    Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures, NodeTemplate statefulsetResourceNode) {
+        AbstractPropertyValue size = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "size");
+                if(size ==null){
+                    ctx.log().error("Volume node "+volumeNode.getName()+" should have a size !");
+                }
+
+        NodeType nodeType = ToscaContext.get(NodeType.class, volumeNode.getType());
+        String stsName = statefulsetResourceNode.getName();
+        Map<String, AbstractPropertyValue> stsResourceNodeProperties = resourceNodeYamlStructures.get(stsName);
+
+        //Create a list of claim templates if it doesn't exists
+        AbstractPropertyValue vctpl = PropertyUtil.getPropertyValueFromPath(stsResourceNodeProperties, "resource_def.spec.volumeClaimTemplates");
+        if(vctpl == null)
+            feedPropertyValue(stsResourceNodeProperties, "resource_def.spec.volumeClaimTemplates", new ListPropertyValue(Lists.newArrayList()), false);
+
+        //Feed volume infos
+        Map<String, AbstractPropertyValue> volumeClaimResource = Maps.newHashMap();
+        //String volumeName = generateKubeName(volumeNode.getName());
+        AbstractPropertyValue volumeName = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "name");
+        feedPropertyValue(volumeClaimResource, "metadata.name", volumeName, false);
+        AbstractPropertyValue accessModesProperty = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "accessModes");
+        feedPropertyValue(volumeClaimResource, "spec.accessModes", accessModesProperty, true);
+        PropertyDefinition propertyDefinition = nodeType.getProperties().get("size");
+        Object transformedSize = getTransformedValue(size, propertyDefinition, "");
+        feedPropertyValue(volumeClaimResource, "spec.resources.requests.storage", transformedSize, false);
+        NodeType volumeNodeType = ToscaContext.get(NodeType.class, volumeNode.getType());
+        if (ToscaTypeUtils.isOfType(volumeNodeType, KubeTopologyUtils.K8S_TYPES_VOLUMES_CLAIM_SC)) {
+            // add the storage class name to the claim
+            AbstractPropertyValue storageClassNameProperty = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "storageClassName");
+            feedPropertyValue(volumeClaimResource, "resource_def.spec.storageClassName", storageClassNameProperty, false);
+        }
+
+        //Add one corresponding to the pvc matched into volumeClaimTemplates
+        feedPropertyValue(stsResourceNodeProperties, "resource_def.spec.volumeClaimTemplates", volumeClaimResource, true);
+
+
     }
 
     private void managePersistentVolumeClaim(FlowExecutionContext ctx, Csar csar, Topology topology, NodeTemplate volumeNode,
@@ -467,6 +552,9 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                 // get the size of the volume to define claim storage size
                 NodeType nodeType = ToscaContext.get(NodeType.class, volumeNode.getType());
                 AbstractPropertyValue size = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "size");
+                if(size ==null){
+                    ctx.log().error("Volume node "+volumeNode.getName()+" should have a size !");
+                }
                 PropertyDefinition propertyDefinition = nodeType.getProperties().get("size");
                 Object transformedSize = getTransformedValue(size, propertyDefinition, "");
                 feedPropertyValue(volumeClaimResourceNodeProperties, "resource_def.spec.resources.requests.storage", transformedSize, false);
@@ -806,6 +894,96 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
             feedPropertyValue(controllerResourceNodeProperties, "resource_def.spec.template.spec.containers", transformedValue, true);
         }
     }
+
+
+    private void createStatefulSetResource(Csar csar, Topology topology, NodeTemplate statefulsetNode, Map<String, NodeTemplate> nodeReplacementMap,
+    Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures , FlowExecutionContext context){
+        NodeTemplate statefulsetResourceNode = addNodeTemplate(csar, topology, statefulsetNode.getName() + "_Resource", K8S_TYPES_STATEFULSET_RESOURCE,
+        K8S_CSAR_VERSION);
+        nodeReplacementMap.put(statefulsetNode.getName(), statefulsetResourceNode);
+        setNodeTagValue(statefulsetResourceNode, A4C_KUBERNETES_MODIFIER_TAG + "_created_from", statefulsetNode.getName());
+
+        Map<String, AbstractPropertyValue> statefulsetResourceNodeProperties = Maps.newHashMap();
+        resourceNodeYamlStructures.put(statefulsetResourceNode.getName(), statefulsetResourceNodeProperties);
+
+        copyProperty(csar, topology, statefulsetNode, "apiVersion", statefulsetResourceNodeProperties, "resource_def.apiVersion");
+        copyProperty(csar, topology, statefulsetNode, "kind", statefulsetResourceNodeProperties, "resource_def.kind");
+        copyProperty(csar, topology, statefulsetNode, "metadata", statefulsetResourceNodeProperties, "resource_def.metadata");
+        AbstractPropertyValue volumeDeletable = PropertyUtil.getPropertyValueFromPath(safe(statefulsetNode.getProperties()), "volumeDeletable");
+        if(volumeDeletable == null){
+            context.log().error("Failed to get volumeDeletable property on "+ statefulsetNode.getName());
+        }
+        setNodePropertyPathValue(csar, topology, statefulsetResourceNode, "volumeDeletable", volumeDeletable);
+
+        // For statefulset, generate an id and name that is consistent
+        String stsName = generateConsistentKubeName(statefulsetNode.getName());
+        feedPropertyValue(statefulsetResourceNodeProperties, "resource_def.metadata.name", stsName, false);
+        feedPropertyValue(statefulsetNode.getProperties(), "spec.template.metadata.labels.app", stsName, false);
+        feedPropertyValue(statefulsetNode.getProperties(), "metadata.name", stsName, false);
+        AbstractPropertyValue resource_id = PropertyUtil.getPropertyValueFromPath(safe(statefulsetNode.getProperties()), "metadata.name");
+        if(resource_id == null){
+            context.log().error("Failed to get metadata.name property on "+ statefulsetNode.getName());
+        }
+        setNodePropertyPathValue(csar, topology, statefulsetResourceNode, "resource_id", resource_id);
+
+        AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(safe(statefulsetNode.getProperties()), "spec");
+        if(propertyValue == null){
+            context.log().error("Failed to get spec property on "+ statefulsetNode.getName());
+        }
+        NodeType nodeType = ToscaContext.get(NodeType.class, statefulsetNode.getType());
+        if(nodeType == null){
+            context.log().error("Failed to get nodeType property on "+ statefulsetNode.getName());
+        }
+        PropertyDefinition propertyDefinition = nodeType.getProperties().get("spec");
+        Object transformedValue = getTransformedValue(propertyValue, propertyDefinition, "");
+        feedPropertyValue(statefulsetResourceNodeProperties, "resource_def.spec", transformedValue, false);
+
+        Capability scalableCapability = safe(statefulsetNode.getCapabilities()).get("scalable");
+        if (scalableCapability != null) {
+            Capability clusterControllerCapability = new Capability(AlienCapabilityTypes.CLUSTER_CONTROLLER,
+                    CloneUtil.clone(scalableCapability.getProperties()));
+            NodeTemplateUtils.setCapability(statefulsetResourceNode, "scalable", clusterControllerCapability);
+        }
+
+
+        // find each node of type Service that targets this statefulset
+        Set<NodeTemplate> sourceCandidates = TopologyNavigationUtil.getSourceNodes(topology, statefulsetNode, "feature");
+        if(sourceCandidates == null){
+            context.log().error("Failed to get sourceCandidates that target node "+ statefulsetNode.getName());
+        }
+        for (NodeTemplate sourceCandidate : sourceCandidates) {
+            NodeType sourceCandidateType = ToscaContext.get(NodeType.class, sourceCandidate.getType());
+            if (ToscaTypeUtils.isOfType(sourceCandidateType, K8S_TYPES_SERVICE)) {
+                // find the replacer
+                NodeTemplate serviceResource = nodeReplacementMap.get(sourceCandidate.getName());
+                if (!TopologyNavigationUtil.hasRelationship(serviceResource, statefulsetResourceNode.getName(), "dependency", "feature")) {
+                    RelationshipTemplate relationshipTemplate = addRelationshipTemplate(csar, topology, serviceResource, statefulsetResourceNode.getName(),
+                            NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
+                    setNodeTagValue(relationshipTemplate, A4C_KUBERNETES_MODIFIER_TAG + "_created_from",
+                            sourceCandidate.getName() + " -> " + statefulsetNode.getName());
+                //Change selector to match the consistent name
+                Map<String, AbstractPropertyValue> serviceResourceNodeProperties = resourceNodeYamlStructures.get(serviceResource.getName());
+                feedPropertyValue(serviceResourceNodeProperties, "resource_def.spec.selector.app", stsName, false);
+                }
+            }
+        }
+        // find each node of type service this deployment depends on
+        Set<NodeTemplate> targetCandidates = TopologyNavigationUtil.getTargetNodes(topology, statefulsetNode, "dependency");
+        for (NodeTemplate targetCandidate : targetCandidates) {
+            NodeType targetCandidateType = ToscaContext.get(NodeType.class, targetCandidate.getType());
+            if (ToscaTypeUtils.isOfType(targetCandidateType, K8S_TYPES_SERVICE)) {
+                // find the replacer
+                NodeTemplate serviceResource = nodeReplacementMap.get(targetCandidate.getName());
+                if (!TopologyNavigationUtil.hasRelationship(statefulsetResourceNode, serviceResource.getName(), "dependency", "feature")) {
+                    RelationshipTemplate relationshipTemplate = addRelationshipTemplate(csar, topology, statefulsetResourceNode, serviceResource.getName(),
+                            NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
+                    setNodeTagValue(relationshipTemplate, A4C_KUBERNETES_MODIFIER_TAG + "_created_from",
+                    statefulsetNode.getName() + " -> " + targetCandidate.getName());
+                }
+            }
+        }
+    }
+
 
     private void createJobResource(Csar csar, Topology topology, NodeTemplate jobNode, Map<String, NodeTemplate> nodeReplacementMap,
             Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures) {

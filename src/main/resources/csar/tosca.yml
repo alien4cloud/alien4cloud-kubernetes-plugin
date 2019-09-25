@@ -218,13 +218,28 @@ data_types:
   org.alien4cloud.kubernetes.api.datatypes.ControllerSpec:
     derived_from: tosca.datatypes.Root
     description: >
-      Used to provied template of PodTemplateSpec to controllers as Job, Deployment, and in the future, StatefulSet
+      Used to provied template of PodTemplateSpec to controllers as Job, Deployment, and StatefulSet
     properties:
       template:
         type: org.alien4cloud.kubernetes.api.datatypes.PodTemplateSpec
         required: false
         description: |
           Template describes the pods that will be created.
+      replicas:
+        type: integer
+        required: false
+        description: |
+          Desired number of replicas of the given Template. These are replicas in the sense that they are instantiations of the same Template, but individual replicas also have a consistent identity. If unspecified, defaults to 1.
+      revisionHistoryLimit:
+        type: integer
+        required: false
+        description: |
+          Maximum number of revisions that will be maintained in the revision history. The revision history consists of all revisions not represented by a currently applied version.
+      selector:
+        type: string # datetype: org.alien4cloud.kubernetes.api.datatypes.LabelSelector
+        required: false
+        description: |
+          Label query over pods that should match the pod count. Normally, the system sets this field for you
 
   org.alien4cloud.kubernetes.api.datatypes.DeploymentSpec:
     derived_from: org.alien4cloud.kubernetes.api.datatypes.ControllerSpec
@@ -246,16 +261,6 @@ data_types:
         required: false
         description: |
           The maximum time in seconds for a deployment to make progress before it is considered to be failed. The deployment controller will continue to process failed deployments and a condition with a ProgressDeadlineExceeded reason will be surfaced in the deployment status. Once autoRollback is implemented, the deployment controller will automatically rollback failed deployments. Note that progress will not be estimated during the time a deployment is paused. Defaults to 600s.
-      replicas:
-        type: integer
-        required: false
-        description: |
-          Number of desired pods. This is a pointer to distinguish between explicit zero and not specified. Defaults to 1.
-      revisionHistoryLimit:
-        type: integer
-        required: false
-        description: |
-          The number of old ReplicaSets to retain to allow rollback. This is a pointer to distinguish between explicit zero and not specified. Defaults to 2.
       rollbackTo:
         type: string # datetype: RollbackConfig
         required: false
@@ -298,11 +303,31 @@ data_types:
         required: false
         description: |
           Parallelism specifies the maximum desired number of pods the job should run at any given time.
-      selector:
-        type: string # datetype: org.alien4cloud.kubernetes.api.datatypes.LabelSelector
+
+  org.alien4cloud.kubernetes.api.datatypes.StatefulSetSpec:
+    derived_from: org.alien4cloud.kubernetes.api.datatypes.ControllerSpec
+    description: >
+      c.f. https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.12/#statefulsetspec-v1-apps
+    properties:
+      serviceName:
+        type: string
         required: false
         description: |
-          Label query over pods that should match the pod count. Normally, the system sets this field for you
+          Name of the service that governs this StatefulSet. This service must exist before the StatefulSet, and is responsible for the network identity of the set. Pods get DNS/hostnames that follow the pattern: pod-specific-string.serviceName.default.svc.cluster.local where "pod-specific-string" is managed by the StatefulSet controller.
+      updateStrategy:
+        type: string # datetype: StatefulSetUpdateStrategy
+        required: false
+        description: |
+          The deployment strategy to use to replace existing pods with new ones.
+      # Maybe not useful (use directly those defined in containerSpec)
+      # volumeClaimTemplates:
+      #   type: list
+      #   required: false
+      #   description: |
+      #     List of claims that pods are allowed to reference. The StatefulSet controller is responsible for mapping network identities to claims in a way that maintains the identity of a pod. Every claim in this list must have at least one matching (by name) volumeMount in one container in the template. A claim in this list takes precedence over any volumes in the template, with the same name.
+      #   entry_schema:
+      #     type: org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimSource
+
 
   org.alien4cloud.kubernetes.api.datatypes.PodTemplateSpec:
     derived_from: tosca.datatypes.Root
@@ -1375,7 +1400,7 @@ node_types:
         description: |
           Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#types-kinds
         constraints:
-          - valid_values: [Deployment, Service, Ingress, HorizontalPodAutoscaler]
+          - valid_values: [StatefulSet, Deployment, Service, Ingress, HorizontalPodAutoscaler]
       metadata:
         type: map
         required: false
@@ -1735,6 +1760,46 @@ node_types:
   #      type: org.alien4cloud.kubernetes.api.datatypes.ControllerSpec
   # in this case don't need to define spec property in AbstractDeployment and AbstractJobe
 
+  org.alien4cloud.kubernetes.api.types.AbstractController:
+    abstract: true
+    derived_from: org.alien4cloud.kubernetes.api.types.Base
+    capabilities:
+      host: tosca.capabilities.Container.Docker
+      scalable: tosca.capabilities.Scalable
+    properties:
+      spec:
+        type: org.alien4cloud.kubernetes.api.datatypes.ControllerSpec
+
+  org.alien4cloud.kubernetes.api.types.StatefulSet:
+    derived_from: org.alien4cloud.kubernetes.api.types.AbstractStatefulSet
+    properties:
+      volumeDeletable:
+        type: boolean
+        required: false
+        description: |
+          Delete or not volume(s) at undeployment.
+# if default value, cannot be changed at matching
+#        default: true
+
+  org.alien4cloud.kubernetes.api.types.AbstractStatefulSet:
+    abstract: true
+    derived_from: org.alien4cloud.kubernetes.api.types.AbstractController
+    description: >
+      Represent a kubernetes StatefulSet
+    properties:
+      apiVersion:
+        type: string
+        default: apps/v1
+        constraints:
+          - equal: apps/v1
+      kind:
+        type: string
+        default: StatefulSet
+        constraints:
+          - equal: StatefulSet
+      spec:
+        type: org.alien4cloud.kubernetes.api.datatypes.StatefulSetSpec
+
   org.alien4cloud.kubernetes.api.types.Deployment:
     derived_from: org.alien4cloud.kubernetes.api.types.AbstractDeployment
 
@@ -1751,12 +1816,9 @@ node_types:
 
   org.alien4cloud.kubernetes.api.types.AbstractDeployment:
     abstract: true
-    derived_from: org.alien4cloud.kubernetes.api.types.Base
+    derived_from: org.alien4cloud.kubernetes.api.types.AbstractController
     description: >
       Represent a kubernetes Deployment
-    capabilities:
-      host: tosca.capabilities.Container.Docker
-      scalable: tosca.capabilities.Scalable
     properties:
       apiVersion:
         type: string
@@ -1767,12 +1829,9 @@ node_types:
           - equal: apps/v1
       kind:
         type: string
-        description: |
-          Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#types-kinds
         default: Deployment
         constraints:
           - equal: Deployment
-      # Could remove this if we derive AbstractDeployment from AbstractController
       spec:
         type: org.alien4cloud.kubernetes.api.datatypes.DeploymentSpec
 
@@ -1956,6 +2015,56 @@ node_types:
 #            INSTANCES_DELTA:
 #              type: integer
 #          implementation: scripts/kubectl_deployment_scale.sh
+
+  org.alien4cloud.kubernetes.api.types.StatefulSetResource:
+    derived_from: org.alien4cloud.kubernetes.api.types.BaseResource
+    properties:
+      resource_id:
+        type: string
+        required: true
+        description: |
+          a unique id set by a4c to identify a resource. it should be added as a label named 'a4c_id'
+      service_dependency_lookups:
+        type: string
+        required: false
+        description: |
+          A CSV key:value pairs where key should be replaced by the interpretation of value in the JSON.
+          The value is the Kube name of the service for which the scheduler will need to find the ClusterIP and
+          replace the key in the JSON with the found value.
+      volumeDeletable:
+        type: boolean
+        required: false
+        description: |
+          Delete or not volume(s) at undeployment.
+
+    capabilities:
+      # Manage scalability of instances
+      scalable: org.alien4cloud.capabilities.ClusterController
+    attributes:
+      deployment_id: { get_operation_output: [SELF, Standard, create, KUBE_DEPLOYMENT_ID] }
+    interfaces:
+      Standard:
+        create:
+          inputs:
+            KUBE_SERVICE_DEPENDENCIES: { get_property: [SELF, service_dependency_lookups] }
+            KUBE_RESOURCE_STATEFULSET_CONFIG: { get_property: [SELF, resource_spec] }
+            NAMESPACE: { get_property: [SELF, namespace] }
+          implementation: scripts/void.sh
+        delete:
+          inputs:
+            KUBE_STATEFULSET_ID: { get_property: [SELF, resource_id] }
+            NAMESPACE: { get_property: [SELF, namespace] }
+          implementation: scripts/void.sh
+      org.alien4cloud.management.ClusterControl:
+        scale:
+          inputs:
+            KUBE_STATEFULSET_ID: { get_attribute: [SELF, deployment_id] }
+            NAMESPACE: { get_property: [SELF, namespace] }
+            EXPECTED_INSTANCES:
+              type: integer
+            INSTANCES_DELTA:
+              type: integer
+          implementation: scripts/void.sh
 
   org.alien4cloud.kubernetes.api.types.BaseJobResource:
     abstract: true
