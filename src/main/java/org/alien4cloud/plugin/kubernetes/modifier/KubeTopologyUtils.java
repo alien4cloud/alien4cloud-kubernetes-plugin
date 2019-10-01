@@ -7,6 +7,7 @@ import java.util.*;
 import java.math.BigInteger;
 import java.security.MessageDigest;
 
+import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
 import org.alien4cloud.plugin.kubernetes.AbstractKubernetesModifier;
 import org.alien4cloud.tosca.model.definitions.*;
 import org.alien4cloud.tosca.model.templates.*;
@@ -293,4 +294,23 @@ public class KubeTopologyUtils {
         return null;
     }
 
+    public static ScalarPropertyValue portNameFromService(NodeTemplate node) {
+        ListPropertyValue ports = (ListPropertyValue) PropertyUtil.getPropertyValueFromPath(safe(node.getProperties()), "spec.ports");
+        ComplexPropertyValue port = (ComplexPropertyValue) ports.getValue().get(0);
+        return (ScalarPropertyValue) port.getValue().get("name");
+    }
+
+    public static void copyProperty(NodeTemplate sourceTemplate, String sourcePath, Map<String, AbstractPropertyValue> propertyValues, String targetPath) {
+        AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(safe(sourceTemplate.getProperties()), sourcePath);
+        TopologyModifierSupport.feedPropertyValue(propertyValues, targetPath, propertyValue, false);
+    }
+
+    public static void renameProperty(Object propertyValue, String propertyPath, String newName) {
+        PropertyUtil.NestedPropertyWrapper nestedPropertyWrapper = PropertyUtil.getNestedProperty(propertyValue, propertyPath);
+        if (nestedPropertyWrapper != null) {
+            Object value = nestedPropertyWrapper.parent.remove(nestedPropertyWrapper.key);
+            // value can't be null if nestedPropertyWrapper isn't null
+            nestedPropertyWrapper.parent.put(newName, value);
+        }
+    }
 }
