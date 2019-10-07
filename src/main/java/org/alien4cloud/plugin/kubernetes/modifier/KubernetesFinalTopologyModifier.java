@@ -705,6 +705,33 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         }
     }
 
+    private void manageContainerDependencies(Csar csar, Topology topology, NodeTemplate containerNode, NodeTemplate controllerResource, Map<String, NodeTemplate> nodeReplacementMap,FlowExecutionContext context) {
+
+        Set<NodeTemplate> dependencies = TopologyNavigationUtil.getSourceNodesByRelationshipType(topology, containerNode, NormativeRelationshipConstants.DEPENDS_ON);
+
+        dependencies.forEach(sourceContainerNode -> {
+            // get the hosting node
+            NodeTemplate sourceRuntimeNode = TopologyNavigationUtil.getImmediateHostTemplate(topology,
+                    sourceContainerNode);
+            if (sourceRuntimeNode != null) {
+                NodeTemplate sourceControllerNode = TopologyNavigationUtil.getImmediateHostTemplate(topology,
+                        sourceRuntimeNode);
+                if (sourceControllerNode != null) {
+                    // find the replacer
+                    NodeTemplate sourceControllerResource = nodeReplacementMap.get(sourceControllerNode.getName());
+                    if (sourceControllerResource != null) {
+                        RelationshipTemplate relationshipTemplate = addRelationshipTemplate(csar, topology,
+                                sourceControllerResource, controllerResource.getName(),
+                                NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
+                        setNodeTagValue(relationshipTemplate, A4C_KUBERNETES_MODIFIER_TAG + "_created_from",
+                                sourceContainerNode.getName() + " -> " + containerNode.getName());
+                    }
+                }
+            }
+        });
+
+    }
+
     private void manageContainer(Csar csar, Topology topology, NodeTemplate containerNode, Map<String, NodeTemplate> nodeReplacementMap,
             Map<String, Map<String, AbstractPropertyValue>> resourceNodeYamlStructures, FunctionEvaluatorContext functionEvaluatorContext,
             Map<String, List<String>> serviceIpAddressesPerDeploymentResource, FlowExecutionContext context) {
@@ -724,6 +751,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
             Set<NodeTemplate> hostedContainers = TopologyNavigationUtil.getSourceNodes(topology, containerNode, "host");
             for (NodeTemplate nodeTemplate : hostedContainers) {
                 // we should have a single hosted docker container
+                manageContainerDependencies(csar, topology, nodeTemplate, controllerResource, nodeReplacementMap, context);
 
                 AbstractPropertyValue propertyValue = PropertyUtil.getPropertyValueFromPath(safe(nodeTemplate.getProperties()), "docker_run_args");
                 if (propertyValue != null) {

@@ -85,6 +85,8 @@ import lombok.extern.java.Log;
 @Component(value = "kubernetes-modifier")
 public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifier {
 
+    public static final String A4C_KUBERNETES_LOCATION_MODIFIER_TAG = "a4c_kubernetes-location-modifier";
+
     @Override
     @ToscaContextual
     public void process(Topology topology, FlowExecutionContext context) {
