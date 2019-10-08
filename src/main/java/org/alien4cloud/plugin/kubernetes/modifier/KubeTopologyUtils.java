@@ -16,13 +16,14 @@ import org.alien4cloud.tosca.normative.constants.ToscaFunctionConstants;
 import org.alien4cloud.tosca.utils.InterfaceUtils;
 import org.alien4cloud.tosca.utils.TopologyNavigationUtil;
 import org.alien4cloud.tosca.utils.ToscaTypeUtils;
-import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.collect.Maps;
 
 import alien4cloud.model.common.Tag;
 import alien4cloud.paas.plan.ToscaNodeLifecycleConstants;
 import alien4cloud.tosca.context.ToscaContext;
 import alien4cloud.utils.PropertyUtil;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 
 /**
  * A utility to browse Kube topologies (enhanced by Kube modifiers).
