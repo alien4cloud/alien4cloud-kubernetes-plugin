@@ -2094,10 +2094,19 @@ node_types:
 
   org.alien4cloud.kubernetes.api.types.JobResource:
     derived_from: org.alien4cloud.kubernetes.api.types.BaseJobResource
+    properties:
+      service_dependency_lookups:
+        type: string
+        required: false
+        description: |
+          A CSV key:value pairs where key should be replaced by the interpretation of value in the JSON.
+          The value is the Kube name of the service for which the scheduler will need to find the ClusterIP and
+          replace the key in the JSON with the found value.
     interfaces:
       tosca.interfaces.node.lifecycle.Runnable:
         submit:
           inputs:
+            KUBE_SERVICE_DEPENDENCIES: { get_property: [SELF, service_dependency_lookups] }
             KUBE_RESOURCE_JOB_CONFIG: { get_property: [SELF, resource_spec] }
             KUBE_CONFIG: { get_property: [SELF, kube_config] }
           implementation: scripts/kubectl_job_submit.sh
