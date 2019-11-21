@@ -2208,7 +2208,7 @@ node_types:
         constraints:
           # for the moment managed types are: PersistenceVolumeClaim (pvc), HorizontalPodAutoscaler (hpa)
           # Cf. https://kubernetes.io/docs/reference/kubectl/overview/ section 'Resource types'
-          - valid_values: [pvc, hpa, ing]
+          - valid_values: [pvc, hpa, ing, namespaces]
       resource_id:
         type: string
         required: true
@@ -2254,6 +2254,26 @@ node_types:
     capabilities:
       k8s_endpoint:
         type: org.alien4cloud.kubernetes.api.capabilities.KubeCluster
+
+  org.alien4cloud.kubernetes.api.types.KubeNamespace:
+    derived_from: org.alien4cloud.kubernetes.api.types.Base
+    tags:
+      icon: /images/kubernetes.png
+    properties:
+      namespace:
+        type: string
+        required: true
+        description: |
+          namespace to be created / deleted
+      kind:
+        type: string
+        required: true
+        default: Namespace
+      metadata:
+        type: org.alien4cloud.kubernetes.api.datatypes.Metadata
+        required: false
+        description: |
+           namespace metadata
 
 capability_types:
   org.alien4cloud.kubernetes.api.capabilities.KubeContainerHost:
