@@ -2103,7 +2103,7 @@ node_types:
   org.alien4cloud.kubernetes.api.types.JobResource:
     derived_from: org.alien4cloud.kubernetes.api.types.BaseJobResource
     tags:
-      icon: /images/kubernetes.JobResource.png
+      icon: /images/kubernetes.Job.png
     properties:
       service_dependency_lookups:
         type: string
