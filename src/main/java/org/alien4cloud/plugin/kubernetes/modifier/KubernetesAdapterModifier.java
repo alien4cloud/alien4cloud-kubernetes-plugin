@@ -65,6 +65,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
     public static final String A4C_KUBERNETES_ADAPTER_MODIFIER_TAG = "a4c_kubernetes-adapter-modifier";
     /** This tag is added to any K8S resource, it's value will target the node name it replace in the original topology. */
     public static final String A4C_KUBERNETES_ADAPTER_MODIFIER_TAG_REPLACEMENT_NODE_FOR = A4C_KUBERNETES_ADAPTER_MODIFIER_TAG + "_ReplacementNodeFor";
+    public static final String A4C_KUBERNETES_ADAPTER_MODIFIER_TAG_CONTAINER = A4C_KUBERNETES_ADAPTER_MODIFIER_TAG + "_Container_";
 
     public static final String K8S_TYPES_KUBEDEPLOYMENT = "org.alien4cloud.kubernetes.api.types.KubeDeployment";
     public static final String K8S_TYPES_KUBECONTAINER = "org.alien4cloud.kubernetes.api.types.KubeContainer";
@@ -1006,10 +1007,10 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
     }
 
     private void manageContainer(KubernetesModifierContext context, NodeTemplate containerNode, FunctionEvaluatorContext functionEvaluatorContext, Map<String, List<String>> serviceIpAddressesPerDeploymentResource) {  {
+            String containerK8sName = generateUniqueKubeName(context.getFlowExecutionContext(), containerNode.getName());
 
             // build and set a unique name for the container
-            setNodePropertyPathValue(context.getCsar(), context.getTopology(), containerNode, "container.name",
-                    new ScalarPropertyValue(generateUniqueKubeName(context.getFlowExecutionContext(), containerNode.getName())));
+            setNodePropertyPathValue(context.getCsar(), context.getTopology(), containerNode, "container.name", new ScalarPropertyValue(containerK8sName));
 
             // exposed enpoint ports
             manageContainerEndpoints(context.getCsar(), context.getTopology(), containerNode, context.getFlowExecutionContext());
@@ -1020,7 +1021,9 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
             NodeTemplate controllerResource = context.getReplacements().get(controllerNode.getName());
             Map<String, AbstractPropertyValue> controllerResourceNodeProperties = context.getYamlResources().get(controllerResource.getName());
 
-            // if the container if of type ConfigurableDockerContainer we must create a ConfigMapFactory per config_settings entry
+            setNodeTagValue(controllerResource, A4C_KUBERNETES_ADAPTER_MODIFIER_TAG_CONTAINER + containerNode.getName(), containerK8sName);
+
+        // if the container if of type ConfigurableDockerContainer we must create a ConfigMapFactory per config_settings entry
             // a map of input_prefix -> List<NodeTemplate> (where NodeTemplate is an instance of ConfigMapFactory)
             // we can have several configMapFactory using the same prefix
             Map<String, List<NodeTemplate>> configMapFactories = Maps.newHashMap();
