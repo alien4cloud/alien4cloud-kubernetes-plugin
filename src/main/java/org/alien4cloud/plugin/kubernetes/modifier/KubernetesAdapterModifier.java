@@ -46,6 +46,7 @@ import java.util.logging.Level;
 import java.util.stream.Stream;
 
 import static alien4cloud.utils.AlienUtils.safe;
+import static org.alien4cloud.plugin.kubernetes.csar.Version.K8S_CSAR_VERSION;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.*;
 import static org.alien4cloud.plugin.kubernetes.policies.KubePoliciesConstants.K8S_POLICIES_ANTI_AFFINITY_LABEL;
 import static org.alien4cloud.plugin.kubernetes.policies.KubePoliciesConstants.K8S_POLICIES_AUTO_SCALING;
