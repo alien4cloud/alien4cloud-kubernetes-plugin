@@ -12,6 +12,7 @@ import alien4cloud.tosca.serializer.ToscaPropertySerializerUtils;
 import alien4cloud.utils.CloneUtil;
 import alien4cloud.utils.MapUtil;
 import alien4cloud.utils.PropertyUtil;
+import alien4cloud.utils.YamlParserUtil;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -64,6 +65,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
     public static final String A4C_KUBERNETES_ADAPTER_MODIFIER_TAG = "a4c_kubernetes-adapter-modifier";
     /** This tag is added to any K8S resource, it's value will target the node name it replace in the original topology. */
     public static final String A4C_KUBERNETES_ADAPTER_MODIFIER_TAG_REPLACEMENT_NODE_FOR = A4C_KUBERNETES_ADAPTER_MODIFIER_TAG + "_ReplacementNodeFor";
+    public static final String A4C_KUBERNETES_ADAPTER_MODIFIER_TAG_CONTAINER = A4C_KUBERNETES_ADAPTER_MODIFIER_TAG + "_Container_";
 
     public static final String K8S_TYPES_KUBEDEPLOYMENT = "org.alien4cloud.kubernetes.api.types.KubeDeployment";
     public static final String K8S_TYPES_KUBECONTAINER = "org.alien4cloud.kubernetes.api.types.KubeContainer";
@@ -74,6 +76,9 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
     public static final String K8S_TYPES_KUBE_CONTAINER_ENDPOINT = "org.alien4cloud.kubernetes.api.capabilities.KubeEndpoint";
     public static final String A4C_CAPABILITIES_PROXY = "org.alien4cloud.capabilities.Proxy";
     public static final String K8S_TYPES_KUBE_CLUSTER = "org.alien4cloud.kubernetes.api.types.nodes.KubeCluster";
+    public static final String K8S_TYPES_KUBE_NAMESPACE = "org.alien4cloud.kubernetes.api.types.KubeNamespace";
+
+    public static final String NAMESPACE_RESOURCE_NAME = "NamespaceManager";
 
     @Resource
     private WorkflowSimplifyService workflowSimplifyService;
@@ -117,6 +122,23 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
     private void doProcess(KubernetesModifierContext context) {
         Topology topology = context.getTopology();
 
+        // If a node of type KubeNamespace is found in the topology, get the namespace and keep the node for relationships
+        NodeTemplate kubeNSNode = null;
+        NodeTemplate kubeNSResourceNode = null;
+        String namespace = null;
+        AbstractPropertyValue nsConfigPV = null;
+        Set<NodeTemplate> kubeNSNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_KUBE_NAMESPACE, false);
+        if (kubeNSNodes != null && !kubeNSNodes.isEmpty()) {
+            if (kubeNSNodes.size() > 1) {
+                context.log().warn("More than one KubeNamespace node have been found, juste taking the first one");
+            }
+            kubeNSNode = kubeNSNodes.iterator().next();
+            AbstractPropertyValue nsPV = PropertyUtil.getPropertyValueFromPath(kubeNSNode.getProperties(), "namespace");
+            if (nsPV != null && nsPV instanceof ScalarPropertyValue) {
+                namespace = ((ScalarPropertyValue)nsPV).getValue();
+            }
+        }
+
         // If a node of type KubeCluster is found in the topology, get the config and store it in the context for later usage
         Set<NodeTemplate> kubeClusterNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_KUBE_CLUSTER, false);
         if (kubeClusterNodes != null && !kubeClusterNodes.isEmpty()) {
@@ -128,10 +150,48 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
             if (configPV != null && configPV instanceof ScalarPropertyValue) {
                 String kubeConfig = ((ScalarPropertyValue)configPV).getValue();
                 if (StringUtils.isNotEmpty(kubeConfig)) {
+                    nsConfigPV = configPV;
+                    if (StringUtils.isNotEmpty(namespace)) { 
+                       // update namespace in kube config if any
+                       Map<String, Object> kubeConf = (Map<String, Object>)YamlParserUtil.load(kubeConfig);
+                       List ct = (List)kubeConf.get("contexts");
+                       Map<String,Object> ct0 = (Map<String,Object>)((Map<String,Object>)ct.get(0)).get("context");
+                       ct0.put("namespace", namespace);
+                       try {
+                          kubeConfig = YamlParserUtil.toYaml(kubeConf);
+                       } catch (Exception e) {
+                          log.error (e.getMessage());
+                       }
+                    }
                     // Store the kube config using this key for later usage
                     context.getFlowExecutionContext().getExecutionCache().put(K8S_TYPES_KUBE_CLUSTER, kubeConfig);
                 }
             }
+        }
+
+        if (StringUtils.isNotEmpty(namespace)) {
+           /* add resource node to create namespace */
+           kubeNSResourceNode = addNodeTemplate(null, topology, NAMESPACE_RESOURCE_NAME, K8S_TYPES_SIMPLE_RESOURCE, K8S_CSAR_VERSION);
+           /* store node name in cache to be used for relations */
+           context.getFlowExecutionContext().getExecutionCache().put(NAMESPACE_RESOURCE_NAME, NAMESPACE_RESOURCE_NAME);
+
+           setNodePropertyPathValue(null,topology,kubeNSResourceNode,"resource_type",new ScalarPropertyValue("namespaces"));
+
+           Map<String, AbstractPropertyValue> namespaceProperties = Maps.newHashMap();
+           copyProperty(kubeNSNode, "apiVersion", namespaceProperties, "resource_def.apiVersion");
+           copyProperty(kubeNSNode, "kind", namespaceProperties, "resource_def.kind");
+           copyProperty(kubeNSNode, "metadata", namespaceProperties, "resource_def.metadata");
+           copyProperty(kubeNSNode, "namespace", namespaceProperties, "resource_def.metadata.name");
+           feedPropertyValue(namespaceProperties, "resource_def.metadata.labels.a4c_id", ((ScalarPropertyValue)kubeNSNode.getProperties().get("namespace")).getValue(), false);
+           /* properties map stored in cache will be used later to generate resource_def node property */
+           context.getYamlResources().put(NAMESPACE_RESOURCE_NAME, namespaceProperties);
+
+           setNodePropertyPathValue(null, topology, kubeNSResourceNode, "resource_id", kubeNSNode.getProperties().get("namespace")); 
+           /* use original kube config for this node */
+           setNodePropertyPathValue(null, topology, kubeNSResourceNode, "kube_config", nsConfigPV);
+
+           /* remove namespace node */
+           removeNode (topology, kubeNSNode);
         }
 
         // Endpoints
@@ -946,10 +1006,10 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
     }
 
     private void manageContainer(KubernetesModifierContext context, NodeTemplate containerNode, FunctionEvaluatorContext functionEvaluatorContext, Map<String, List<String>> serviceIpAddressesPerDeploymentResource) {  {
+            String containerK8sName = generateUniqueKubeName(context.getFlowExecutionContext(), containerNode.getName());
 
             // build and set a unique name for the container
-            setNodePropertyPathValue(context.getCsar(), context.getTopology(), containerNode, "container.name",
-                    new ScalarPropertyValue(generateUniqueKubeName(context.getFlowExecutionContext(), containerNode.getName())));
+            setNodePropertyPathValue(context.getCsar(), context.getTopology(), containerNode, "container.name", new ScalarPropertyValue(containerK8sName));
 
             // exposed enpoint ports
             manageContainerEndpoints(context.getCsar(), context.getTopology(), containerNode, context.getFlowExecutionContext());
@@ -960,7 +1020,9 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
             NodeTemplate controllerResource = context.getReplacements().get(controllerNode.getName());
             Map<String, AbstractPropertyValue> controllerResourceNodeProperties = context.getYamlResources().get(controllerResource.getName());
 
-            // if the container if of type ConfigurableDockerContainer we must create a ConfigMapFactory per config_settings entry
+            setNodeTagValue(controllerResource, A4C_KUBERNETES_ADAPTER_MODIFIER_TAG_CONTAINER + containerNode.getName(), containerK8sName);
+
+        // if the container if of type ConfigurableDockerContainer we must create a ConfigMapFactory per config_settings entry
             // a map of input_prefix -> List<NodeTemplate> (where NodeTemplate is an instance of ConfigMapFactory)
             // we can have several configMapFactory using the same prefix
             Map<String, List<NodeTemplate>> configMapFactories = Maps.newHashMap();
@@ -1241,6 +1303,17 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
                 feedPropertyValue(deploymentResourceNodeProperties, "resource_def.spec.replicas", transformedValue, false);
             }
         }
+
+        // add relation to namespace if any
+        String nsNode = (String)context.getFlowExecutionContext().getExecutionCache().get(NAMESPACE_RESOURCE_NAME);
+        if (StringUtils.isNotEmpty(nsNode)) {
+           addRelationshipTemplate (context,
+                                    deploymentResourceNode,
+                                    nsNode,
+                                    NormativeRelationshipConstants.DEPENDS_ON,
+                                    "dependency",
+                                    "feature");
+        }
     }
 
     private void setKubeConfig(KubernetesModifierContext context, NodeTemplate resourceNode) {
@@ -1343,6 +1416,17 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
                 addRelationshipTemplate(context, controllerResourceNode, serviceResourceNode.getName(), NormativeRelationshipConstants.DEPENDS_ON,
                         "dependency", "feature");
             }
+        }
+
+        // add relation to namespace if any
+        String nsNode = (String)context.getFlowExecutionContext().getExecutionCache().get(NAMESPACE_RESOURCE_NAME);
+        if (StringUtils.isNotEmpty(nsNode)) {
+           addRelationshipTemplate (context,
+                                    serviceResourceNode,
+                                    nsNode,
+                                    NormativeRelationshipConstants.DEPENDS_ON,
+                                    "dependency",
+                                    "feature");
         }
 
     }
@@ -1476,6 +1560,18 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         }  else if (StringUtils.isNoneEmpty(ingressCrt) || StringUtils.isNoneEmpty(ingressKey)) {
             context.log().warn("tls_crt or tls_key is provided for ingress  <" + ingressNode + "> but both are needed in order to create a secured Ingress. A non secured Ingress is created !");
         }
+
+        // add relation to namespace if any
+        String nsNode = (String)context.getFlowExecutionContext().getExecutionCache().get(NAMESPACE_RESOURCE_NAME);
+        if (StringUtils.isNotEmpty(nsNode)) {
+           addRelationshipTemplate (context,
+                                    ingressResourceNode,
+                                    nsNode,
+                                    NormativeRelationshipConstants.DEPENDS_ON,
+                                    "dependency",
+                                    "feature");
+        }
+
     }
 
 }

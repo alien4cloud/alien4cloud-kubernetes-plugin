@@ -1802,6 +1802,8 @@ node_types:
 
   org.alien4cloud.kubernetes.api.types.Deployment:
     derived_from: org.alien4cloud.kubernetes.api.types.AbstractDeployment
+    tags:
+      icon: /images/kubernetes.Deployment.png
 
   org.alien4cloud.kubernetes.api.types.KubeDeployment:
     derived_from: org.alien4cloud.kubernetes.api.types.AbstractDeployment
@@ -1836,6 +1838,8 @@ node_types:
         type: org.alien4cloud.kubernetes.api.datatypes.DeploymentSpec
 
   org.alien4cloud.kubernetes.api.types.Job:
+    tags:
+      icon: /images/kubernetes.Job.png
     derived_from: org.alien4cloud.kubernetes.api.types.AbstractJob
 
   org.alien4cloud.kubernetes.api.types.AbstractJob:
@@ -1965,6 +1969,8 @@ node_types:
 #          description: A kubernetes file
 
   org.alien4cloud.kubernetes.api.types.DeploymentResource:
+    tags:
+      icon: /images/kubernetes.Deployment.png
     derived_from: org.alien4cloud.kubernetes.api.types.BaseResource
     properties:
       resource_id:
@@ -2018,6 +2024,8 @@ node_types:
 
   org.alien4cloud.kubernetes.api.types.StatefulSetResource:
     derived_from: org.alien4cloud.kubernetes.api.types.BaseResource
+    tags:
+      icon: /images/kubernetes.StatefulSet.png
     properties:
       resource_id:
         type: string
@@ -2094,6 +2102,8 @@ node_types:
 
   org.alien4cloud.kubernetes.api.types.JobResource:
     derived_from: org.alien4cloud.kubernetes.api.types.BaseJobResource
+    tags:
+      icon: /images/kubernetes.Job.png
     properties:
       service_dependency_lookups:
         type: string
@@ -2166,6 +2176,8 @@ node_types:
 
   org.alien4cloud.kubernetes.api.types.ServiceResource:
     derived_from: org.alien4cloud.kubernetes.api.types.BaseResource
+    tags:
+      icon: /images/kubernetes.ServiceResource.png
     properties:
       service_name:
         type: string
@@ -2198,6 +2210,8 @@ node_types:
 
   org.alien4cloud.kubernetes.api.types.SimpleResource:
     derived_from: org.alien4cloud.kubernetes.api.types.BaseResource
+    tags:
+      icon: /images/kubernetes.resource.png
     description: |
       A generic resource used to deploy any kind of resource on the kube cluster.
     properties:
@@ -2208,7 +2222,7 @@ node_types:
         constraints:
           # for the moment managed types are: PersistenceVolumeClaim (pvc), HorizontalPodAutoscaler (hpa)
           # Cf. https://kubernetes.io/docs/reference/kubectl/overview/ section 'Resource types'
-          - valid_values: [pvc, hpa, ing]
+          - valid_values: [pvc, hpa, ing, namespaces]
       resource_id:
         type: string
         required: true
@@ -2254,6 +2268,26 @@ node_types:
     capabilities:
       k8s_endpoint:
         type: org.alien4cloud.kubernetes.api.capabilities.KubeCluster
+
+  org.alien4cloud.kubernetes.api.types.KubeNamespace:
+    derived_from: org.alien4cloud.kubernetes.api.types.Base
+    tags:
+      icon: /images/kubernetes.png
+    properties:
+      namespace:
+        type: string
+        required: true
+        description: |
+          namespace to be created / deleted
+      kind:
+        type: string
+        required: true
+        default: Namespace
+      metadata:
+        type: org.alien4cloud.kubernetes.api.datatypes.Metadata
+        required: false
+        description: |
+           namespace metadata
 
 capability_types:
   org.alien4cloud.kubernetes.api.capabilities.KubeContainerHost:
