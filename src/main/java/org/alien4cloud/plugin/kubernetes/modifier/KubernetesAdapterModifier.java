@@ -46,7 +46,6 @@ import java.util.logging.Level;
 import java.util.stream.Stream;
 
 import static alien4cloud.utils.AlienUtils.safe;
-import static org.alien4cloud.plugin.kubernetes.csar.Version.K8S_CSAR_VERSION;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.*;
 import static org.alien4cloud.plugin.kubernetes.policies.KubePoliciesConstants.K8S_POLICIES_ANTI_AFFINITY_LABEL;
 import static org.alien4cloud.plugin.kubernetes.policies.KubePoliciesConstants.K8S_POLICIES_AUTO_SCALING;
@@ -172,7 +171,8 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
 
         if (StringUtils.isNotEmpty(namespace)) {
            /* add resource node to create namespace */
-           kubeNSResourceNode = addNodeTemplate(null, topology, NAMESPACE_RESOURCE_NAME, K8S_TYPES_SIMPLE_RESOURCE, K8S_CSAR_VERSION);
+           kubeNSResourceNode = addNodeTemplate(null, topology, NAMESPACE_RESOURCE_NAME, K8S_TYPES_SIMPLE_RESOURCE, 
+                                                context.getKubeCsarVersion());
            /* store node name in cache to be used for relations */
            context.getFlowExecutionContext().getExecutionCache().put(NAMESPACE_RESOURCE_NAME, NAMESPACE_RESOURCE_NAME);
 
