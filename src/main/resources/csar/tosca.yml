@@ -2222,7 +2222,7 @@ node_types:
         constraints:
           # for the moment managed types are: PersistenceVolumeClaim (pvc), HorizontalPodAutoscaler (hpa)
           # Cf. https://kubernetes.io/docs/reference/kubectl/overview/ section 'Resource types'
-          - valid_values: [pvc, hpa, ing, namespaces]
+          - valid_values: [pvc, hpa, ing, namespaces, networkpolicy]
       resource_id:
         type: string
         required: true
