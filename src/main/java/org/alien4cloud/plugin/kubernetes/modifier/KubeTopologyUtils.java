@@ -23,10 +23,12 @@ import alien4cloud.model.common.Tag;
 import alien4cloud.paas.plan.ToscaNodeLifecycleConstants;
 import alien4cloud.tosca.context.ToscaContext;
 import alien4cloud.utils.PropertyUtil;
+import lombok.extern.java.Log;
 
 /**
  * A utility to browse Kube topologies (enhanced by Kube modifiers).
  */
+@Log
 public class KubeTopologyUtils {
 
     // A4C & normatives types
@@ -72,6 +74,8 @@ public class KubeTopologyUtils {
     // K8S relationships
     public static final String K8S_TYPES_RSENDPOINT = "org.alien4cloud.kubernetes.api.relationships.K8SEndpointConnectToEndpoint";
 
+    // A property name used by Service capability Endpoints
+    public static final String K8S_SERVICE_NAME_PROPERTY = "service_name";
     /**
      * Get the image name from the type implementation artifact file.
      */
