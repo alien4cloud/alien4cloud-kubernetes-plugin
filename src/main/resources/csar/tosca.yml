@@ -467,10 +467,10 @@ data_types:
         required: false
         description: |
            If specified, the pod will be dispatched by specified scheduler. If not specified, the pod will be dispatched by default scheduler.
-      # securityContext:
-      #   type: PodSecurityContext
-      #   description: |
-      #      SecurityContext holds pod-level security attributes and common container settings. Optional: Defaults to empty. See type description for default values of each field.
+      securityContext:
+        type: org.alien4cloud.kubernetes.api.datatypes.PodSecurityContext
+        description: |
+           SecurityContext holds pod-level security attributes and common container settings. Optional: Defaults to empty. See type description for default values of each field.
       serviceAccount:
         type: string
         required: false
@@ -811,10 +811,10 @@ data_types:
         required: false
         description: |
           Compute Resources required by this container. Cannot be updated. More info: http://kubernetes.io/docs/concepts/storage/persistent-volumes/#resources
-      # securityContext:
-      #   type: SecurityContext
-      #   description: |
-      #     Security options the pod should run with. More info: http://releases.k8s.io/HEAD/docs/design/security_context.md
+      securityContext:
+        type: org.alien4cloud.kubernetes.api.datatypes.SecurityContext
+        description: |
+          Security options the pod should run with. More info: http://releases.k8s.io/HEAD/docs/design/security_context.md
       stdin:
         type: boolean
         required: false
@@ -890,6 +890,9 @@ data_types:
         description: |
           Requests describes the minimum amount of compute resources required. If Requests is omitted for a container, it defaults to Limits if that is explicitly specified, otherwise to an implementation-defined value. More info: http://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
 
+
+
+
   org.alien4cloud.kubernetes.api.datatypes.ResourceRequest:
     derived_from: tosca.datatypes.Root
     properties:
@@ -900,6 +903,26 @@ data_types:
         type: float
         required: false
       nvidia.com/gpu:
+        type: integer
+        required: false
+
+  org.alien4cloud.kubernetes.api.datatypes.PodSecurityContext:
+    derived_from: org.alien4cloud.kubernetes.api.datatypes.SecurityContext
+    properties:
+      fsGroup:
+        type: integer
+        required: false
+
+  org.alien4cloud.kubernetes.api.datatypes.SecurityContext:
+    derived_from: tosca.datatypes.Root
+    properties:
+      runAsGroup:
+        type: integer
+        required: false
+      runAsNonRoot:
+        type: integer
+        required: false
+      runAsUser:
         type: integer
         required: false
 
