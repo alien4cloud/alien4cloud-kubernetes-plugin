@@ -469,6 +469,7 @@ data_types:
            If specified, the pod will be dispatched by specified scheduler. If not specified, the pod will be dispatched by default scheduler.
       securityContext:
         type: org.alien4cloud.kubernetes.api.datatypes.PodSecurityContext
+        required: false
         description: |
            SecurityContext holds pod-level security attributes and common container settings. Optional: Defaults to empty. See type description for default values of each field.
       serviceAccount:
@@ -813,6 +814,7 @@ data_types:
           Compute Resources required by this container. Cannot be updated. More info: http://kubernetes.io/docs/concepts/storage/persistent-volumes/#resources
       securityContext:
         type: org.alien4cloud.kubernetes.api.datatypes.SecurityContext
+        required: false
         description: |
           Security options the pod should run with. More info: http://releases.k8s.io/HEAD/docs/design/security_context.md
       stdin:
