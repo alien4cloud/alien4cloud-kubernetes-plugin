@@ -33,6 +33,10 @@
   </distributionManagement>
 
   <properties>
+
+    <!-- CSARs version -->
+    <org.alien4cloud.kubernetes.api.version>3.0</org.alien4cloud.kubernetes.api.version>
+
     <!-- Java coverage configuration -->
     <sonar.java.coveragePlugin>jacoco</sonar.java.coveragePlugin>
     <sonar.dynamicAnalysis>reuseReports</sonar.dynamicAnalysis>
@@ -357,8 +361,9 @@
           <replacements>
             <replacement>
               <token>template_version:.+</token>
-              <value>template_version: ${project.version}</value>
+              <value>template_version: ${org.alien4cloud.kubernetes.api.version}</value>
             </replacement>
+            <!--
             <replacement>
               <token>docker-types:.+</token>
               <value>docker-types:${project.version}</value>
@@ -367,6 +372,7 @@
               <token>alien-base-types:.+</token>
               <value>alien-base-types:${project.version}</value>
             </replacement>
+            -->
           </replacements>
         </configuration>
       </plugin>
