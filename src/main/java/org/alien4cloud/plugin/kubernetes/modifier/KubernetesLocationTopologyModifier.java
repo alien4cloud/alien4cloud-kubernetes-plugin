@@ -107,26 +107,26 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         Csar csar = new Csar(topology.getArchiveName(), topology.getArchiveVersion());
 
         // replace all ContainerRuntime by org.alien4cloud.kubernetes.api.types.AbstractContainer
-        Set<NodeTemplate> containerRuntimeNodes = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_CONTAINER_RUNTIME, false);
+        Set<NodeTemplate> containerRuntimeNodes = this.getNodesOfType(context, topology, A4C_TYPES_CONTAINER_RUNTIME, false);
         containerRuntimeNodes.forEach(nodeTemplate -> transformContainerRuntime(csar, topology, context, nodeTemplate));
 
         // replace all ContainerDeploymentUnit by org.alien4cloud.kubernetes.api.types.AbstractController
-        Set<NodeTemplate> containerDeploymentUnitNodes = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_CONTAINER_DEPLOYMENT_UNIT, false);
+        Set<NodeTemplate> containerDeploymentUnitNodes = this.getNodesOfType(context, topology, A4C_TYPES_CONTAINER_DEPLOYMENT_UNIT, false);
         containerDeploymentUnitNodes.forEach(nodeTemplate -> transformContainerDeploymentUnit(csar, topology, context, nodeTemplate));
 
         // replace all ContainerJobUnit by org.alien4cloud.kubernetes.api.types.AbstractJob
-        Set<NodeTemplate> containerJobUnitNodes = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_CONTAINER_JOB_UNIT, false);
+        Set<NodeTemplate> containerJobUnitNodes = this.getNodesOfType(context, topology, A4C_TYPES_CONTAINER_JOB_UNIT, false);
         containerJobUnitNodes.forEach(nodeTemplate -> transformContainerJobUnit(csar, topology, context, nodeTemplate));
 
         // for each container capability of type endpoint
         // - add a org.alien4cloud.kubernetes.api.types.ServiceResource and weave depends_on relationships
         // - populate properties on the K8S AbstractContainer that host the container image
-        Set<NodeTemplate> containerNodes = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_APPLICATION_DOCKER_CONTAINER, true, false);
+        Set<NodeTemplate> containerNodes = this.getNodesOfType(context, topology, A4C_TYPES_APPLICATION_DOCKER_CONTAINER, true, false);
         containerNodes.forEach(nodeTemplate -> manageContainer(csar, topology, nodeTemplate, containerNodes, context));
         manageContainerHybridConnections(context, csar, topology, containerNodes);
 
         // replace all occurences of org.alien4cloud.nodes.DockerExtVolume by k8s abstract volumes
-        Set<NodeTemplate> volumeNodes = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_DOCKER_VOLUME, true);
+        Set<NodeTemplate> volumeNodes = this.getNodesOfType(context, topology, A4C_TYPES_DOCKER_VOLUME, true);
         volumeNodes.forEach(nodeTemplate -> manageVolumes(csar, topology, nodeTemplate));
     }
 
@@ -174,7 +174,7 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
             NodeTemplate targetNodeTemplate, String endpointName) {
 
         // add an abstract service node
-        NodeTemplate serviceNode = addNodeTemplate(csar, topology, targetNodeTemplate.getName() + "_" + endpointName + "_Service", K8S_TYPES_ABSTRACT_SERVICE,
+        NodeTemplate serviceNode = addNodeTemplate(context, csar, topology, targetNodeTemplate.getName() + "_" + endpointName + "_Service", K8S_TYPES_ABSTRACT_SERVICE,
                 K8S_CSAR_VERSION);
         setNodeTagValue(serviceNode, A4C_KUBERNETES_MODIFIER_TAG, "Proxy of node <" + targetNodeTemplate.getName() + "> capability <" + endpointName + ">");
         setNodeTagValue(serviceNode, A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT, endpointName);
@@ -193,7 +193,7 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         }
 
         // create the resource endpoint
-        NodeTemplate endpointNode = addNodeTemplate(csar, topology, targetNodeTemplate.getName() + "_" + endpointName + "_ServiceEndpoint",
+        NodeTemplate endpointNode = addNodeTemplate(context, csar, topology, targetNodeTemplate.getName() + "_" + endpointName + "_ServiceEndpoint",
                 K8S_TYPES_ENDPOINT_RESOURCE, K8S_CSAR_VERSION);
         setNodePropertyPathValue(csar, topology, endpointNode, "resource_id", new ScalarPropertyValue(serviceName));
 
@@ -320,7 +320,7 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
      * Wrap this node of type AbstractContainer into a node of type AbstractDeployment.
      */
     private void wrapInAbstractDeployment(Csar csar, Topology topology, FlowExecutionContext context, NodeTemplate nodeTemplate) {
-        NodeTemplate hostNode = addNodeTemplate(csar, topology, nodeTemplate.getName() + "Deployment", K8S_TYPES_ABSTRACT_DEPLOYMENT, K8S_CSAR_VERSION);
+        NodeTemplate hostNode = addNodeTemplate(context, csar, topology, nodeTemplate.getName() + "Deployment", K8S_TYPES_ABSTRACT_DEPLOYMENT, K8S_CSAR_VERSION);
         setNodeTagValue(hostNode, A4C_KUBERNETES_MODIFIER_TAG, "Created to host " + nodeTemplate.getName());
 
         // set a generated name to the K8S object
@@ -469,7 +469,7 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
          */
         if (endpointNames.size() > 0) {
             // Create the service
-            NodeTemplate serviceNode = addNodeTemplate(csar, topology, containerNodeTemplate.getName() + "_" + controllerNodeTemplate.getName() + "_Service",
+            NodeTemplate serviceNode = addNodeTemplate(context, csar, topology, containerNodeTemplate.getName() + "_" + controllerNodeTemplate.getName() + "_Service",
             K8S_TYPES_ABSTRACT_SERVICE, K8S_CSAR_VERSION);
             setNodePropertyPathValue(csar, topology, serviceNode, "metadata.name", new ScalarPropertyValue(generateUniqueKubeName(context, serviceNode.getName())));
             setNodePropertyPathValue(csar, topology, serviceNode, "spec.service_type", new ScalarPropertyValue("NodePort"));

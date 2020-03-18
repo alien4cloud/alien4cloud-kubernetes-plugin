@@ -1,5 +1,75 @@
 package org.alien4cloud.plugin.kubernetes.modifier;
 
+import static alien4cloud.utils.AlienUtils.safe;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_APPLICATION_DOCKER_CONTAINER;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_BASE_RESOURCE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_DEPLOYMENT_RESOURCE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ENDPOINT_RESOURCE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_JOB_RESOURCE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SERVICE_RESOURCE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_SIMPLE_RESOURCE;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.copyProperty;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.generateKubeName;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.getValue;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.portNameFromService;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.renameProperty;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.resolveDependency;
+import static org.alien4cloud.plugin.kubernetes.policies.KubePoliciesConstants.K8S_POLICIES_ANTI_AFFINITY_LABEL;
+import static org.alien4cloud.plugin.kubernetes.policies.KubePoliciesConstants.K8S_POLICIES_AUTO_SCALING;
+import static org.alien4cloud.plugin.kubernetes.policies.KubePoliciesConstants.K8S_POLICIES_NODE_AFFINITY_LABEL;
+import static org.alien4cloud.tosca.utils.ToscaTypeUtils.isOfType;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Stream;
+
+import javax.annotation.Resource;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+
+import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
+import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
+import org.alien4cloud.plugin.kubernetes.AbstractKubernetesModifier;
+import org.alien4cloud.plugin.kubernetes.modifier.helpers.AffinitiyHelper;
+import org.alien4cloud.plugin.kubernetes.modifier.helpers.AntiAffinityHelper;
+import org.alien4cloud.tosca.model.Csar;
+import org.alien4cloud.tosca.model.definitions.AbstractPropertyValue;
+import org.alien4cloud.tosca.model.definitions.ComplexPropertyValue;
+import org.alien4cloud.tosca.model.definitions.ConcatPropertyValue;
+import org.alien4cloud.tosca.model.definitions.DeploymentArtifact;
+import org.alien4cloud.tosca.model.definitions.FunctionPropertyValue;
+import org.alien4cloud.tosca.model.definitions.ListPropertyValue;
+import org.alien4cloud.tosca.model.definitions.Operation;
+import org.alien4cloud.tosca.model.definitions.PropertyDefinition;
+import org.alien4cloud.tosca.model.definitions.PropertyValue;
+import org.alien4cloud.tosca.model.definitions.ScalarPropertyValue;
+import org.alien4cloud.tosca.model.templates.Capability;
+import org.alien4cloud.tosca.model.templates.NodeTemplate;
+import org.alien4cloud.tosca.model.templates.PolicyTemplate;
+import org.alien4cloud.tosca.model.templates.RelationshipTemplate;
+import org.alien4cloud.tosca.model.templates.ServiceNodeTemplate;
+import org.alien4cloud.tosca.model.templates.SubstitutionTarget;
+import org.alien4cloud.tosca.model.templates.Topology;
+import org.alien4cloud.tosca.model.types.AbstractToscaType;
+import org.alien4cloud.tosca.model.types.CapabilityType;
+import org.alien4cloud.tosca.model.types.NodeType;
+import org.alien4cloud.tosca.model.types.PolicyType;
+import org.alien4cloud.tosca.normative.constants.NormativeCapabilityTypes;
+import org.alien4cloud.tosca.normative.constants.NormativeRelationshipConstants;
+import org.alien4cloud.tosca.normative.constants.ToscaFunctionConstants;
+import org.alien4cloud.tosca.utils.FunctionEvaluator;
+import org.alien4cloud.tosca.utils.FunctionEvaluatorContext;
+import org.alien4cloud.tosca.utils.TopologyNavigationUtil;
+import org.alien4cloud.tosca.utils.ToscaTypeUtils;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.stereotype.Component;
+
 import alien4cloud.component.repository.ArtifactRepositoryConstants;
 import alien4cloud.paas.wf.TopologyContext;
 import alien4cloud.paas.wf.WorkflowSimplifyService;
@@ -13,44 +83,7 @@ import alien4cloud.utils.CloneUtil;
 import alien4cloud.utils.MapUtil;
 import alien4cloud.utils.PropertyUtil;
 import alien4cloud.utils.YamlParserUtil;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
-import lombok.extern.java.Log;
 import lombok.extern.slf4j.Slf4j;
-import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
-import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
-import org.alien4cloud.plugin.kubernetes.AbstractKubernetesModifier;
-import org.alien4cloud.plugin.kubernetes.modifier.helpers.AffinitiyHelper;
-import org.alien4cloud.plugin.kubernetes.modifier.helpers.AntiAffinityHelper;
-import org.alien4cloud.plugin.kubernetes.policies.KubePoliciesConstants;
-import org.alien4cloud.tosca.model.CSARDependency;
-import org.alien4cloud.tosca.model.Csar;
-import org.alien4cloud.tosca.model.definitions.*;
-import org.alien4cloud.tosca.model.templates.*;
-import org.alien4cloud.tosca.model.types.AbstractToscaType;
-import org.alien4cloud.tosca.model.types.CapabilityType;
-import org.alien4cloud.tosca.model.types.NodeType;
-import org.alien4cloud.tosca.model.types.PolicyType;
-import org.alien4cloud.tosca.normative.constants.NormativeCapabilityTypes;
-import org.alien4cloud.tosca.normative.constants.NormativeRelationshipConstants;
-import org.alien4cloud.tosca.normative.constants.ToscaFunctionConstants;
-import org.alien4cloud.tosca.utils.*;
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.springframework.stereotype.Component;
-
-import javax.annotation.Resource;
-import java.util.*;
-import java.util.logging.Level;
-import java.util.stream.Stream;
-
-import static alien4cloud.utils.AlienUtils.safe;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.*;
-import static org.alien4cloud.plugin.kubernetes.policies.KubePoliciesConstants.K8S_POLICIES_ANTI_AFFINITY_LABEL;
-import static org.alien4cloud.plugin.kubernetes.policies.KubePoliciesConstants.K8S_POLICIES_AUTO_SCALING;
-import static org.alien4cloud.plugin.kubernetes.policies.KubePoliciesConstants.K8S_POLICIES_NODE_AFFINITY_LABEL;
-import static org.alien4cloud.tosca.utils.ToscaTypeUtils.isOfType;
 
 /**
  * Transform a K8S topology containing <code>KubeContainer</code>s, <code>KubeDeployment</code>s, <code>KubeService</code>s
@@ -127,7 +160,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         NodeTemplate kubeNSResourceNode = null;
         String namespace = null;
         AbstractPropertyValue nsConfigPV = null;
-        Set<NodeTemplate> kubeNSNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_KUBE_NAMESPACE, false);
+        Set<NodeTemplate> kubeNSNodes = this.getNodesOfType(context.getFlowExecutionContext(), topology, K8S_TYPES_KUBE_NAMESPACE, false);
         if (kubeNSNodes != null && !kubeNSNodes.isEmpty()) {
             if (kubeNSNodes.size() > 1) {
                 context.log().warn("More than one KubeNamespace node have been found, juste taking the first one");
@@ -140,7 +173,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         }
 
         // If a node of type KubeCluster is found in the topology, get the config and store it in the context for later usage
-        Set<NodeTemplate> kubeClusterNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_KUBE_CLUSTER, false);
+        Set<NodeTemplate> kubeClusterNodes = this.getNodesOfType(context.getFlowExecutionContext(), topology, K8S_TYPES_KUBE_CLUSTER, false);
         if (kubeClusterNodes != null && !kubeClusterNodes.isEmpty()) {
             if (kubeClusterNodes.size() > 1) {
                 context.log().warn("More than one KubeCluster node have been found, juste taking the first one");
@@ -151,7 +184,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
                 String kubeConfig = ((ScalarPropertyValue)configPV).getValue();
                 if (StringUtils.isNotEmpty(kubeConfig)) {
                     nsConfigPV = configPV;
-                    if (StringUtils.isNotEmpty(namespace)) { 
+                    if (StringUtils.isNotEmpty(namespace)) {
                        // update namespace in kube config if any
                        Map<String, Object> kubeConf = (Map<String, Object>)YamlParserUtil.load(kubeConfig);
                        List ct = (List)kubeConf.get("contexts");
@@ -171,7 +204,9 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
 
         if (StringUtils.isNotEmpty(namespace)) {
            /* add resource node to create namespace */
-           kubeNSResourceNode = addNodeTemplate(null, topology, NAMESPACE_RESOURCE_NAME, K8S_TYPES_SIMPLE_RESOURCE, 
+           kubeNSResourceNode = addNodeTemplate(context.getFlowExecutionContext(), null,
+                                                topology, NAMESPACE_RESOURCE_NAME,
+                                                K8S_TYPES_SIMPLE_RESOURCE,
                                                 context.getKubeCsarVersion());
            /* store node name in cache to be used for relations */
            context.getFlowExecutionContext().getExecutionCache().put(NAMESPACE_RESOURCE_NAME, NAMESPACE_RESOURCE_NAME);
@@ -187,40 +222,40 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
            /* properties map stored in cache will be used later to generate resource_def node property */
            context.getYamlResources().put(NAMESPACE_RESOURCE_NAME, namespaceProperties);
 
-           setNodePropertyPathValue(null, topology, kubeNSResourceNode, "resource_id", kubeNSNode.getProperties().get("namespace")); 
+           setNodePropertyPathValue(null, topology, kubeNSResourceNode, "resource_id", kubeNSNode.getProperties().get("namespace"));
            /* use original kube config for this node */
            setNodePropertyPathValue(null, topology, kubeNSResourceNode, "kube_config", nsConfigPV);
 
            /* remove namespace node */
-           removeNode (topology, kubeNSNode);
+           removeNode (context.getFlowExecutionContext(), topology, kubeNSNode);
         }
 
         // Endpoints
-        Set<NodeTemplate> endpointNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_ENDPOINT_RESOURCE, false, true);
+        Set<NodeTemplate> endpointNodes = this.getNodesOfType(context.getFlowExecutionContext(), topology, K8S_TYPES_ENDPOINT_RESOURCE, false, true);
         endpointNodes.forEach(nodeTemplate -> manageEndpoints(context,  nodeTemplate));
 
         // Direct Connection
-        Set<NodeTemplate> containerNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_KUBECONTAINER, true);
+        Set<NodeTemplate> containerNodes = this.getNodesOfType(context.getFlowExecutionContext(), topology, K8S_TYPES_KUBECONTAINER, true);
         containerNodes.forEach(nodeTemplate -> manageContainersDirectConnection(context, nodeTemplate));
 
         // Create DeploymentResource for each Deployment
-        Set<NodeTemplate> deploymentNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_KUBEDEPLOYMENT, false);
+        Set<NodeTemplate> deploymentNodes = this.getNodesOfType(context.getFlowExecutionContext(), topology, K8S_TYPES_KUBEDEPLOYMENT, false);
         deploymentNodes.forEach(nodeTemplate -> createDeploymentResource(context, nodeTemplate));
 
         // Manage Services
-        Set<NodeTemplate> services = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_KUBE_SERVICE, true, false);
+        Set<NodeTemplate> services = this.getNodesOfType(context.getFlowExecutionContext(), topology, K8S_TYPES_KUBE_SERVICE, true, false);
         safe(services).forEach(nodeTemplate -> manageServiceRelationship(context, nodeTemplate));
         services.forEach(nodeTemplate -> createServiceResource(context, nodeTemplate));
 
-        Set<NodeTemplate> ingress = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_KUBE_INGRESS, true, false);
+        Set<NodeTemplate> ingress = this.getNodesOfType(context.getFlowExecutionContext(), topology, K8S_TYPES_KUBE_INGRESS, true, false);
         ingress.forEach(nodeTemplate -> createIngress(context,nodeTemplate));
 
         //        // for each Job create a node of type JobResource
-        //        Set<NodeTemplate> jobNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_JOB, false);
+        //        Set<NodeTemplate> jobNodes = this.getNodesOfType(context.getFlowExecutionContext(), topology, K8S_TYPES_JOB, false);
         //        jobNodes.forEach(nodeTemplate -> createJobResource(context, nodeTemplate));
 
         // Replace all occurences of org.alien4cloud.nodes.DockerExtVolume by k8s abstract volumes
-        Set<NodeTemplate> volumeNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_VOLUME_BASE, true);
+        Set<NodeTemplate> volumeNodes = this.getNodesOfType(context.getFlowExecutionContext(), topology, K8S_TYPES_VOLUME_BASE, true);
         volumeNodes.forEach(nodeTemplate -> manageVolumesAtachment(context, nodeTemplate));
 
         // A function evaluator context will be useful
@@ -253,17 +288,17 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         // remove useless nodes
         // TODO bug on node matching view since these nodes are the real matched ones
         // TODO then find a way to delete servicesNodes and deloymentNodes as they are not used
-        services.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
-        ingress.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
+        services.forEach(nodeTemplate -> removeNode(context.getFlowExecutionContext(), topology, nodeTemplate));
+        ingress.forEach(nodeTemplate -> removeNode(context.getFlowExecutionContext(), topology, nodeTemplate));
 
-        deploymentNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
+        deploymentNodes.forEach(nodeTemplate -> removeNode(context.getFlowExecutionContext(), topology, nodeTemplate));
 //      jobNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
 
-        Set<NodeTemplate> volumes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_VOLUME_BASE, true);
-        volumes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
+        Set<NodeTemplate> volumes = this.getNodesOfType(context.getFlowExecutionContext(), topology, K8S_TYPES_VOLUME_BASE, true);
+        volumes.forEach(nodeTemplate -> removeNode(context.getFlowExecutionContext(), topology, nodeTemplate));
 
-        Set<NodeTemplate> containers = TopologyNavigationUtil.getNodesOfType(topology, A4C_TYPES_APPLICATION_DOCKER_CONTAINER, true, false);
-        safe(containers).forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
+        Set<NodeTemplate> containers = this.getNodesOfType(context.getFlowExecutionContext(), topology, A4C_TYPES_APPLICATION_DOCKER_CONTAINER, true, false);
+        safe(containers).forEach(nodeTemplate -> removeNode(context.getFlowExecutionContext(), topology, nodeTemplate));
 
         String providedNamespace = getProvidedMetaproperty(context.getFlowExecutionContext(), K8S_NAMESPACE_METAPROP_NAME);
         if (providedNamespace != null) {
@@ -271,9 +306,9 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         }
 
         // finally set the 'resource_spec' property with the JSON content of the resource specification
-        Set<NodeTemplate> resourceNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_BASE_RESOURCE, true);
+        Set<NodeTemplate> resourceNodes = this.getNodesOfType(context.getFlowExecutionContext(), topology, K8S_TYPES_BASE_RESOURCE, true);
         // also treat job resources
-        //        Set<NodeTemplate> jobResourceNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_BASE_JOB_RESOURCE, true);
+        //        Set<NodeTemplate> jobResourceNodes = this.getNodesOfType(context.getFlowExecutionContext(), topology, K8S_TYPES_BASE_JOB_RESOURCE, true);
         //        for (NodeTemplate jobResourceNode : jobResourceNodes) {
         //            resourceNodes.add(jobResourceNode);
         //        }
@@ -306,7 +341,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
                 }
             }
         }
-        servicesToRemove.stream().forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
+        servicesToRemove.stream().forEach(nodeTemplate -> removeNode(context.getFlowExecutionContext(), topology, nodeTemplate));
     }
 
     /**
@@ -340,7 +375,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
             String targetCapabilityName = relationshipTemplate.getTargetedCapabilityName();
             NodeTemplate targetNodeTemplate = context.getTopology().getNodeTemplates().get(relationshipTemplate.getTarget());
             // add a service
-            NodeTemplate serviceNode = addNodeTemplate(context.getCsar(),context.getTopology(), nodeTemplate.getName() + "_" + relationshipTemplate.getRequirementName() + "_" + targetNodeTemplate.getName() + "_" + targetCapabilityName + "_Service",
+            NodeTemplate serviceNode = addNodeTemplate(context.getFlowExecutionContext(), context.getCsar(),context.getTopology(), nodeTemplate.getName() + "_" + relationshipTemplate.getRequirementName() + "_" + targetNodeTemplate.getName() + "_" + targetCapabilityName + "_Service",
                     K8S_TYPES_KUBE_SERVICE, context.getKubeCsarVersion());
             setNodePropertyPathValue(context.getCsar(), context.getTopology(), serviceNode, "spec.service_type", new ScalarPropertyValue("ClusterIP"));
             // add a relation between the service and the target container
@@ -510,7 +545,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
             nodesToRemove.stream().forEach(s -> {
                 serviceNodes.remove(s);
                 // if the node to remove is the target of dependsOn relationship (a consumer), let's move it to the node we keep
-                removeNode(topology, s);
+                removeNode(context, topology, s);
             });
 
             setNodeTagValue(nodeToKeep, A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINTS, nodeToKeepServiceEndpointTag.toString());
@@ -625,7 +660,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         NodeType volumeNodeType = ToscaContext.get(NodeType.class, volumeNode.getType());
         if (ToscaTypeUtils.isOfType(volumeNodeType, KubeTopologyUtils.K8S_TYPES_SECRET_VOLUME)) {
             // we must create a secret, the deployment should depend on it
-            NodeTemplate secretFactory = addNodeTemplate(context.getCsar(),context.getTopology(), volumeNode.getName() + "_Secret", KubeTopologyUtils.K8S_TYPES_SECRET_FACTORY,
+            NodeTemplate secretFactory = addNodeTemplate(context.getFlowExecutionContext(), context.getCsar(),context.getTopology(), volumeNode.getName() + "_Secret", KubeTopologyUtils.K8S_TYPES_SECRET_FACTORY,
                     context.getKubeCsarVersion());
             setKubeConfig(context, secretFactory);
             String secretName = generateUniqueKubeName(context.getFlowExecutionContext(), volumeNode.getName());
@@ -649,7 +684,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         if (ToscaTypeUtils.isOfType(volumeNodeType, KubeTopologyUtils.K8S_TYPES_VOLUMES_CLAIM)) {
             AbstractPropertyValue claimNamePV = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "spec.claimName");
             if (claimNamePV == null) {
-                NodeTemplate volumeClaimResource = addNodeTemplate(context.getCsar(),context.getTopology(), volumeNode.getName() + "_PVC", KubeTopologyUtils.K8S_TYPES_SIMPLE_RESOURCE,
+                NodeTemplate volumeClaimResource = addNodeTemplate(context.getFlowExecutionContext(), context.getCsar(),context.getTopology(), volumeNode.getName() + "_PVC", KubeTopologyUtils.K8S_TYPES_SIMPLE_RESOURCE,
                         context.getKubeCsarVersion());
                 setKubeConfig(context, volumeClaimResource);
 
@@ -716,7 +751,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
 
     private void addHorizontalPodAutoScalingResource(KubernetesModifierContext context, PolicyTemplate policyTemplate, NodeTemplate target) {
         String resourceBaseName = target.getName() + "_" + policyTemplate.getName();
-        NodeTemplate podAutoScalerResourceNode = addNodeTemplate(context.getCsar(),context.getTopology(), resourceBaseName + "_Resource", K8S_TYPES_SIMPLE_RESOURCE, context.getKubeCsarVersion());
+        NodeTemplate podAutoScalerResourceNode = addNodeTemplate(context.getFlowExecutionContext(), context.getCsar(),context.getTopology(), resourceBaseName + "_Resource", K8S_TYPES_SIMPLE_RESOURCE, context.getKubeCsarVersion());
         setKubeConfig(context, podAutoScalerResourceNode);
 
         Map<String, AbstractPropertyValue> podAutoScalerResourceNodeProperties = Maps.newHashMap();
@@ -1055,7 +1090,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
                                 String input_prefix = config_setting_map.get("input_prefix");
                                 String config_path = config_setting_map.get("config_path");
 
-                                NodeTemplate configMapFactoryNode = addNodeTemplate(context.getCsar(),context.getTopology(), containerNode.getName() + "_ConfigMap_" + input_prefix, KubeTopologyUtils.K8S_TYPES_CONFIG_MAP_FACTORY,
+                                NodeTemplate configMapFactoryNode = addNodeTemplate(context.getFlowExecutionContext(), context.getCsar(),context.getTopology(), containerNode.getName() + "_ConfigMap_" + input_prefix, KubeTopologyUtils.K8S_TYPES_CONFIG_MAP_FACTORY,
                                         context.getKubeCsarVersion());
                                 setKubeConfig(context, configMapFactoryNode);
 
@@ -1239,7 +1274,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
     }
 
     private void createJobResource(KubernetesModifierContext context, NodeTemplate jobNode) {
-        NodeTemplate jobResourceNode = addNodeTemplate(context.getCsar(),context.getTopology(), jobNode.getName() + "_Resource", K8S_TYPES_JOB_RESOURCE,
+        NodeTemplate jobResourceNode = addNodeTemplate(context.getFlowExecutionContext(), context.getCsar(),context.getTopology(), jobNode.getName() + "_Resource", K8S_TYPES_JOB_RESOURCE,
                 context.getKubeCsarVersion());
         setKubeConfig(context, jobResourceNode);
         context.getReplacements().put(jobNode.getName(), jobResourceNode);
@@ -1268,7 +1303,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         setNodePropertyPathValue(context.getCsar(), context.getTopology(), deploymentNode, "spec.template.metadata.labels.app", deploymentName);
         setNodePropertyPathValue(context.getCsar(), context.getTopology(), deploymentNode, "spec.selector.matchLabels.app", deploymentName);
 
-        NodeTemplate deploymentResourceNode = addNodeTemplate(context.getCsar(),context.getTopology(), deploymentNode.getName() + "_Resource", K8S_TYPES_DEPLOYMENT_RESOURCE,
+        NodeTemplate deploymentResourceNode = addNodeTemplate(context.getFlowExecutionContext(), context.getCsar(),context.getTopology(), deploymentNode.getName() + "_Resource", K8S_TYPES_DEPLOYMENT_RESOURCE,
                 context.getKubeCsarVersion());
         setKubeConfig(context, deploymentResourceNode);
         context.getReplacements().put(deploymentNode.getName(), deploymentResourceNode);
@@ -1338,7 +1373,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
             }
         }
 
-        NodeTemplate serviceResourceNode = addNodeTemplate(context.getCsar(),context.getTopology(), serviceNode.getName() + "_Resource", K8S_TYPES_SERVICE_RESOURCE, context.getKubeCsarVersion());
+        NodeTemplate serviceResourceNode = addNodeTemplate(context.getFlowExecutionContext(), context.getCsar(),context.getTopology(), serviceNode.getName() + "_Resource", K8S_TYPES_SERVICE_RESOURCE, context.getKubeCsarVersion());
         setKubeConfig(context, serviceResourceNode);
         setNodeTagValue(serviceResourceNode, A4C_KUBERNETES_ADAPTER_MODIFIER_TAG_REPLACEMENT_NODE_FOR, serviceNode.getName());
 
@@ -1435,7 +1470,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
     private void createIngress(KubernetesModifierContext context, NodeTemplate ingressNode) {
         Set<RelationshipTemplate> relationshipTemplates = TopologyNavigationUtil.getTargetRelationships(ingressNode,"expose");
 
-        NodeTemplate ingressResourceNode = addNodeTemplate(context.getCsar(),context.getTopology(), ingressNode.getName() + "_Resource", K8S_TYPES_SIMPLE_RESOURCE, context.getKubeCsarVersion());
+        NodeTemplate ingressResourceNode = addNodeTemplate(context.getFlowExecutionContext(), context.getCsar(),context.getTopology(), ingressNode.getName() + "_Resource", K8S_TYPES_SIMPLE_RESOURCE, context.getKubeCsarVersion());
         setKubeConfig(context, ingressResourceNode);
         setNodeTagValue(ingressResourceNode, A4C_KUBERNETES_ADAPTER_MODIFIER_TAG_REPLACEMENT_NODE_FOR, ingressNode.getName());
 
@@ -1516,7 +1551,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
 
         if (StringUtils.isNoneEmpty(ingressCrt) && StringUtils.isNoneEmpty(ingressKey)) {
             // create the secret
-            NodeTemplate secretResourceNode = addNodeTemplate(context.getCsar(),context.getTopology(), ingressNode.getName() + "_Secret", K8S_TYPES_SIMPLE_RESOURCE, context.getKubeCsarVersion());
+            NodeTemplate secretResourceNode = addNodeTemplate(context.getFlowExecutionContext(), context.getCsar(),context.getTopology(), ingressNode.getName() + "_Secret", K8S_TYPES_SIMPLE_RESOURCE, context.getKubeCsarVersion());
             setKubeConfig(context, secretResourceNode);
 
             Map<String, AbstractPropertyValue> ingressSecretResourceNodeProperties = Maps.newHashMap();
