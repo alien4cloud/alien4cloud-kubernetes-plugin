@@ -13,12 +13,18 @@ command="kubectl --kubeconfig ${KUBE_ADMIN_CONFIG_PATH} ${NAMESPACE_OPTION}creat
 json="$INPUT_VARIABLES"
 echo "RESOURCES: $resources"
 # Iterate over files in value of $resources (the resources folder artifact)
-for file in $( ls $resources/* )
-do
-    filename=$(basename -- "$file")
-    # build the config map command end
-    command="${command} --from-file=${filename}=${file}"
-done
+env
+if [ -d $resources ]; then
+  for file in $( ls $resources/* )
+  do
+      filename=$(basename -- "$file")
+      # build the config map command end
+      command="${command} --from-file=${filename}=${file}"
+  done
+else
+  filename=$(basename -- "$resources")
+  command="${command} --from-file=${filename}=${resources}"
+fi
 
 echo "Creating secret using command: $command"
 
