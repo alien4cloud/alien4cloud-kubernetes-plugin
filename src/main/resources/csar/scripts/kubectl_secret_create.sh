@@ -11,11 +11,11 @@ fi
 command="kubectl --kubeconfig ${KUBE_ADMIN_CONFIG_PATH} ${NAMESPACE_OPTION}create secret generic ${SECRET_NAME}"
 
 json="$INPUT_VARIABLES"
+echo "RESOURCES: $resources"
 # Iterate over files in value of $resources (the resources folder artifact)
 for file in $( ls $resources/* )
 do
     filename=$(basename -- "$file")
-    filename="${filename%.*}"
     # build the config map command end
     command="${command} --from-file=${filename}=${file}"
 done
