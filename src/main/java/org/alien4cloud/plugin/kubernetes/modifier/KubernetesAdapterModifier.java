@@ -16,15 +16,12 @@ import alien4cloud.utils.YamlParserUtil;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import lombok.extern.java.Log;
 import lombok.extern.slf4j.Slf4j;
 import org.alien4cloud.alm.deployment.configuration.flow.FlowExecutionContext;
 import org.alien4cloud.alm.deployment.configuration.flow.TopologyModifierSupport;
 import org.alien4cloud.plugin.kubernetes.AbstractKubernetesModifier;
 import org.alien4cloud.plugin.kubernetes.modifier.helpers.AffinitiyHelper;
 import org.alien4cloud.plugin.kubernetes.modifier.helpers.AntiAffinityHelper;
-import org.alien4cloud.plugin.kubernetes.policies.KubePoliciesConstants;
-import org.alien4cloud.tosca.model.CSARDependency;
 import org.alien4cloud.tosca.model.Csar;
 import org.alien4cloud.tosca.model.definitions.*;
 import org.alien4cloud.tosca.model.templates.*;
@@ -42,7 +39,6 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.Resource;
 import java.util.*;
-import java.util.logging.Level;
 import java.util.stream.Stream;
 
 import static alien4cloud.utils.AlienUtils.safe;
@@ -640,6 +636,9 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
             }
             artifacts.put("resources", volumeNode.getArtifacts().get("resources"));
             addRelationshipTemplate(context, deploymentResourceNode, secretFactory.getName(), NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
+
+            // Dependency with NS
+            addDependencyOnNamespace(context,secretFactory);
         }
     }
 
@@ -1306,15 +1305,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         }
 
         // add relation to namespace if any
-        String nsNode = (String)context.getFlowExecutionContext().getExecutionCache().get(NAMESPACE_RESOURCE_NAME);
-        if (StringUtils.isNotEmpty(nsNode)) {
-           addRelationshipTemplate (context,
-                                    deploymentResourceNode,
-                                    nsNode,
-                                    NormativeRelationshipConstants.DEPENDS_ON,
-                                    "dependency",
-                                    "feature");
-        }
+        addDependencyOnNamespace(context,deploymentResourceNode);
     }
 
     private void setKubeConfig(KubernetesModifierContext context, NodeTemplate resourceNode) {
@@ -1420,16 +1411,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         }
 
         // add relation to namespace if any
-        String nsNode = (String)context.getFlowExecutionContext().getExecutionCache().get(NAMESPACE_RESOURCE_NAME);
-        if (StringUtils.isNotEmpty(nsNode)) {
-           addRelationshipTemplate (context,
-                                    serviceResourceNode,
-                                    nsNode,
-                                    NormativeRelationshipConstants.DEPENDS_ON,
-                                    "dependency",
-                                    "feature");
-        }
-
+        addDependencyOnNamespace(context,serviceResourceNode);
     }
 
     private void createIngress(KubernetesModifierContext context, NodeTemplate ingressNode) {
@@ -1563,16 +1545,19 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         }
 
         // add relation to namespace if any
-        String nsNode = (String)context.getFlowExecutionContext().getExecutionCache().get(NAMESPACE_RESOURCE_NAME);
-        if (StringUtils.isNotEmpty(nsNode)) {
-           addRelationshipTemplate (context,
-                                    ingressResourceNode,
-                                    nsNode,
-                                    NormativeRelationshipConstants.DEPENDS_ON,
-                                    "dependency",
-                                    "feature");
-        }
-
+        addDependencyOnNamespace(context,ingressResourceNode);
     }
 
+    private void addDependencyOnNamespace(KubernetesModifierContext context, NodeTemplate source) {
+        String nsNode = (String)context.getFlowExecutionContext().getExecutionCache().get(NAMESPACE_RESOURCE_NAME);
+        if (StringUtils.isNotEmpty(nsNode)) {
+            addRelationshipTemplate (
+                    context,
+                    source,
+                    nsNode,
+                    NormativeRelationshipConstants.DEPENDS_ON,
+                    "dependency",
+                    "feature");
+        }
+    }
 }
