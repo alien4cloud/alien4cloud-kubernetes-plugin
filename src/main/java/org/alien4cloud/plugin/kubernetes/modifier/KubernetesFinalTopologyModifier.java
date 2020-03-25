@@ -725,11 +725,28 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
                                 NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
                         setNodeTagValue(relationshipTemplate, A4C_KUBERNETES_MODIFIER_TAG + "_created_from",
                                 sourceContainerNode.getName() + " -> " + containerNode.getName());
+                        return;
                     }
                 }
             }
+            // else may be a classic node
+            // Just add link to the controller
+            RelationshipTemplate relationshipTemplate = addRelationshipTemplate(csar, topology,
+                sourceContainerNode, controllerResource.getName(),
+                NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
+            setNodeTagValue(relationshipTemplate, A4C_KUBERNETES_MODIFIER_TAG + "_created_from",
+                    sourceContainerNode.getName() + " -> " + containerNode.getName());
         });
 
+        // Report dependencies to the controller
+        Set<NodeTemplate> dependsOn = TopologyNavigationUtil.getTargetNodes(topology, containerNode, "dependency");
+        for (NodeTemplate targetNode : dependsOn) {
+            RelationshipTemplate relationshipTemplate = addRelationshipTemplate(csar, topology,
+                controllerResource, targetNode.getName(),
+                NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
+            setNodeTagValue(relationshipTemplate, A4C_KUBERNETES_MODIFIER_TAG + "_created_from",
+                    containerNode.getName() + " -> " + targetNode.getName());
+        }
     }
 
     private void manageContainer(Csar csar, Topology topology, NodeTemplate containerNode, Map<String, NodeTemplate> nodeReplacementMap,
