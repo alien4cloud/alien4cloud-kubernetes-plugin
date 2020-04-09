@@ -163,6 +163,15 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
                     context.getFlowExecutionContext().getExecutionCache().put(K8S_TYPES_KUBE_CLUSTER, kubeConfig);
                 }
             }
+            // if a property node_address is found on the KubeCluster node, it's saved in the cache for later use (used to set the same property on ServiceResources).
+            AbstractPropertyValue nodeAddressPV = PropertyUtil.getPropertyValueFromPath(kubeClusterNode.getProperties(), "node_address");
+            if (nodeAddressPV != null && nodeAddressPV instanceof ScalarPropertyValue) {
+                String nodeAddress = ((ScalarPropertyValue)nodeAddressPV).getValue();
+                if (StringUtils.isNotEmpty(nodeAddress)) {
+                    // Store the kube config using this key for later usage
+                    context.getFlowExecutionContext().getExecutionCache().put(K8S_TYPES_KUBE_CLUSTER + ".node_address", nodeAddress);
+                }
+            }
         }
 
         if (StringUtils.isNotEmpty(namespace)) {
@@ -1331,6 +1340,18 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
 
         NodeTemplate serviceResourceNode = addNodeTemplate(context.getCsar(),context.getTopology(), serviceNode.getName() + "_Resource", K8S_TYPES_SERVICE_RESOURCE, context.getKubeCsarVersion());
         setKubeConfig(context, serviceResourceNode);
+
+        // When a node_address has been defined on the KubeCluster, transfer it to the serviceResource (in order to be able to build the node_url)
+        Object o = context.getFlowExecutionContext().getExecutionCache().get(K8S_TYPES_KUBE_CLUSTER + ".node_address");
+        boolean shouldExposeNodeUrl = false;
+        if (o != null) {
+            String nodeAddress = o.toString();
+            if (StringUtils.isNotEmpty(nodeAddress)) {
+                shouldExposeNodeUrl = true;
+                setNodePropertyPathValue(context.getCsar(), context.getTopology(), serviceResourceNode, "node_address", new ScalarPropertyValue(nodeAddress));
+            }
+        }
+
         setNodeTagValue(serviceResourceNode, A4C_KUBERNETES_ADAPTER_MODIFIER_TAG_REPLACEMENT_NODE_FOR, serviceNode.getName());
 
         // prepare attributes
@@ -1346,6 +1367,9 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         }
         // add an output attribute with the node_port
         nodeAttributes.add("node_port");
+        if (shouldExposeNodeUrl) {
+            nodeAttributes.add("node_url");
+        }
 
         // set the value for the 'cluster_endpoint' port property
         String port = getNodeTagValueOrNull(serviceNode, A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT_PORT);
@@ -1390,13 +1414,25 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         feedPropertyValue(serviceResourceNodeProperties, "resource_def.spec", transformedValue, false);
 
         // a connection between a service and a container is transformed into a dependency with the deployment
-        Set<NodeTemplate> dependencyTargets = TopologyNavigationUtil.getTargetNodes(context.getTopology(), serviceNode, "expose");
-        for (NodeTemplate dependencyTarget : dependencyTargets) {
+        Set<RelationshipTemplate> dependencyRelationships = TopologyNavigationUtil.getTargetRelationships(serviceNode, "expose");
+        for (RelationshipTemplate dependencyRelationship : dependencyRelationships) {
+            NodeTemplate dependencyTarget = context.getTopology().getNodeTemplates().get(dependencyRelationship.getTarget());
             NodeTemplate controllerNode = TopologyNavigationUtil.getImmediateHostTemplate(context.getTopology(), dependencyTarget);
             NodeTemplate controllerResourceNode = context.getReplacements().get(controllerNode.getName());
             addRelationshipTemplate(context, serviceResourceNode, controllerResourceNode.getName(), NormativeRelationshipConstants.DEPENDS_ON,
-                        "dependency", "feature");
+                    "dependency", "feature");
+
+            // when an url_path is defined in the target endpoint, it's copied to context_path of serviceResource (in order to build the correct url)
+            Capability targetCapability = dependencyTarget.getCapabilities().get(dependencyRelationship.getTargetedCapabilityName());
+            AbstractPropertyValue urlPathPV = safe(targetCapability.getProperties()).get("url_path");
+            if (urlPathPV != null && urlPathPV instanceof ScalarPropertyValue) {
+                String urlPath = ((ScalarPropertyValue)urlPathPV).getValue();
+                if (StringUtils.isNotEmpty(urlPath)) {
+                    setNodePropertyPathValue(null, context.getTopology(), serviceResourceNode, "context_path", new ScalarPropertyValue(urlPath));
+                }
+            }
         }
+
         // explore all nodes that connect to this service
         Set<NodeTemplate> connectedSourceNodes = TopologyNavigationUtil.getSourceNodes(context.getTopology(), serviceNode, "service_endpoint");
         for (NodeTemplate connectedSourceNode : connectedSourceNodes) {

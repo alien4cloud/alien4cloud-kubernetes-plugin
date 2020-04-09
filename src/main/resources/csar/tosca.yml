@@ -2,7 +2,7 @@ tosca_definitions_version: alien_dsl_2_0_0
 
 metadata:
   template_name: org.alien4cloud.kubernetes.api
-  template_version: 3.0.0
+  template_version: 3.1.0-SNAPSHOT
   # this version will be changed at build time (see maven-replacer-plugin in pom.xml)
   template_author: alien4cloud
 
@@ -2206,10 +2206,21 @@ node_types:
       service_name:
         type: string
         required: true
+      node_address:
+        type: string
+        required: false
+        description: |
+          Address of one of the K8S cluster node, or front behind cluster (used to build a NodePort service url).
+      context_path:
+        type: string
+        required: false
+        description: |
+          If exists, the context path of the application behind the service (used to build a NodePort service url).
     attributes:
       ip_address: { get_operation_output: [SELF, Standard, create, IP_ADDRESS] }
       port: { get_operation_output: [SELF, Standard, create, PORT] }
       node_port: { get_operation_output: [SELF, Standard, create, NODE_PORT] }
+      node_url: { concat: ["http://", get_property: [SELF, node_address], ":", get_attribute: [SELF, node_port], get_property: [SELF, context_path]] }
     capabilities:
       cluster_endpoint:
         type: tosca.capabilities.Endpoint
@@ -2289,6 +2300,11 @@ node_types:
     properties:
       config:
         type: string
+        required: false
+      node_address:
+        type: string
+        description: |
+          One of the K8S node public address, or DNS name or load balancer address in front of them. Used to build an url when using NodePort services.
         required: false
     capabilities:
       k8s_endpoint:
