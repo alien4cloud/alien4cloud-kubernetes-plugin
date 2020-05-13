@@ -12,8 +12,8 @@
 
   <repositories>
     <repository>
-      <id>repo.opensource.fastconnect.org</id>
-      <url>https://fastconnect.org/maven/content/repositories/opensource</url>
+      <id>pdl-releases</id>
+      <url>https://www.portaildulibre.fr/nexus/repository/opensource-releases</url>
     </repository>
   </repositories>
 
@@ -23,19 +23,19 @@
 
   <distributionManagement>
     <repository>
-      <id>repo.opensource.fastconnect.org</id>
-      <url>https://fastconnect.org/maven/content/repositories/opensource</url>
+      <id>pdl-releases</id>
+      <url>https://www.portaildulibre.fr/nexus/repository/opensource-releases</url>
     </repository>
     <snapshotRepository>
-      <id>repo.opensource.snapshot.fastconnect.org</id>
-      <url>https://fastconnect.org/maven/content/repositories/opensource-snapshot</url>
+      <id>pdl-snapshots</id>
+      <url>https://www.portaildulibre.fr/nexus/repository/opensource-snapshots</url>
     </snapshotRepository>
   </distributionManagement>
 
   <properties>
 
     <!-- CSARs version -->
-    <org.alien4cloud.kubernetes.api.version>3.0.0</org.alien4cloud.kubernetes.api.version>
+    <org.alien4cloud.kubernetes.api.version>3.1.0-SNAPSHOT</org.alien4cloud.kubernetes.api.version>
 
     <!-- Java coverage configuration -->
     <sonar.java.coveragePlugin>jacoco</sonar.java.coveragePlugin>
