@@ -235,7 +235,7 @@ data_types:
         description: |
           Maximum number of revisions that will be maintained in the revision history. The revision history consists of all revisions not represented by a currently applied version.
       selector:
-        type: string # datetype: org.alien4cloud.kubernetes.api.datatypes.LabelSelector
+        type: org.alien4cloud.kubernetes.api.datatypes.LabelSelector
         required: false
         description: |
           Label query over pods that should match the pod count. Normally, the system sets this field for you
