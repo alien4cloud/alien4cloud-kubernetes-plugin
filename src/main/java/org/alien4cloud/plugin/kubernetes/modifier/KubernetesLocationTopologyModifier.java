@@ -8,7 +8,6 @@ import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_T
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_CONTAINER_RUNTIME;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_DOCKER_ARTIFACT_VOLUME;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_DOCKER_VOLUME;
-import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_SERVICE_NAME_PROPERTY;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ABSTRACT_ARTIFACT_VOLUME_BASE;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ABSTRACT_CONTAINER;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ABSTRACT_CONTROLLER;
