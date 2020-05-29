@@ -107,7 +107,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
                 }
             });
             // TODO: should be done in the deployment flow instead of here
-            workflowSimplifyService.reentrantSimplifyWorklow(topologyContext, topology.getWorkflows().keySet());
+            workflowSimplifyService.simplifyWorkflow(topologyContext, topology.getWorkflows().keySet());
         } catch (Exception e) {
             context.getLog().error("Couldn't process " + A4C_KUBERNETES_ADAPTER_MODIFIER_TAG);
             log.warn("Couldn't process " + A4C_KUBERNETES_ADAPTER_MODIFIER_TAG, e);
