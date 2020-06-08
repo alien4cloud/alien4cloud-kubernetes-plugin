@@ -5,6 +5,7 @@ import alien4cloud.paas.wf.TopologyContext;
 import alien4cloud.paas.wf.WorkflowSimplifyService;
 import alien4cloud.paas.wf.WorkflowsBuilderService;
 import alien4cloud.paas.wf.validation.WorkflowValidator;
+import alien4cloud.topology.TopologyService;
 import alien4cloud.tosca.context.ToscaContext;
 import alien4cloud.tosca.context.ToscaContextual;
 import alien4cloud.tosca.parser.ToscaParser;
@@ -82,6 +83,9 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
     @Resource
     private WorkflowsBuilderService workflowBuilderService;
 
+    @Resource
+    private TopologyService topologyService;
+
     @Override
     @ToscaContextual
     public void process(Topology topology, FlowExecutionContext context) {
@@ -90,24 +94,6 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         try {
             WorkflowValidator.disableValidationThreadLocal.set(true);
             doProcess(new KubernetesModifierContext(topology, context));
-            TopologyContext topologyContext = workflowBuilderService.buildCachedTopologyContext(new TopologyContext() {
-                @Override
-                public String getDSLVersion() {
-                    return ToscaParser.LATEST_DSL;
-                }
-
-                @Override
-                public Topology getTopology() {
-                    return topology;
-                }
-
-                @Override
-                public <T extends AbstractToscaType> T findElement(Class<T> clazz, String elementId) {
-                    return ToscaContext.get(clazz, elementId);
-                }
-            });
-            // TODO: should be done in the deployment flow instead of here
-            workflowSimplifyService.simplifyWorkflow(topologyContext, topology.getWorkflows().keySet());
         } catch (Exception e) {
             context.getLog().error("Couldn't process " + A4C_KUBERNETES_ADAPTER_MODIFIER_TAG);
             log.warn("Couldn't process " + A4C_KUBERNETES_ADAPTER_MODIFIER_TAG, e);
@@ -117,6 +103,11 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
     }
     private void doProcess(KubernetesModifierContext context) {
         Topology topology = context.getTopology();
+
+        long s0 = System.currentTimeMillis();
+
+        // Prepare The type loader cache
+        topologyService.prepareTypeLoaderCache(topology);
 
         // If a node of type KubeNamespace is found in the topology, get the namespace and keep the node for relationships
         NodeTemplate kubeNSNode = null;
@@ -206,17 +197,22 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
 
         // Direct Connection
         Set<NodeTemplate> containerNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_KUBECONTAINER, true);
+        log.info("KMod - {} ms",System.currentTimeMillis() - s0);
+        //TODO: 5s here
         containerNodes.forEach(nodeTemplate -> manageContainersDirectConnection(context, nodeTemplate));
-
+        log.info("KMod - {} ms",System.currentTimeMillis() - s0);
         // Create DeploymentResource for each Deployment
         Set<NodeTemplate> deploymentNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_KUBEDEPLOYMENT, false);
+        log.info("KMod - {} ms",System.currentTimeMillis() - s0);
         deploymentNodes.forEach(nodeTemplate -> createDeploymentResource(context, nodeTemplate));
-
+        log.info("KMod - {} ms",System.currentTimeMillis() - s0);
         // Manage Services
         Set<NodeTemplate> services = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_KUBE_SERVICE, true, false);
         safe(services).forEach(nodeTemplate -> manageServiceRelationship(context, nodeTemplate));
+        log.info("KMod - {} ms",System.currentTimeMillis() - s0);
+        // TODO: 4s Here
         services.forEach(nodeTemplate -> createServiceResource(context, nodeTemplate));
-
+        log.info("KMod - {} ms",System.currentTimeMillis() - s0);
         Set<NodeTemplate> ingress = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_KUBE_INGRESS, true, false);
         ingress.forEach(nodeTemplate -> createIngress(context,nodeTemplate));
 
@@ -254,16 +250,19 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         TopologyNavigationUtil.getPoliciesOfType(topology, K8S_POLICIES_AUTO_SCALING, true).forEach(
                 policyTemplate -> manageAutoScaling(context, policyTemplate)
         );
-
+        log.info("KMod - {} ms",System.currentTimeMillis() - s0);
+        // TODO: 3s here
         // remove useless nodes
         // TODO bug on node matching view since these nodes are the real matched ones
         // TODO then find a way to delete servicesNodes and deloymentNodes as they are not used
         services.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
+        log.info("KMod - {} ms",System.currentTimeMillis() - s0);
         ingress.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
-
+        log.info("KMod - {} ms",System.currentTimeMillis() - s0);
+        // TODO: 4s here
         deploymentNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
 //      jobNodes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
-
+        log.info("KMod - {} ms",System.currentTimeMillis() - s0);
         Set<NodeTemplate> volumes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_VOLUME_BASE, true);
         volumes.forEach(nodeTemplate -> removeNode(topology, nodeTemplate));
 
@@ -339,20 +338,29 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
                 }
             }
         });
+        long s0 = System.currentTimeMillis();
         relationsShips.stream().forEach(relationshipTemplate -> {
+            long s1 = System.currentTimeMillis();
             // remove the relationship
             removeRelationship(context.getCsar(), context.getTopology(), nodeTemplate.getName(), relationshipTemplate.getName());
+            //log.info("-1 manageContainersDirectConnection {} {} ms",nodeTemplate.getName(),System.currentTimeMillis() - s1);
             String targetCapabilityName = relationshipTemplate.getTargetedCapabilityName();
             NodeTemplate targetNodeTemplate = context.getTopology().getNodeTemplates().get(relationshipTemplate.getTarget());
+            //log.info("-2 manageContainersDirectConnection {} {} ms",nodeTemplate.getName(),System.currentTimeMillis() - s1);
             // add a service
             NodeTemplate serviceNode = addNodeTemplate(context.getCsar(),context.getTopology(), nodeTemplate.getName() + "_" + relationshipTemplate.getRequirementName() + "_" + targetNodeTemplate.getName() + "_" + targetCapabilityName + "_Service",
                     K8S_TYPES_KUBE_SERVICE, context.getKubeCsarVersion());
+            //log.info("-3 manageContainersDirectConnection {} {} ms",nodeTemplate.getName(),System.currentTimeMillis() - s1);
             setNodePropertyPathValue(context.getCsar(), context.getTopology(), serviceNode, "spec.service_type", new ScalarPropertyValue("ClusterIP"));
+            //log.info("-4 manageContainersDirectConnection {} {} ms",nodeTemplate.getName(),System.currentTimeMillis() - s1);
             // add a relation between the service and the target container
             addRelationshipTemplate(context, serviceNode, targetNodeTemplate.getName(), NormativeRelationshipConstants.CONNECTS_TO, "expose", targetCapabilityName);
+            //log.info("-5 manageContainersDirectConnection {} {} ms",nodeTemplate.getName(),System.currentTimeMillis() - s1);
             // add a relation between the source container and the service
             addRelationshipTemplate(context, nodeTemplate, serviceNode.getName(), NormativeRelationshipConstants.CONNECTS_TO, relationshipTemplate.getRequirementName(), "service_endpoint");
+            //log.info("-6 manageContainersDirectConnection {} {} ms",nodeTemplate.getName(),System.currentTimeMillis() - s1);
         });
+        //log.info("-- manageContainersDirectConnection {} {} ms",nodeTemplate.getName(),System.currentTimeMillis() - s0);
     }
 
     /**
