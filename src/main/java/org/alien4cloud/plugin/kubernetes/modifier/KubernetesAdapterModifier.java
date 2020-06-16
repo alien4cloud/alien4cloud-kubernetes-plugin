@@ -83,6 +83,9 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
     @Resource
     private WorkflowsBuilderService workflowBuilderService;
 
+    @Resource
+    private TopologyService topologyService;
+
     @Override
     @ToscaContextual
     public void process(Topology topology, FlowExecutionContext context) {
@@ -100,6 +103,9 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
     }
     private void doProcess(KubernetesModifierContext context) {
         Topology topology = context.getTopology();
+
+        // Cache The Type Loader
+        topologyService.prepareTypeLoaderCache(topology);
 
         // If a node of type KubeNamespace is found in the topology, get the namespace and keep the node for relationships
         NodeTemplate kubeNSNode = null;
