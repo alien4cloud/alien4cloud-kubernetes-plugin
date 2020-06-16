@@ -22,3 +22,7 @@ component_descriptors:
       Use this modifier when you don't want to design portable topology but directly use kube compliant types.
       Insert this modifier to post-matched-node-setup phase.
       http://52.30.207.58:8800
+  - bean_name: kubernetes-cleanuninstall-modifier
+    name: Kubernetes clean uninstall modifier.
+    description: >
+      Remove all delete steps of uninstall workflow when a namespace resource is found (namespace deletion will remove all K8S resources).
