@@ -1404,8 +1404,9 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
             NodeTemplate dependencyTarget = context.getTopology().getNodeTemplates().get(dependencyRelationship.getTarget());
             NodeTemplate controllerNode = TopologyNavigationUtil.getImmediateHostTemplate(context.getTopology(), dependencyTarget);
             NodeTemplate controllerResourceNode = context.getReplacements().get(controllerNode.getName());
-            addRelationshipTemplate(context, serviceResourceNode, controllerResourceNode.getName(), NormativeRelationshipConstants.DEPENDS_ON,
-                    "dependency", "feature");
+
+/*            addRelationshipTemplate(context, serviceResourceNode, controllerResourceNode.getName(), NormativeRelationshipConstants.DEPENDS_ON,
+                    "dependency", "feature");*/
 
             // when an url_path is defined in the target endpoint, it's copied to context_path of serviceResource (in order to build the correct url)
             Capability targetCapability = dependencyTarget.getCapabilities().get(dependencyRelationship.getTargetedCapabilityName());
