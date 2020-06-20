@@ -276,12 +276,10 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
             }
 
             Map<String, AbstractPropertyValue> resourceNodeProperties = context.getYamlResources().get(resourceNode.getName());
-            boolean isNamespaceSet = false;
             if (resourceNodeProperties != null && resourceNodeProperties.containsKey("resource_def")) {
                 if (providedNamespace != null) {
                     feedPropertyValue(resourceNodeProperties, "resource_def.metadata.namespace", providedNamespace, false);
                     setNodePropertyPathValue(context.getCsar(), topology, resourceNode, "namespace", new ScalarPropertyValue(providedNamespace));
-                    isNamespaceSet = true;
                 }
                 Object propertyValue = getValue(resourceNodeProperties.get("resource_def"));
                 String serializedPropertyValue = PropertyUtil.serializePropertyValue(propertyValue);
@@ -292,9 +290,9 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
             }
             if (providedNamespace != null) {
                 setNodePropertyPathValue(context.getCsar(), topology, resourceNode, "namespace", new ScalarPropertyValue(providedNamespace));
-                isNamespaceSet = true;
             }
-            if (isNamespaceSet) {
+            AbstractPropertyValue namespacePv = PropertyUtil.getPropertyValueFromPath(resourceNode.getProperties(), "namespace");
+            if (namespacePv != null && namespacePv instanceof ScalarPropertyValue && StringUtils.isNotEmpty(((ScalarPropertyValue)namespacePv).getValue())) {
                 nodeAttributes.add("namespace");
             }
 
