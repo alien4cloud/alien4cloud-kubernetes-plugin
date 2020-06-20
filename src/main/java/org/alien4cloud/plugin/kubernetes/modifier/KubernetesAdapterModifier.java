@@ -269,21 +269,35 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         //        }
 
         for (NodeTemplate resourceNode : resourceNodes) {
+            Set<String> nodeAttributes = context.getTopology().getOutputAttributes().get(resourceNode.getName());
+            if (nodeAttributes == null) {
+                nodeAttributes = Sets.newHashSet();
+                context.getTopology().getOutputAttributes().put(resourceNode.getName(), nodeAttributes);
+            }
+
             Map<String, AbstractPropertyValue> resourceNodeProperties = context.getYamlResources().get(resourceNode.getName());
+            boolean isNamespaceSet = false;
             if (resourceNodeProperties != null && resourceNodeProperties.containsKey("resource_def")) {
                 if (providedNamespace != null) {
                     feedPropertyValue(resourceNodeProperties, "resource_def.metadata.namespace", providedNamespace, false);
                     setNodePropertyPathValue(context.getCsar(), topology, resourceNode, "namespace", new ScalarPropertyValue(providedNamespace));
+                    isNamespaceSet = true;
                 }
                 Object propertyValue = getValue(resourceNodeProperties.get("resource_def"));
                 String serializedPropertyValue = PropertyUtil.serializePropertyValue(propertyValue);
                 setNodePropertyPathValue(context.getCsar(), topology, resourceNode, "resource_spec", new ScalarPropertyValue(serializedPropertyValue));
+                nodeAttributes.add("spec");
             } else {
                 setNodePropertyPathValue(context.getCsar(), topology, resourceNode, "resource_spec", new ScalarPropertyValue("N/A"));
             }
             if (providedNamespace != null) {
                 setNodePropertyPathValue(context.getCsar(), topology, resourceNode, "namespace", new ScalarPropertyValue(providedNamespace));
+                isNamespaceSet = true;
             }
+            if (isNamespaceSet) {
+                nodeAttributes.add("namespace");
+            }
+
         }
 
         // remove services that are no more target of relationships
@@ -1351,11 +1365,14 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
             context.getTopology().getOutputAttributes().put(serviceResourceNode.getName(), nodeAttributes);
         }
         // add an output attribute with the node_port
-        nodeAttributes.add("node_port");
-        if (shouldExposeNodeUrl) {
-            nodeAttributes.add("node_url");
+        AbstractPropertyValue serviceTypePV = PropertyUtil.getPropertyValueFromPath(safe(serviceNode.getProperties()), "spec.service_type");
+        if (serviceTypePV != null && serviceTypePV instanceof ScalarPropertyValue && ((ScalarPropertyValue)serviceTypePV).getValue().equals("NodePort")) {
+            // Only added for NodePort services
+            nodeAttributes.add("node_port");
+            if (shouldExposeNodeUrl) {
+                nodeAttributes.add("node_url");
+            }
         }
-
         // set the value for the 'cluster_endpoint' port property
         String port = getNodeTagValueOrNull(serviceNode, A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT_PORT);
         String portName = getNodeTagValueOrNull(serviceNode, A4C_KUBERNETES_MODIFIER_TAG_SERVICE_ENDPOINT_PORT_NAME);

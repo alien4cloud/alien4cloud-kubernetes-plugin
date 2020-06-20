@@ -1982,6 +1982,9 @@ node_types:
         required: false
         description: |
           The kube config that will be used if provided
+    attributes:
+      namespace: { get_property: [SELF, namespace] }
+      spec: { get_property: [SELF, resource_spec] }
     artifacts:
       - commons:
           type: tosca.artifacts.File
