@@ -2363,6 +2363,7 @@ capability_types:
     properties:
       base_url:
         type: string
+        required: false
         description: |
           The reverse proxy base url.
 

@@ -290,12 +290,11 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
             }
             if (providedNamespace != null) {
                 setNodePropertyPathValue(context.getCsar(), topology, resourceNode, "namespace", new ScalarPropertyValue(providedNamespace));
-            }
-            AbstractPropertyValue namespacePv = PropertyUtil.getPropertyValueFromPath(resourceNode.getProperties(), "namespace");
-            if (namespacePv != null && namespacePv instanceof ScalarPropertyValue && StringUtils.isNotEmpty(((ScalarPropertyValue)namespacePv).getValue())) {
+                nodeAttributes.add("namespace");
+            } else if (StringUtils.isNotEmpty(namespace)) {
+                setNodePropertyPathValue(context.getCsar(), topology, resourceNode, "namespace", new ScalarPropertyValue(namespace));
                 nodeAttributes.add("namespace");
             }
-
         }
 
         // remove services that are no more target of relationships
