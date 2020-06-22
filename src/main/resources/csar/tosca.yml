@@ -2219,6 +2219,11 @@ node_types:
         required: false
         description: |
           URL of the ClusterIP eventually proxied.
+      cluster_url:
+        type: string
+        required: false
+        description: |
+          URL of the ClusterIP in the cluster.
       context_path:
         type: string
         required: false
@@ -2230,6 +2235,7 @@ node_types:
       node_port: { get_operation_output: [SELF, Standard, create, NODE_PORT] }
       node_url: { concat: ["http://", get_property: [SELF, node_address], ":", get_attribute: [SELF, node_port], get_property: [SELF, context_path]] }
       url: { get_property: [SELF, url] }
+      cluster_url: { get_property: [SELF, cluster_url] }
     capabilities:
       cluster_endpoint:
         type: tosca.capabilities.Endpoint
