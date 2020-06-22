@@ -1407,7 +1407,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
                 }
                 String protocol = getTargetCapabilityPropertyValue(context.getTopology(), serviceNode, "expose", "protocol");
                 String port = getTargetCapabilityPropertyValue(context.getTopology(), serviceNode, "expose", "port");
-                String url = protocol + "://" + serviceName + "." + ".svc.cluster.local:" + port;
+                String url = protocol + "://" + serviceName + "." + namespace + ".svc.cluster.local:" + port;
                 setNodePropertyPathValue(context.getCsar(), context.getTopology(), serviceResourceNode, "cluster_url", new ScalarPropertyValue(url));
                 nodeAttributes.add("cluster_url");
 
