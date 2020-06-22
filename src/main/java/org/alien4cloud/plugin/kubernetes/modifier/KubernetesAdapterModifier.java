@@ -1375,7 +1375,9 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
                     nodeAttributes.add("node_url");
                 }
             } else if (serviceType.equals("ClusterIP")) {
-                if (ToscaTypeUtils.isOfType(nodeType, "org.alien4cloud.kubernetes.api.types.KubeServiceProxied")) {
+                String proxiedStr = PropertyUtil.getScalarPropertyValueFromPath(serviceNode.getCapabilities().get("service_endpoint").getProperties(), "proxied");
+
+                if (proxiedStr.equals("true")) {
 
                     String base_url = PropertyUtil.getScalarPropertyValueFromPath(serviceNode.getCapabilities().get("service_endpoint").getProperties(), "base_url");
                     String url_path = PropertyUtil.getScalarPropertyValueFromPath(serviceNode.getCapabilities().get("service_endpoint").getProperties(), "url_path");
