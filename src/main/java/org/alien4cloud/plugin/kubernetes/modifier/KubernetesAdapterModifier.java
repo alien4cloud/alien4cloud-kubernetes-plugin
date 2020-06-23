@@ -274,10 +274,15 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         //        }
 
         for (NodeTemplate resourceNode : resourceNodes) {
-            Set<String> nodeAttributes = context.getTopology().getOutputAttributes().get(resourceNode.getName());
+            Map<String, Set<String>> topologyAttributes = context.getTopology().getOutputAttributes();
+            if (topologyAttributes == null) {
+                topologyAttributes = Maps.newHashMap();
+                context.getTopology().setOutputAttributes(topologyAttributes);
+            }
+            Set<String> nodeAttributes = topologyAttributes.get(resourceNode.getName());
             if (nodeAttributes == null) {
                 nodeAttributes = Sets.newHashSet();
-                context.getTopology().getOutputAttributes().put(resourceNode.getName(), nodeAttributes);
+                topologyAttributes.put(resourceNode.getName(), nodeAttributes);
             }
 
             Map<String, AbstractPropertyValue> resourceNodeProperties = context.getYamlResources().get(resourceNode.getName());
