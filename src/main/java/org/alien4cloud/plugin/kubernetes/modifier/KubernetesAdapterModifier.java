@@ -36,6 +36,7 @@ import org.alien4cloud.tosca.normative.constants.ToscaFunctionConstants;
 import org.alien4cloud.tosca.utils.*;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.Resource;
@@ -85,6 +86,9 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
 
     @Resource
     private TopologyService topologyService;
+
+    @Value("${alien4cloud-kubernetes-plugin.debugK8SSpec:false}")
+    private boolean debugK8SSpec;
 
     @Override
     @ToscaContextual
@@ -295,7 +299,9 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
                 Object propertyValue = getValue(resourceNodeProperties.get("resource_def"));
                 String serializedPropertyValue = PropertyUtil.serializePropertyValue(propertyValue);
                 setNodePropertyPathValue(context.getCsar(), topology, resourceNode, "resource_spec", new ScalarPropertyValue(serializedPropertyValue));
-                nodeAttributes.add("spec");
+                if (debugK8SSpec) {
+                    nodeAttributes.add("spec");
+                }
             } else {
                 setNodePropertyPathValue(context.getCsar(), topology, resourceNode, "resource_spec", new ScalarPropertyValue("N/A"));
             }
