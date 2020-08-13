@@ -2214,11 +2214,6 @@ node_types:
         required: false
         description: |
           Address of one of the K8S cluster node, or front behind cluster (used to build a NodePort service url).
-      url:
-        type: string
-        required: false
-        description: |
-          URL of the ClusterIP eventually proxied.
       cluster_url:
         type: string
         required: false
@@ -2358,15 +2353,6 @@ capability_types:
     derived_from: org.alien4cloud.capabilities.Proxy
     description: >
       When a service need to expose a port, it should expose this capability.
-    properties:
-      proxied:
-        type: boolean
-        default: false
-      base_url:
-        type: string
-        required: false
-        description: |
-          The reverse proxy base url.
 
   org.alien4cloud.kubernetes.api.capabilities.KubeCluster:
     derived_from: tosca.capabilities.Endpoint

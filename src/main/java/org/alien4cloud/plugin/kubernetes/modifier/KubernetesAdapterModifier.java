@@ -1400,17 +1400,6 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
                     nodeAttributes.add("node_url");
                 }
             } else if (serviceType.equals("ClusterIP")) {
-                String proxiedStr = PropertyUtil.getScalarPropertyValueFromPath(serviceNode.getCapabilities().get("service_endpoint").getProperties(), "proxied");
-
-                if (proxiedStr != null && proxiedStr.equals("true")) {
-
-                    String base_url = PropertyUtil.getScalarPropertyValueFromPath(serviceNode.getCapabilities().get("service_endpoint").getProperties(), "base_url");
-                    String url_path = PropertyUtil.getScalarPropertyValueFromPath(serviceNode.getCapabilities().get("service_endpoint").getProperties(), "url_path");
-
-                    String url = ((base_url == null) ? "" : base_url) + ((url_path == null) ? "" : url_path);
-                    setNodePropertyPathValue(context.getCsar(), context.getTopology(), serviceResourceNode, "url", new ScalarPropertyValue(url));
-                    nodeAttributes.add("url");
-                }
                 // A clusterIp has a cluster URL
                 String serviceName = "";
                 if (namePropertyValue instanceof ScalarPropertyValue) {
