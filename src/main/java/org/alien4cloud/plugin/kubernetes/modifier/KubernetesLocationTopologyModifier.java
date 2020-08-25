@@ -301,6 +301,7 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         ScalarPropertyValue deploymentName = new ScalarPropertyValue(generateUniqueKubeName(context, nodeTemplate.getName()));
         setNodePropertyPathValue(csar, topology, nodeTemplate, "metadata.name", deploymentName);
         setNodePropertyPathValue(csar, topology, nodeTemplate, "spec.template.metadata.labels.app", deploymentName);
+        setNodePropertyPathValue(csar, topology, nodeTemplate, "spec.selector.matchLabels.app", deploymentName);
     }
 
 
@@ -327,6 +328,7 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
         ScalarPropertyValue deploymentName = new ScalarPropertyValue(generateUniqueKubeName(context, hostNode.getName()));
         setNodePropertyPathValue(csar, topology, hostNode, "metadata.name", deploymentName);
         setNodePropertyPathValue(csar, topology, hostNode, "spec.template.metadata.labels.app", deploymentName);
+        setNodePropertyPathValue(csar, topology, hostNode, "spec.selector.matchLabels.app", deploymentName);
         Set<NodeTemplate> hostedContainers = TopologyNavigationUtil.getSourceNodes(topology, nodeTemplate, "host");
         // we may have a single hosted container
         for (NodeTemplate containerNode : hostedContainers) {

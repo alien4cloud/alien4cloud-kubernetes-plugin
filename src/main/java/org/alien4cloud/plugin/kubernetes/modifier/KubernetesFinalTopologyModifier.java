@@ -964,6 +964,7 @@ public class KubernetesFinalTopologyModifier extends AbstractKubernetesModifier 
         String stsName = generateConsistentKubeName(statefulsetNode.getName());
         feedPropertyValue(statefulsetResourceNodeProperties, "resource_def.metadata.name", stsName, false);
         feedPropertyValue(statefulsetNode.getProperties(), "spec.template.metadata.labels.app", stsName, false);
+        feedPropertyValue(statefulsetNode.getProperties(), "spec.selector.matchLabels.app", stsName, false);
         feedPropertyValue(statefulsetNode.getProperties(), "metadata.name", stsName, false);
         AbstractPropertyValue resource_id = PropertyUtil.getPropertyValueFromPath(safe(statefulsetNode.getProperties()), "metadata.name");
         if(resource_id == null){

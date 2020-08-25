@@ -18,7 +18,7 @@
   </repositories>
 
   <scm>
-    <connection>scm:git:https://fastconnect.org/a4c-gitlab/alien4cloud-premium/alien4cloud-kubernetes-plugin.git</connection>
+    <connection>scm:git:https://github.com/alien4cloud/alien4cloud-kubernetes-plugin.git</connection>
   </scm>
 
   <distributionManagement>
@@ -35,7 +35,7 @@
   <properties>
 
     <!-- CSARs version -->
-    <org.alien4cloud.kubernetes.api.version>3.1.0-SNAPSHOT</org.alien4cloud.kubernetes.api.version>
+    <org.alien4cloud.kubernetes.api.version>3.1.0</org.alien4cloud.kubernetes.api.version>
 
     <!-- Java coverage configuration -->
     <sonar.java.coveragePlugin>jacoco</sonar.java.coveragePlugin>

@@ -2,7 +2,7 @@ tosca_definitions_version: alien_dsl_2_0_0
 
 metadata:
   template_name: org.alien4cloud.kubernetes.api
-  template_version: 3.1.0-SNAPSHOT
+  template_version: 3.1.0
   # this version will be changed at build time (see maven-replacer-plugin in pom.xml)
   template_author: alien4cloud
 
@@ -235,7 +235,7 @@ data_types:
         description: |
           Maximum number of revisions that will be maintained in the revision history. The revision history consists of all revisions not represented by a currently applied version.
       selector:
-        type: string # datetype: org.alien4cloud.kubernetes.api.datatypes.LabelSelector
+        type: org.alien4cloud.kubernetes.api.datatypes.LabelSelector
         required: false
         description: |
           Label query over pods that should match the pod count. Normally, the system sets this field for you
@@ -1982,6 +1982,9 @@ node_types:
         required: false
         description: |
           The kube config that will be used if provided
+    attributes:
+      namespace: { get_property: [SELF, namespace] }
+      spec: { get_property: [SELF, resource_spec] }
     artifacts:
       - commons:
           type: tosca.artifacts.File
@@ -2211,6 +2214,11 @@ node_types:
         required: false
         description: |
           Address of one of the K8S cluster node, or front behind cluster (used to build a NodePort service url).
+      cluster_url:
+        type: string
+        required: false
+        description: |
+          URL of the ClusterIP in the cluster.
       context_path:
         type: string
         required: false
@@ -2221,6 +2229,8 @@ node_types:
       port: { get_operation_output: [SELF, Standard, create, PORT] }
       node_port: { get_operation_output: [SELF, Standard, create, NODE_PORT] }
       node_url: { concat: ["http://", get_property: [SELF, node_address], ":", get_attribute: [SELF, node_port], get_property: [SELF, context_path]] }
+      url: { get_property: [SELF, url] }
+      cluster_url: { get_property: [SELF, cluster_url] }
     capabilities:
       cluster_endpoint:
         type: tosca.capabilities.Endpoint
@@ -2343,6 +2353,7 @@ capability_types:
     derived_from: org.alien4cloud.capabilities.Proxy
     description: >
       When a service need to expose a port, it should expose this capability.
+
   org.alien4cloud.kubernetes.api.capabilities.KubeCluster:
     derived_from: tosca.capabilities.Endpoint
     description: >
