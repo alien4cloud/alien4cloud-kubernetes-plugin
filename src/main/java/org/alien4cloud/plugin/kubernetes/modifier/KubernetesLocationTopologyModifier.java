@@ -8,6 +8,7 @@ import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_T
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_CONTAINER_RUNTIME;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_DOCKER_ARTIFACT_VOLUME;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.A4C_TYPES_DOCKER_VOLUME;
+import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_SERVICE_NAME_PROPERTY;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ABSTRACT_ARTIFACT_VOLUME_BASE;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ABSTRACT_CONTAINER;
 import static org.alien4cloud.plugin.kubernetes.modifier.KubeTopologyUtils.K8S_TYPES_ABSTRACT_CONTROLLER;
@@ -473,7 +474,8 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
             // Create the service
             NodeTemplate serviceNode = addNodeTemplate(csar, topology, containerNodeTemplate.getName() + "_" + controllerNodeTemplate.getName() + "_Service",
             K8S_TYPES_ABSTRACT_SERVICE, K8S_CSAR_VERSION);
-            setNodePropertyPathValue(csar, topology, serviceNode, "metadata.name", new ScalarPropertyValue(generateUniqueKubeName(context, serviceNode.getName())));
+            String serviceName = generateUniqueKubeName(context, serviceNode.getName());
+            setNodePropertyPathValue(csar, topology, serviceNode, "metadata.name", new ScalarPropertyValue(serviceName));
             setNodePropertyPathValue(csar, topology, serviceNode, "spec.service_type", new ScalarPropertyValue("NodePort"));
             // fill properties of service
             // get the "controller name"
@@ -481,6 +483,12 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
             setNodePropertyPathValue(csar, topology, serviceNode, "spec.selector.app", controllerName);
 
             for (String endpointName : endpointNames) {
+                // Update the K8S_SERVICE_NAME_PROPERTY capability property if exists
+                AbstractPropertyValue staticServiceName = containerNodeTemplate.getCapabilities().get(endpointName).getProperties().get(K8S_SERVICE_NAME_PROPERTY);
+                if (staticServiceName != null) {
+                    setNodeCappabilityPropertyPathValue(csar, topology, containerNodeTemplate, endpointName, K8S_SERVICE_NAME_PROPERTY, new ScalarPropertyValue(serviceName), false);
+                }
+
                 AbstractPropertyValue port = containerNodeTemplate.getCapabilities().get(endpointName).getProperties().get("port");
                 if (port == null) {
                     context.log().error("Connecting container to an external requires its endpoint port to be defined. Port of [" + containerNodeTemplate.getName()
@@ -543,6 +551,5 @@ public class KubernetesLocationTopologyModifier extends AbstractKubernetesModifi
 
         }
     }
-
 
 }
