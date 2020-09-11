@@ -3,10 +3,10 @@
   <parent>
     <groupId>alien4cloud</groupId>
     <artifactId>alien4cloud-parent</artifactId>
-    <version>3.0.0-SNAPSHOT</version>
+    <version>3.0.0-M8</version>
   </parent>
   <artifactId>alien4cloud-kubernetes-plugin</artifactId>
-  <version>3.0.0-SNAPSHOT</version>
+  <version>3.0.0-M8</version>
   <name>Alien 4 Cloud K8S plugin</name>
   <description>This plugin is used to manage transformation of containers in a topology into specific kubernetes nodes.</description>
 
