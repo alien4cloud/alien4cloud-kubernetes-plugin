@@ -621,19 +621,19 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         Map<String, AbstractPropertyValue> deploymentResourceNodeProperties = context.getYamlResources().get(deploymentResourceNode.getName());
         Map<String, Object> volumeEntry = Maps.newHashMap();
 
+        NodeType volumeNodeType = ToscaContext.get(NodeType.class, volumeNode.getType());
+
         AbstractPropertyValue volume_type = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "volume_type");
         AbstractPropertyValue volume_spec = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "spec");
+
+        PropertyDefinition propertyDefinition = volumeNodeType.getProperties().get("spec");
+
         volumeEntry.put("name", name);
-        Object volumeSpecObject = volume_spec;
-        if (volume_spec == null) {
-            // if the volume spec is null, we want an empty object (JSON : {}) in the map
-            Map<String, Object> map = Maps.newHashMap();
-            volumeSpecObject = map;
-        }
+        Object volumeSpecObject = volume_spec != null ? getTransformedValue(volume_spec,propertyDefinition,"") : Maps.newHashMap();
+
         volumeEntry.put(PropertyUtil.getScalarValue(volume_type), volumeSpecObject);
         feedPropertyValue(deploymentResourceNodeProperties, "resource_def.spec.template.spec.volumes", volumeEntry, true);
 
-        NodeType volumeNodeType = ToscaContext.get(NodeType.class, volumeNode.getType());
         if (ToscaTypeUtils.isOfType(volumeNodeType, KubeTopologyUtils.K8S_TYPES_SECRET_VOLUME)) {
             // we must create a secret, the deployment should depend on it
             NodeTemplate secretFactory = addNodeTemplate(context.getCsar(),context.getTopology(), volumeNode.getName() + "_Secret", KubeTopologyUtils.K8S_TYPES_SECRET_FACTORY,
