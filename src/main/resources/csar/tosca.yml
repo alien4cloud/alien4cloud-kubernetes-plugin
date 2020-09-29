@@ -38,6 +38,11 @@ data_types:
   #       description: |
   #         Specification of the desired behavior of the Deployment
 
+  org.alien4cloud.kubernetes.api.datatypes.Rights:
+    derived_from: string
+    constraints:
+      pattern: ^[0-7]{3}$
+
   org.alien4cloud.kubernetes.api.datatypes.LocalObjectReference:
     derived_from: tosca.datatypes.Root
     properties:
@@ -1297,13 +1302,10 @@ data_types:
           The key to project.
         required: true
       mode:
-        type: integer
+        type: org.alien4cloud.kubernetes.api.datatypes.Rights
         description: |
-          Optional: mode bits to use on created files by default. Must be a value between 0 and 0777. Defaults to 0644. Directories within the path are not affected by this setting. This might be in conflict with other options that affect the file mode, like fsGroup, and the result can be other mode bits set.        required: false
+          Optional: mode bits to use on created files by default. Must be a value between 0 and 777. Defaults to 644. Directories within the path are not affected by this setting. This might be in conflict with other options that affect the file mode, like fsGroup, and the result can be other mode bits set.        required: false
         required: false
-        constraints:
-          - greater_or_equal: 0
-          - less_or_equal: 777
       path:
         type: string
         description: |
@@ -1315,14 +1317,11 @@ data_types:
     description: see https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.11/#secretvolumesource-v1-core
     properties:
       defaultMode:
-        type: integer
+        type: org.alien4cloud.kubernetes.api.datatypes.Rights
         description: |
-          Optional: mode bits to use on created files by default. Must be a value between 0 and 0777. Defaults to 0644. Directories within the path are not affected by this setting. This might be in conflict with other options that affect the file mode, like fsGroup, and the result can be other mode bits set.        required: false
+          Optional: mode bits to use on created files by default. Must be a value between 0 and 777. Defaults to 644. Directories within the path are not affected by this setting. This might be in conflict with other options that affect the file mode, like fsGroup, and the result can be other mode bits set.        required: false
         required: false
-        default: 644
-        constraints:
-          - greater_or_equal: 0
-          - less_or_equal: 777
+        default: 420
       items:
         type: list
         entry_schema:

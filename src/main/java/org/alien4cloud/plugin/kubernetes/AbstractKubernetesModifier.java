@@ -45,6 +45,8 @@ public abstract class AbstractKubernetesModifier extends TopologyModifierSupport
     protected static final String K8S_NAMESPACE_METAPROP_NAME = "K8S_NAMESPACE";
     protected static final String K8S_PREFIX_METAPROP_NAME = "K8S_PREFIX";
 
+    protected static final String OCTAL_TYPE = "org.alien4cloud.kubernetes.api.datatypes.Rights";
+
     private static String FLOW_CACHE_KEY_K8S_PREFIX = AbstractKubernetesModifier.class.getName() + "K8S_PREFIX";
 
     @Resource
@@ -170,7 +172,11 @@ public abstract class AbstractKubernetesModifier extends TopologyModifierSupport
                     }
                 }
             } else {
-                return value;
+                if (propertyDefinition.getType().equals(OCTAL_TYPE)) {
+                    return Integer.parseInt(value.toString(),8);
+                } else {
+                    return value;
+                }
             }
         }
     }
