@@ -1321,7 +1321,7 @@ data_types:
         description: |
           Optional: mode bits to use on created files by default. Must be a value between 0 and 777. Defaults to 644. Directories within the path are not affected by this setting. This might be in conflict with other options that affect the file mode, like fsGroup, and the result can be other mode bits set.        required: false
         required: false
-        default: 420
+        default: 644
       items:
         type: list
         entry_schema:
