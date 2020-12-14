@@ -26,7 +26,6 @@ import org.alien4cloud.plugin.kubernetes.modifier.helpers.AntiAffinityHelper;
 import org.alien4cloud.tosca.model.Csar;
 import org.alien4cloud.tosca.model.definitions.*;
 import org.alien4cloud.tosca.model.templates.*;
-import org.alien4cloud.tosca.model.types.AbstractToscaType;
 import org.alien4cloud.tosca.model.types.CapabilityType;
 import org.alien4cloud.tosca.model.types.NodeType;
 import org.alien4cloud.tosca.model.types.PolicyType;
@@ -1130,51 +1129,58 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
                 Operation createOp = KubeTopologyUtils.getContainerImageOperation(containerNode);
                 if (createOp != null) {
                     safe(createOp.getInputParameters()).forEach((inputName, iValue) -> {
-                        if (iValue instanceof AbstractPropertyValue) {
-                            AbstractPropertyValue v =
-                                    resolveContainerInput(context.getTopology(), controllerResource, containerNode, functionEvaluatorContext,
-                                            serviceIpAddressesPerDeploymentResource, inputName, (AbstractPropertyValue) iValue, context.getFlowExecutionContext());
-                            if (v != null) {
-                                if (inputName.startsWith("ENV_")) {
-                                    String envKey = inputName.substring(4);
-                                    ComplexPropertyValue envEntry = new ComplexPropertyValue();
-                                    envEntry.setValue(Maps.newHashMap());
-                                    envEntry.getValue().put("name", envKey);
-                                    envEntry.getValue().put("value", v);
-                                    try {
-                                        appendNodePropertyPathValue(context.getCsar(), context.getTopology(), containerNode, "container.env", envEntry);
-                                        context.log().info("Env variable <" + envKey + "> for container <" + containerNode.getName() + "> set to value <" + serializePropertyValue(v) + ">");
-                                    } catch(Exception e) {
-                                        context.log().warn("Not able to set env variable <" + envKey + "> to value <" + serializePropertyValue(v) + "> for container <" + containerNode.getName() + ">, error was : " + e.getMessage());
-                                    }
-                                } else if (!configMapFactories.isEmpty()) {
-                                    // maybe it's a config that should be associated with a configMap
-                                    for (Map.Entry<String, List<NodeTemplate>> configMapFactoryEntry : configMapFactories.entrySet()) {
-                                        String inputPrefix = configMapFactoryEntry.getKey();
-                                        if (inputName.startsWith(inputPrefix)) {
-                                            // ok this input is related to this configMapFactory
-                                            String varName = inputName.substring(inputPrefix.length());
-                                            if (!(v instanceof ScalarPropertyValue)) {
-                                                context.log().warn("Ignoring INPUT named <" + inputName + "> for container <" + containerNode.getName() + "> because the value is not a scalar (" + serializePropertyValue(v) + ") and cannot be added to a configMap");
-                                            } else {
-                                                for (NodeTemplate configMapFactory : configMapFactoryEntry.getValue()) {
-                                                    try {
-                                                        setNodePropertyPathValue(context.getCsar(), context.getTopology(), configMapFactory, "input_variables." + varName, v);
-                                                        context.log().info("Successfully set INPUT named <" + inputName + "> with value <" + serializePropertyValue(v) + "> to configMap <" + configMapFactory.getName() + "> for container <" + containerNode.getName() + ">");
-                                                    } catch(Exception e) {
-                                                        context.log().warn("Not able to set INPUT named <" + inputName + "> with value <" + serializePropertyValue(v) + "> to configMap, <" + configMapFactory.getName() + "> for container <" + containerNode.getName() + ">, error was : " + e.getMessage());
+                        try {
+                            if (iValue instanceof AbstractPropertyValue) {
+                                AbstractPropertyValue v =
+                                        resolveContainerInput(context.getTopology(), controllerResource, containerNode, functionEvaluatorContext,
+                                                serviceIpAddressesPerDeploymentResource, inputName, (AbstractPropertyValue) iValue, context.getFlowExecutionContext());
+
+                                if (v != null) {
+                                    if (inputName.startsWith("ENV_")) {
+                                        String envKey = inputName.substring(4);
+                                        ComplexPropertyValue envEntry = new ComplexPropertyValue();
+                                        envEntry.setValue(Maps.newHashMap());
+                                        envEntry.getValue().put("name", envKey);
+                                        envEntry.getValue().put("value", v);
+                                        try {
+                                            appendNodePropertyPathValue(context.getCsar(), context.getTopology(), containerNode, "container.env", envEntry);
+                                            context.log().info("Env variable <" + envKey + "> for container <" + containerNode.getName() + "> set to value <" + serializePropertyValue(v) + ">");
+                                        } catch (Exception e) {
+                                            context.log().warn("Not able to set env variable <" + envKey + "> to value <" + serializePropertyValue(v) + "> for container <" + containerNode.getName() + ">, error was : " + e.getMessage());
+                                        }
+                                    } else if (!configMapFactories.isEmpty()) {
+                                        // maybe it's a config that should be associated with a configMap
+                                        for (Map.Entry<String, List<NodeTemplate>> configMapFactoryEntry : configMapFactories.entrySet()) {
+                                            String inputPrefix = configMapFactoryEntry.getKey();
+                                            if (inputName.startsWith(inputPrefix)) {
+                                                // ok this input is related to this configMapFactory
+                                                String varName = inputName.substring(inputPrefix.length());
+                                                if (!(v instanceof ScalarPropertyValue)) {
+                                                    context.log().warn("Ignoring INPUT named <" + inputName + "> for container <" + containerNode.getName() + "> because the value is not a scalar (" + serializePropertyValue(v) + ") and cannot be added to a configMap");
+                                                } else {
+                                                    for (NodeTemplate configMapFactory : configMapFactoryEntry.getValue()) {
+                                                        try {
+                                                            setNodePropertyPathValue(context.getCsar(), context.getTopology(), configMapFactory, "input_variables." + varName, v);
+                                                            context.log().info("Successfully set INPUT named <" + inputName + "> with value <" + serializePropertyValue(v) + "> to configMap <" + configMapFactory.getName() + "> for container <" + containerNode.getName() + ">");
+                                                        } catch (Exception e) {
+                                                            context.log().warn("Not able to set INPUT named <" + inputName + "> with value <" + serializePropertyValue(v) + "> to configMap, <" + configMapFactory.getName() + "> for container <" + containerNode.getName() + ">, error was : " + e.getMessage());
+                                                        }
                                                     }
                                                 }
+                                                break;
                                             }
-                                            break;
                                         }
                                     }
+                                } else {
+                                    context.log().warn("Not able to define value for input <" + inputName + "> (" + serializePropertyValue((AbstractPropertyValue) iValue) + ") of container <" + containerNode.getName() + ">");
                                 }
                             } else {
-                                context.log().warn("Not able to define value for input <" + inputName + "> (" + serializePropertyValue((AbstractPropertyValue)iValue) + ") of container <" + containerNode.getName() + ">");
+                                context.log().warn("Input <" + inputName + "> of container <" + containerNode.getName() + "> is ignored since it's not of type AbstractPropertyValue but " + iValue.getClass().getSimpleName());
                             }
-                        } else {
-                            context.log().warn("Input <" + inputName + "> of container <" + containerNode.getName() + "> is ignored since it's not of type AbstractPropertyValue but " + iValue.getClass().getSimpleName());
+                        } catch(IllegalArgumentException e) {
+                            String msg = String.format("Cannot resolve input <%s> of container <%s>, error is : %s" ,inputName,containerNode.getName(),e.getMessage());
+                            context.log().error(msg);
+                            throw e;
                         }
                     });
                 }
