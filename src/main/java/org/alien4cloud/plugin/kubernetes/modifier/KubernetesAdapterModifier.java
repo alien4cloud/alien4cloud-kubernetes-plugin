@@ -406,29 +406,44 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
             // should never occur
             return;
         }
-        // we have one and only one relationship (occurrence 1-1)
-        RelationshipTemplate relationshipTemplate = exposeRelationships.iterator().next();
-        NodeTemplate targetContainer = context.getTopology().getNodeTemplates().get(relationshipTemplate.getTarget());
-        Capability targetCapability = targetContainer.getCapabilities().get(relationshipTemplate.getTargetedCapabilityName());
-        // get the hosting node
-        NodeTemplate controllerNode = TopologyNavigationUtil.getImmediateHostTemplate(context.getTopology(), targetContainer);
+        // A service can export multiple port from the same container
+        Iterator<RelationshipTemplate> rti = exposeRelationships.iterator();
+        String targetName = null;
+        while(rti.hasNext()) {
+            RelationshipTemplate relationshipTemplate = rti.next();
+            if (targetName == null) {
+                targetName = relationshipTemplate.getTarget();
+            } else {
+                if (!targetName.equals(relationshipTemplate.getTarget())) {
+                    String msg = String.format("A given service (%s) can't expose multiple ports from different containers", serviceNode.getName());
+                    context.getFlowExecutionContext().getLog().error(msg);
+                    throw new UnsupportedOperationException();
+                }
+            }
 
-        // fill properties of service
-        setNodePropertyPathValue(context.getCsar(), context.getTopology(), serviceNode, "metadata.name", new ScalarPropertyValue(generateUniqueKubeName(context.getFlowExecutionContext(), serviceNode.getName())));
-        // get the "pod name"
-        AbstractPropertyValue podName = PropertyUtil.getPropertyValueFromPath(safe(controllerNode.getProperties()), "metadata.name");
-        setNodePropertyPathValue(context.getCsar(), context.getTopology(), serviceNode, "spec.selector.app", podName);
+            NodeTemplate targetContainer = context.getTopology().getNodeTemplates().get(relationshipTemplate.getTarget());
+            Capability targetCapability = targetContainer.getCapabilities().get(relationshipTemplate.getTargetedCapabilityName());
+            // get the hosting node
+            NodeTemplate controllerNode = TopologyNavigationUtil.getImmediateHostTemplate(context.getTopology(), targetContainer);
 
-        AbstractPropertyValue port = targetCapability.getProperties().get("port");
-        String portName = generateKubeName(relationshipTemplate.getTargetedCapabilityName());
+            // fill properties of service
+            setNodePropertyPathValue(context.getCsar(), context.getTopology(), serviceNode, "metadata.name", new ScalarPropertyValue(generateUniqueKubeName(context.getFlowExecutionContext(), serviceNode.getName())));
+            // get the "pod name"
+            AbstractPropertyValue podName = PropertyUtil.getPropertyValueFromPath(safe(controllerNode.getProperties()), "metadata.name");
+            setNodePropertyPathValue(context.getCsar(), context.getTopology(), serviceNode, "spec.selector.app", podName);
 
-        // fill port list
-        Map<String, Object> portEntry = Maps.newHashMap();
-        portEntry.put("name", new ScalarPropertyValue(portName));
-        portEntry.put("targetPort", new ScalarPropertyValue(portName));
-        portEntry.put("port", port);
-        ComplexPropertyValue complexPropertyValue = new ComplexPropertyValue(portEntry);
-        appendNodePropertyPathValue(context.getCsar(), context.getTopology(), serviceNode, "spec.ports", complexPropertyValue);
+            AbstractPropertyValue port = targetCapability.getProperties().get("port");
+            String portName = generateKubeName(relationshipTemplate.getTargetedCapabilityName());
+
+            // fill port list
+            Map<String, Object> portEntry = Maps.newHashMap();
+            portEntry.put("name", new ScalarPropertyValue(portName));
+            portEntry.put("targetPort", new ScalarPropertyValue(portName));
+            portEntry.put("port", port);
+            ComplexPropertyValue complexPropertyValue = new ComplexPropertyValue(portEntry);
+            appendNodePropertyPathValue(context.getCsar(), context.getTopology(), serviceNode, "spec.ports", complexPropertyValue);
+        }
+
     }
 
     /**

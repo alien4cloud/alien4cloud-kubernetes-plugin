@@ -1673,7 +1673,7 @@ node_types:
           capability: org.alien4cloud.kubernetes.api.capabilities.KubeEndpoint
           # use a RouteTo relationship ?
           relationship: tosca.relationships.ConnectsTo
-          occurrences: [1, 1]
+          occurrences: [1, unbounded]
 
   # deprecated
   org.alien4cloud.kubernetes.api.types.KubeNodeportService:
