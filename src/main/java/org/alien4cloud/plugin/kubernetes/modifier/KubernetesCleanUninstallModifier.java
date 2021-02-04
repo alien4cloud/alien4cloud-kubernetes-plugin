@@ -52,7 +52,7 @@ import static org.alien4cloud.plugin.kubernetes.policies.KubePoliciesConstants.*
 import static org.alien4cloud.tosca.utils.ToscaTypeUtils.isOfType;
 
 /**
- * Remove delete steps for nodes when a namespace resource is found.
+ * Remove delete steps for nodes when some namespace resources are found and resource is related to a name resource.
  */
 @Slf4j
 @Component(value = "kubernetes-cleanuninstall-modifier")
@@ -111,7 +111,8 @@ public class KubernetesCleanUninstallModifier extends AbstractKubernetesModifier
         topologyService.prepareTypeLoaderCache(topology);
 
         Map<String, NodeTemplate> nodeTemplatesToBoost = Maps.newHashMap();
-        boolean nameSpaceResourceFound = false;
+        // all the namespace resources found in the topology
+        Set<String> namespaces = Sets.newHashSet();
         Set<NodeTemplate> resourcesNodes = TopologyNavigationUtil.getNodesOfType(topology, K8S_TYPES_BASE_RESOURCE, true);
         for (NodeTemplate resourceNode : resourcesNodes) {
 
@@ -120,7 +121,8 @@ public class KubernetesCleanUninstallModifier extends AbstractKubernetesModifier
             if (apv != null && apv instanceof ScalarPropertyValue) {
                 String resourceType = ((ScalarPropertyValue)apv).getValue();
                 if (resourceType.equals("namespaces")) {
-                    nameSpaceResourceFound = true;
+                    String namespace = PropertyUtil.getScalarPropertyValueFromPath(resourceNode.getProperties(), "namespace");
+                    namespaces.add(namespace);
                     thisIsNameSpaceResource = true;
                 }
             }
@@ -129,11 +131,16 @@ public class KubernetesCleanUninstallModifier extends AbstractKubernetesModifier
             }
         }
 
-        if (!nameSpaceResourceFound) {
+        if (namespaces.isEmpty()) {
             // No namespace resource found, do nothing
             return;
         }
         if (!nodeTemplatesToBoost.isEmpty()) {
+            // remove from boost candidates resource nodes that don't target found namespaces
+            nodeTemplatesToBoost.entrySet().removeIf(nodeTemplateEntry -> {
+                String namespace = PropertyUtil.getScalarPropertyValueFromPath(nodeTemplateEntry.getValue().getProperties(), "namespace");
+                return namespace == null || !namespaces.contains(namespace);
+            });
             removeDeleteOperations(nodeTemplatesToBoost, topology);
         }
 
