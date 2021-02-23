@@ -1673,7 +1673,7 @@ node_types:
           capability: org.alien4cloud.kubernetes.api.capabilities.KubeEndpoint
           # use a RouteTo relationship ?
           relationship: tosca.relationships.ConnectsTo
-          occurrences: [1, 1]
+          occurrences: [1, unbounded]
 
   # deprecated
   org.alien4cloud.kubernetes.api.types.KubeNodeportService:
@@ -2269,7 +2269,7 @@ node_types:
         constraints:
           # for the moment managed types are: PersistenceVolumeClaim (pvc), HorizontalPodAutoscaler (hpa)
           # Cf. https://kubernetes.io/docs/reference/kubectl/overview/ section 'Resource types'
-          - valid_values: [pvc, hpa, ing, namespaces, networkpolicy, role, rolebinding, serviceaccount]
+          - valid_values: [pvc, hpa, ing, namespaces, networkpolicy, role, rolebinding, serviceaccount, mutatingwebhookconfiguration]
       resource_id:
         type: string
         required: true
