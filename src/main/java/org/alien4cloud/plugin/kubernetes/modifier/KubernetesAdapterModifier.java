@@ -712,6 +712,9 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
                 feedPropertyValue(volumeNode.getProperties(), "spec.claimName", claimName, false);
                 // add a relationship between the deployment and this claim
                 addRelationshipTemplate(context, deploymentResourceNode, volumeClaimResource.getName(), NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
+
+                // Dependency with NS
+                addDependencyOnNamespace(context, volumeClaimResource);
             }
         }
     }
