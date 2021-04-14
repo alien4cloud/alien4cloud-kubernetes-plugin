@@ -37,8 +37,9 @@ function deploy_resource(){
     echo "${KUBE_RESOURCE_DEPLOYMENT_CONFIG}" > "${DEPLOYMENT_TMP_FILE}"
 
     # deploy
-    export KUBE_DEPLOYMENT_ID=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" create -f "${DEPLOYMENT_TMP_FILE}" -o jsonpath="{.metadata.name}")
+    KUBE_DEPLOYMENT_ID=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" create -f "${DEPLOYMENT_TMP_FILE}" -o jsonpath="{.metadata.name}")
     export DEPLOYMENT_STATUS=$?
+    export KUBE_DEPLOYMENT_ID
 
     # cleanup
     rm "${DEPLOYMENT_TMP_FILE}"
@@ -47,7 +48,7 @@ function deploy_resource(){
 
     command="kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" ${NAMESPACE_OPTION}get deployment ${KUBE_DEPLOYMENT_ID} -o=jsonpath='{.status.conditions[?(@.type==\"Available\")].status}'"
 
-    wait_until_done_or_exit "$command" 60
+    # wait_until_done_or_exit "$command" 60
 }
 
 function scale_resource() {
