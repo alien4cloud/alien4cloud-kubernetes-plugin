@@ -786,6 +786,9 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
 
         // clear metrics and add
         feedPropertyValue(podAutoScalerResourceNodeProperties, "resource_def.spec.metrics", cleanMetricsBaseOnType((List<Object>) transformed.get("metrics")), false);
+
+        // add relation to namespace if any
+        addDependencyOnNamespace(context, podAutoScalerResourceNode);
     }
 
     private void manageAffinity(KubernetesModifierContext context, PolicyTemplate policyTemplate) {
