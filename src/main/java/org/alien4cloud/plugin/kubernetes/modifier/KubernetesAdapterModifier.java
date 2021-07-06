@@ -708,6 +708,9 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
                     AbstractPropertyValue storageClassNameProperty = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "storageClassName");
                     feedPropertyValue(volumeClaimResourceNodeProperties, "resource_def.spec.storageClassName", storageClassNameProperty, false);
                 }
+                // add selector
+                AbstractPropertyValue selectorProperty = PropertyUtil.getPropertyValueFromPath(volumeNode.getProperties(), "selector");
+                feedPropertyValue(volumeClaimResourceNodeProperties, "resource_def.spec.selector", selectorProperty, false);
                 // finally set the claimName of the volume node
                 feedPropertyValue(volumeNode.getProperties(), "spec.claimName", claimName, false);
                 // add a relationship between the deployment and this claim
