@@ -173,6 +173,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
                                                 context.getKubeCsarVersion());
            /* store node name in cache to be used for relations */
            context.getFlowExecutionContext().getExecutionCache().put(NAMESPACE_RESOURCE_NAME, NAMESPACE_RESOURCE_NAME);
+           context.getFlowExecutionContext().getExecutionCache().put("namespace", namespace);
 
            setNodePropertyPathValue(null,topology,kubeNSResourceNode,"resource_type",new ScalarPropertyValue("namespaces"));
 
@@ -718,6 +719,28 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
 
                 // Dependency with NS
                 addDependencyOnNamespace(context, volumeClaimResource);
+
+                // add node to free PV only if selector is set
+                if ((selectorProperty != null) && (selectorProperty instanceof ComplexPropertyValue)) {
+                   NodeTemplate volumeResource = addNodeTemplate(context.getCsar(),context.getTopology(), volumeNode.getName() + "_Volume", KubeTopologyUtils.K8S_TYPES_PV,
+                           context.getKubeCsarVersion());
+                   setKubeConfig(context, volumeResource);
+                   String namespace = (String)context.getFlowExecutionContext().getExecutionCache().get("namespace");
+                   if (namespace != null) {
+                      addRelationshipTemplate(context, context.getTopology().getNodeTemplates().get(NAMESPACE_RESOURCE_NAME),
+                                              volumeResource.getName(), NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
+                   } else {
+                      addRelationshipTemplate(context, volumeClaimResource,
+                                              volumeResource.getName(), NormativeRelationshipConstants.DEPENDS_ON, "dependency", "feature");
+                   }
+                   Map<String,Object> currentMap = ((ComplexPropertyValue) selectorProperty).getValue();
+                   Map<String,Object> labels = (Map<String,Object>)currentMap.get("matchLabels");
+                   Map.Entry<String,Object> label = labels.entrySet().iterator().next();
+                   feedPropertyValue(volumeResource.getProperties(), "label_name", new ScalarPropertyValue(label.getKey()), false);
+                   Object value = label.getValue();
+                   ScalarPropertyValue valuePV = (value instanceof ScalarPropertyValue ? (ScalarPropertyValue)value : new ScalarPropertyValue((String)value));
+                   feedPropertyValue(volumeResource.getProperties(), "label_value", valuePV, false);
+                }
             }
         }
     }

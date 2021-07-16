@@ -2346,6 +2346,39 @@ node_types:
         description: |
            namespace metadata
 
+  org.alien4cloud.kubernetes.api.types.PersistentVolume:
+    derived_from: tosca.nodes.Root
+    description: >
+      Represent a kubernetes persistent volume. Used to free the PV from its associated PVC on undeployment.
+    properties:
+      kube_config:
+        type: string
+        required: false
+        description: |
+          The kube config that will be used if provided
+      label_name:
+        type: string
+        required: false
+        description: |
+          PV label name
+      label_value:
+        type: string
+        required: false
+        description: |
+          PV label value
+    artifacts:
+      - commons:
+          type: tosca.artifacts.File
+          file: scripts/commons.sh
+    interfaces:
+      Standard:
+        delete:
+          inputs:
+            KUBE_CONFIG: { get_property: [SELF, kube_config] }
+            LABEL_NAME: { get_property: [SELF, label_name] }
+            LABEL_VALUE: { get_property: [SELF, label_value] }
+          implementation: scripts/kubectl_pv_detach.sh
+
 capability_types:
   org.alien4cloud.kubernetes.api.capabilities.KubeContainerHost:
     derived_from: tosca.capabilities.Container

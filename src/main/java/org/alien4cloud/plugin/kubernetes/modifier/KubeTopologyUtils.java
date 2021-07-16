@@ -61,6 +61,8 @@ public class KubeTopologyUtils {
     public static final String K8S_TYPES_VOLUMES_CLAIM = "org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimSource";
     public static final String K8S_TYPES_VOLUMES_CLAIM_SC = "org.alien4cloud.kubernetes.api.types.volume.PersistentVolumeClaimStorageClassSource";
     public static final String K8S_TYPES_SECRET_VOLUME = "org.alien4cloud.kubernetes.api.types.volume.SecretSource";
+
+    public static final String K8S_TYPES_PV = "org.alien4cloud.kubernetes.api.types.PersistentVolume";
     // K8S resource types
     public static final String K8S_TYPES_DEPLOYMENT_RESOURCE = "org.alien4cloud.kubernetes.api.types.DeploymentResource";
     public static final String K8S_TYPES_STATEFULSET_RESOURCE = "org.alien4cloud.kubernetes.api.types.StatefulSetResource";
