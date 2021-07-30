@@ -16,6 +16,12 @@ function detach_pv(){
      exit 1
    fi
    command="kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" get pv -l ${LABEL_NAME}=${LABEL_VALUE} -o jsonpath={..status.phase}"
+   cmd_output=$(echo $command | sh)
+   cmd_code=$?
+   if [ "${cmd_code}" -eq "0" ] && [ "${cmd_output}" == "Available" ]; then
+     clear_resources
+     exit 0
+   fi
    KUBE_JSON_PATH_VALUE=Released
    wait_until_done_or_exit "$command" 60
    PV_NAME=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" get pv -l ${LABEL_NAME}=${LABEL_VALUE} -o jsonpath={..metadata.name})
