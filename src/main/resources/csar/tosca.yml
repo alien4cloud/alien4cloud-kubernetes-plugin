@@ -1360,6 +1360,12 @@ data_types:
         type: string
         description: where to to find the files that will be used to create the configMap.
         required: true
+      defaultMode:
+        type: org.alien4cloud.kubernetes.api.datatypes.Rights
+        description: |
+          Optional: mode bits on files. Must be a value between 0 and 777. Defaults to 644.
+        required: false
+        default: 644
 
 node_types:
 

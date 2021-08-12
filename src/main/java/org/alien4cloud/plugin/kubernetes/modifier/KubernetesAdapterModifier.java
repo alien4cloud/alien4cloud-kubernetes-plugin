@@ -1114,6 +1114,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
                                 String mount_subPath = config_setting_map.get("mount_subPath");
                                 String input_prefix = config_setting_map.get("input_prefix");
                                 String config_path = config_setting_map.get("config_path");
+                                String sMode = config_setting_map.get("defaultMode");
 
                                 NodeTemplate configMapFactoryNode = addNodeTemplate(context.getCsar(),context.getTopology(), containerNode.getName() + "_ConfigMap_" + input_prefix, KubeTopologyUtils.K8S_TYPES_CONFIG_MAP_FACTORY,
                                         context.getKubeCsarVersion());
@@ -1145,6 +1146,9 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
                                 Map<String, Object> volumeEntry = Maps.newHashMap();
                                 Map<String, Object> volumeSpec = Maps.newHashMap();
                                 volumeSpec.put("name", configMapName);
+                                if (sMode != null) {
+                                   volumeSpec.put("defaultMode", Integer.parseInt(sMode, 8));
+                                }
                                 volumeEntry.put("name", configMapName);
                                 volumeEntry.put("configMap", volumeSpec);
                                 feedPropertyValue(controllerResourceNodeProperties, "resource_def.spec.template.spec.volumes", volumeEntry, true);
