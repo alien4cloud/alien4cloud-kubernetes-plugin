@@ -19,11 +19,17 @@ function detach_pv(){
    cmd_output=$(echo $command | sh)
    cmd_code=$?
    if [ "${cmd_code}" -eq "0" ] && [ "${cmd_output}" == "Available" ]; then
+     echo PV has status: ${cmd_output}
      clear_resources
      exit 0
    fi
    KUBE_JSON_PATH_VALUE=Released
-   wait_until_done_or_exit "$command" 60
+   wait_until_done "$command" 60
+   if [ "${cmd_output}" != "${KUBE_JSON_PATH_VALUE}" ]; then
+     echo WARNING: PV is not in ${KUBE_JSON_PATH_VALUE} status.
+     clear_resources
+     exit 0
+   fi
    PV_NAME=$(kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" get pv -l ${LABEL_NAME}=${LABEL_VALUE} -o jsonpath={..metadata.name})
    echo PV: $PV_NAME
    if [ -z "$PV_NAME" ]; then
@@ -35,7 +41,7 @@ function detach_pv(){
    RC=$?
 }
 
-function wait_until_done_or_exit {
+function wait_until_done {
   command=$1
   max_retries=$2
 
@@ -51,11 +57,9 @@ function wait_until_done_or_exit {
   done
 
   if [ "${retries}" -eq "${max_retries}" ] ; then
-    echo "Giving up waiting for resource to be in the expected status. Reached max retries (=$max_retries)"
-    clear_resources
-    exit 1
+    echo "Giving up waiting for PV resource to be in the ${KUBE_JSON_PATH_VALUE} status. Reached max retries (=$max_retries)"
   fi
-  echo $cmd_output
+  echo PV status: $cmd_output
 }
 
 detach_pv
