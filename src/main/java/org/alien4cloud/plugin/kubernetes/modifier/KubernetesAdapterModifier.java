@@ -905,7 +905,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         return metrics;
     }
 
-    private AbstractPropertyValue resolveContainerInput(Topology topology, NodeTemplate deploymentResource, NodeTemplate nodeTemplate,
+    protected static AbstractPropertyValue resolveContainerInput(Topology topology, NodeTemplate deploymentResource, NodeTemplate nodeTemplate,
             FunctionEvaluatorContext functionEvaluatorContext, Map<String,
             List<String>> serviceIpAddressesPerDeploymentResource, String inputName,
             AbstractPropertyValue iValue, FlowExecutionContext context) {
@@ -924,9 +924,14 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
             }
             return new ScalarPropertyValue(sb.toString());
         }
-        if (iValue instanceof FunctionPropertyValue && ((FunctionPropertyValue)iValue).getTemplateName().endsWith(ToscaFunctionConstants.TARGET)) {
+        if (iValue instanceof FunctionPropertyValue) {
             FunctionPropertyValue fpv = (FunctionPropertyValue)iValue;
-            Optional<AbstractPropertyValue> pv = resolveTargetFunction(topology, deploymentResource, nodeTemplate, functionEvaluatorContext, serviceIpAddressesPerDeploymentResource, fpv, context);
+            Optional<AbstractPropertyValue> pv = Optional.empty();
+            if (fpv.getTemplateName().endsWith(ToscaFunctionConstants.TARGET)) {
+                pv = resolveTargetFunction(topology, deploymentResource, nodeTemplate, functionEvaluatorContext, serviceIpAddressesPerDeploymentResource, fpv, context);
+            } else if (fpv.getTemplateName().equals(ToscaFunctionConstants.SOURCE)) {
+                pv = resolveSourceFunction(topology, nodeTemplate, functionEvaluatorContext, fpv, context);
+            }
             if (pv.isPresent()) {
                 return pv.get();
             }
@@ -947,7 +952,48 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         return null;
     }
 
-    private Optional<AbstractPropertyValue> resolveTargetFunction(Topology topology, NodeTemplate deploymentResource, NodeTemplate nodeTemplate,
+    protected static Optional<AbstractPropertyValue> resolveSourceFunction(Topology topology, NodeTemplate nodeTemplate,
+                                                                  FunctionEvaluatorContext functionEvaluatorContext,
+                                                                  FunctionPropertyValue fpv, FlowExecutionContext context) {
+        if (fpv.getParameters().size() < 3 || fpv.getParameters().size() > 4) {
+            // we have an issue
+            return Optional.empty();
+        }
+        // for a get_property SOURCE in this context, the #1 param is the capability name of the target node
+        String capabilityName = fpv.getParameters().get(1);
+        Set<NodeTemplate> sourceNodes = TopologyNavigationUtil.getSourceNodes(topology, nodeTemplate, capabilityName);
+        if (sourceNodes.isEmpty()) {
+            // we have an issue
+            return Optional.empty();
+        } else if (sourceNodes.size() > 1) {
+            // alert
+        }
+        // we take the first node in source list
+        NodeTemplate sourceNode = sourceNodes.iterator().next();
+
+        Map<String, AbstractPropertyValue> properties = null;
+        if (fpv.getParameters().size() == 3) {
+            // only 3 parameter, we search for a node property
+            properties = sourceNode.getProperties();
+        } else if (fpv.getParameters().size() == 4) {
+            // 4 parameters, #2 is a capability name, we search for a capability property
+            String nodeCapabilityName = fpv.getParameters().get(2);
+            Capability capability = sourceNode.getCapabilities().get(nodeCapabilityName);
+            properties = capability.getProperties();
+        }
+
+        List<String> params = new ArrayList<>();
+        params.add(ToscaFunctionConstants.SELF);
+        params.addAll(fpv.getParameters().subList(2, fpv.getParameters().size()));
+        FunctionPropertyValue newFunc = new FunctionPropertyValue(fpv.getFunction(), params);
+        AbstractPropertyValue pv = FunctionEvaluator.tryResolveValue(functionEvaluatorContext, sourceNode, properties, newFunc);
+        if (pv != null) {
+            return Optional.of(pv);
+        }
+        return Optional.empty();
+    }
+
+    protected static Optional<AbstractPropertyValue> resolveTargetFunction(Topology topology, NodeTemplate deploymentResource, NodeTemplate nodeTemplate,
                                                                   FunctionEvaluatorContext functionEvaluatorContext, Map<String, List<String>> serviceIpAddressesPerDeploymentResource,
                                                                   FunctionPropertyValue fpv, FlowExecutionContext context) {
         Optional<AbstractPropertyValue> result = Optional.empty();
@@ -1003,7 +1049,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         return Optional.empty();
     }
 
-    private String resolveIpAddress(FunctionEvaluatorContext functionEvaluatorContext, NodeTemplate sourceNode, NodeTemplate targetNode, NodeType targetNodeType, RelationshipTemplate targetRelationship, Map<String, List<String>> serviceIpAddressesPerDeploymentResource, NodeTemplate deploymentResource) {
+    private static String resolveIpAddress(FunctionEvaluatorContext functionEvaluatorContext, NodeTemplate sourceNode, NodeTemplate targetNode, NodeType targetNodeType, RelationshipTemplate targetRelationship, Map<String, List<String>> serviceIpAddressesPerDeploymentResource, NodeTemplate deploymentResource) {
         if (ToscaTypeUtils.isOfType(targetNodeType, K8S_TYPES_KUBECONTAINER)) {
             // the target is a container
             if (TopologyNavigationUtil.getImmediateHostTemplate(functionEvaluatorContext.getTopology(), sourceNode)
@@ -1025,7 +1071,7 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
         return null;
     }
 
-    private AbstractPropertyValue resolveProxyfiedTargetFunction(FunctionPropertyValue fpv, FunctionEvaluatorContext functionEvaluatorContext, NodeTemplate node, Capability capability, RelationshipTemplate relationship, String elementNameToFetch, boolean searchForCapabilityElement) {
+    private static AbstractPropertyValue resolveProxyfiedTargetFunction(FunctionPropertyValue fpv, FunctionEvaluatorContext functionEvaluatorContext, NodeTemplate node, Capability capability, RelationshipTemplate relationship, String elementNameToFetch, boolean searchForCapabilityElement) {
         // a proxy capability proxify a requirement having the same name (by convention)
         // TODO: secure it !
         String proxyfiedRequirement = ((ScalarPropertyValue)capability.getProperties().get("proxy_for")).getValue();
