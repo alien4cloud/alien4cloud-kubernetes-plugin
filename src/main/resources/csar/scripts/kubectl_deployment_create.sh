@@ -31,6 +31,16 @@ function resolve_service_dependencies_variables(){
 }
 
 function deploy_resource(){
+    kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" ${NAMESPACE_OPTION}get deployment "${KUBE_DEPLOYMENT_ID}"
+    rc=$?
+    if [ "${rc}" -eq 0 ]
+    then
+       echo "Deployment ${KUBE_DEPLOYMENT_ID} already exists"
+       clear_resources
+       exit 0
+    fi
+    echo "Deployment ${KUBE_DEPLOYMENT_ID} does not exist, it will be created"
+
     DEPLOYMENT_TMP_FILE=$(mktemp)
 
     # create resource deployment definition

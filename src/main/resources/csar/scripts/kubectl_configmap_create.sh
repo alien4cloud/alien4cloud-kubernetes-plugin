@@ -48,6 +48,16 @@ if [ ! -d "$configs" ]; then
     exit 1;
 fi
 
+kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" ${NAMESPACE_OPTION}get configmap "${CONFIGMAP_NAME}" 
+rc=$?
+if [ "${rc}" -eq 0 ]
+then
+  echo "Configmap ${CONFIGMAP_NAME} already exists"
+  clear_resources
+  exit 0
+fi
+echo "Configmap ${CONFIGMAP_NAME} does not exist, it will be created"
+
 command="kubectl --kubeconfig ${KUBE_ADMIN_CONFIG_PATH} ${NAMESPACE_OPTION}create configmap ${CONFIGMAP_NAME}"
 
 json="$INPUT_VARIABLES"

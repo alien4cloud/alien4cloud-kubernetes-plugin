@@ -13,6 +13,16 @@ if [ ! -z "$NAMESPACE" ]; then
 fi
 
 function deploy_service(){
+    kubectl --kubeconfig "${KUBE_ADMIN_CONFIG_PATH}" ${NAMESPACE_OPTION}get services "${KUBE_SERVICE_NAME}" 
+    rc=$?
+    if [ "${rc}" -eq 0 ]
+    then
+       echo "Service ${KUBE_SERVICE_NAME} already exists"
+       clear_resources
+       exit 0
+    fi
+    echo "Service ${KUBE_SERVICE_NAME} does not exist, it will be created"
+
     SERVICE_CONFIG_TMP_FILE=$(mktemp)
 
     # create kube service config file

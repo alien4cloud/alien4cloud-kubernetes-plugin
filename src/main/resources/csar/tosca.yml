@@ -2034,6 +2034,7 @@ node_types:
       Standard:
         create:
           inputs:
+            KUBE_DEPLOYMENT_ID: { get_property: [SELF, resource_id] }
             KUBE_SERVICE_DEPENDENCIES: { get_property: [SELF, service_dependency_lookups] }
             KUBE_RESOURCE_DEPLOYMENT_CONFIG: { get_property: [SELF, resource_spec] }
             NAMESPACE: { get_property: [SELF, namespace] }
