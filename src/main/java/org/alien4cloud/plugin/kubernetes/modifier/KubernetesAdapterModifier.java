@@ -924,6 +924,52 @@ public class KubernetesAdapterModifier extends AbstractKubernetesModifier {
             }
             return new ScalarPropertyValue(sb.toString());
         }
+        if (iValue instanceof TokenPropertyValue) {
+            TokenPropertyValue tpv = (TokenPropertyValue) iValue;
+            List<AbstractPropertyValue> parameters = tpv.getParameters();
+            if (parameters == null || parameters.size() != 3) {
+                context.getLog().warn("Not able to handle token function for input <" + inputName + "> (" + serializePropertyValue(tpv)+ ") of container <" + nodeTemplate.getName() + "> : token must have exactly 3 parameters");
+                return null;
+            }
+            AbstractPropertyValue stringWithTokensAPV = parameters.get(0);
+            AbstractPropertyValue resolvedStringWithTokensAPV = resolveContainerInput(topology, deploymentResource, nodeTemplate, functionEvaluatorContext,
+                    serviceIpAddressesPerDeploymentResource, inputName, stringWithTokensAPV, context);
+
+            if (!(resolvedStringWithTokensAPV instanceof ScalarPropertyValue)) {
+                context.getLog().warn("Not able to handle token function for input <" + inputName + "> (" + serializePropertyValue(tpv)+ ") of container <" + nodeTemplate.getName() + "> : 1st parameter should be resolvable has a scalar but is not : " + serializePropertyValue(resolvedStringWithTokensAPV));
+                return null;
+            }
+            String stringWithTokens = ((ScalarPropertyValue)resolvedStringWithTokensAPV).getValue();
+
+            AbstractPropertyValue stringOfTokenCharsAPV = parameters.get(1);
+            if (!(stringOfTokenCharsAPV instanceof ScalarPropertyValue)) {
+                context.getLog().warn("Not able to handle token function for input <" + inputName + "> (" + serializePropertyValue(tpv)+ ") of container <" + nodeTemplate.getName() + "> : 2nd parameter should be a scalar but is not  : " + serializePropertyValue(stringOfTokenCharsAPV));
+                return null;
+            }
+            String stringOfTokenChars = ((ScalarPropertyValue)stringOfTokenCharsAPV).getValue();
+
+            AbstractPropertyValue substringIndexAPV = parameters.get(2);
+            if (!(substringIndexAPV instanceof ScalarPropertyValue)) {
+                context.getLog().warn("Not able to handle token function for input <" + inputName + "> (" + serializePropertyValue(tpv)+ ") of container <" + nodeTemplate.getName() + "> : 3nd parameter should be a scalar but is not  : " + serializePropertyValue(substringIndexAPV));
+                return null;
+            }
+            String substringIndexStr = ((ScalarPropertyValue)substringIndexAPV).getValue();
+
+            int substringIndex = -1;
+            try {
+                substringIndex = Integer.parseInt(substringIndexStr);
+            } catch(NumberFormatException nfe) {
+                context.getLog().warn("Not able to handle token function for input <" + inputName + "> (" + serializePropertyValue(tpv)+ ") of container <" + nodeTemplate.getName() + "> : 3nd parameter should be an integer but is not  : " + substringIndexStr);
+                return null;
+            }
+
+            String[] splitedString = StringUtils.split(stringWithTokens, stringOfTokenChars);
+            if (substringIndex > splitedString.length - 1) {
+                context.getLog().warn("Not able to handle token function for input <" + inputName + "> (" + serializePropertyValue(tpv)+ ") of container <" + nodeTemplate.getName() + "> : index out off bound, we have + " + splitedString.length + " token but ask for #" + substringIndex);
+                return null;
+            }
+            return new ScalarPropertyValue(splitedString[substringIndex]);
+        }
         if (iValue instanceof FunctionPropertyValue) {
             FunctionPropertyValue fpv = (FunctionPropertyValue)iValue;
             Optional<AbstractPropertyValue> pv = Optional.empty();
